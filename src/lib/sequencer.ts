@@ -18,6 +18,13 @@ export const MIN_PITCH = -24;
 export const MAX_PITCH = 24;
 export const DEFAULT_PITCH = 0;
 
+/** Filter cutoffs span the audible range. */
+export const MIN_FILTER_HZ = 20;
+export const MAX_FILTER_HZ = 20000;
+/** Defaults sit at the extremes, where both filters are bypassed. */
+export const DEFAULT_LOW_CUT_HZ = MIN_FILTER_HZ;
+export const DEFAULT_HIGH_CUT_HZ = MAX_FILTER_HZ;
+
 /** Per-channel sample loading state. */
 export type SampleState =
   | { status: "empty" }
@@ -50,6 +57,10 @@ export type Channel = {
   volume: number;
   /** Pitch offset in semitones, applied via playback rate. */
   pitch: number;
+  /** Highpass cutoff; at MIN_FILTER_HZ the filter is bypassed. */
+  lowCutHz: number;
+  /** Lowpass cutoff; at MAX_FILTER_HZ the filter is bypassed. */
+  highCutHz: number;
   sample: SampleState;
 };
 
@@ -66,6 +77,8 @@ export function createInitialChannels(): Channel[] {
     length: DEFAULT_STEP_COUNT,
     volume: DEFAULT_VOLUME,
     pitch: DEFAULT_PITCH,
+    lowCutHz: DEFAULT_LOW_CUT_HZ,
+    highCutHz: DEFAULT_HIGH_CUT_HZ,
     sample: { status: "empty" },
   }));
 }
@@ -97,6 +110,44 @@ export function clampPitch(value: number): number {
 /** Semitone offset as a playback-rate multiplier (12 semitones = 2x). */
 export function playbackRateForPitch(semitones: number): number {
   return Math.pow(2, clampPitch(semitones) / 12);
+}
+
+export function clampFrequency(value: number): number {
+  if (!Number.isFinite(value)) return MIN_FILTER_HZ;
+  return Math.min(Math.max(Math.round(value), MIN_FILTER_HZ), MAX_FILTER_HZ);
+}
+
+const FILTER_HZ_RATIO = MAX_FILTER_HZ / MIN_FILTER_HZ;
+
+/**
+ * Cutoffs map to a 0..1 slider position logarithmically. A linear frequency
+ * slider would cram everything musically useful into the leftmost sliver.
+ */
+export function frequencyToSlider(hz: number): number {
+  return (
+    Math.log(clampFrequency(hz) / MIN_FILTER_HZ) / Math.log(FILTER_HZ_RATIO)
+  );
+}
+
+export function sliderToFrequency(position: number): number {
+  const clamped = Math.min(Math.max(position, 0), 1);
+  return clampFrequency(MIN_FILTER_HZ * Math.pow(FILTER_HZ_RATIO, clamped));
+}
+
+/** At the extremes the filter would be inaudible, so it is skipped entirely. */
+export function isLowCutBypassed(hz: number): boolean {
+  return clampFrequency(hz) <= MIN_FILTER_HZ;
+}
+
+export function isHighCutBypassed(hz: number): boolean {
+  return clampFrequency(hz) >= MAX_FILTER_HZ;
+}
+
+export function formatFrequency(hz: number): string {
+  const clamped = clampFrequency(hz);
+  return clamped >= 1000
+    ? `${(clamped / 1000).toFixed(1)} kHz`
+    : `${clamped} Hz`;
 }
 
 /**

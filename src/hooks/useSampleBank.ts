@@ -7,6 +7,10 @@ type TriggerOptions = {
   gain?: number;
   /** Playback rate multiplier; also changes pitch. */
   playbackRate?: number;
+  /** Highpass cutoff in Hz. Omit to skip the filter entirely. */
+  lowCutHz?: number;
+  /** Lowpass cutoff in Hz. Omit to skip the filter entirely. */
+  highCutHz?: number;
 };
 
 /**
@@ -38,18 +42,36 @@ export function useSampleBank() {
   }, []);
 
   /**
-   * Decodes `file` for `channelId` and returns the buffer so the caller can
-   * derive display data from it. Throws if the file isn't decodable audio.
+   * Decodes raw audio bytes into `channelId`'s slot and returns the buffer, so
+   * callers can derive display data from it. Throws if the bytes aren't audio.
    */
-  const loadSample = useCallback(
-    async (channelId: string, file: File): Promise<AudioBuffer> => {
+  const decodeInto = useCallback(
+    async (channelId: string, data: ArrayBuffer): Promise<AudioBuffer> => {
       const context = ensureContext();
-      const arrayBuffer = await file.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
+      const audioBuffer = await context.decodeAudioData(data);
       buffersRef.current.set(channelId, audioBuffer);
       return audioBuffer;
     },
     [ensureContext],
+  );
+
+  /** Loads a user-picked file. */
+  const loadSample = useCallback(
+    async (channelId: string, file: File): Promise<AudioBuffer> =>
+      decodeInto(channelId, await file.arrayBuffer()),
+    [decodeInto],
+  );
+
+  /** Loads a bundled sample, e.g. a preset kit under `public/`. */
+  const loadSampleFromUrl = useCallback(
+    async (channelId: string, url: string): Promise<AudioBuffer> => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${url}: ${response.status}`);
+      }
+      return decodeInto(channelId, await response.arrayBuffer());
+    },
+    [decodeInto],
   );
 
   const removeSample = useCallback((channelId: string) => {
@@ -61,7 +83,7 @@ export function useSampleBank() {
     (
       channelId: string,
       time: number,
-      { gain = 1, playbackRate = 1 }: TriggerOptions = {},
+      { gain = 1, playbackRate = 1, lowCutHz, highCutHz }: TriggerOptions = {},
     ) => {
       const context = contextRef.current;
       const buffer = buffersRef.current.get(channelId);
@@ -71,16 +93,40 @@ export function useSampleBank() {
       source.buffer = buffer;
       source.playbackRate.value = playbackRate;
 
-      // A gain node per hit, so changing volume never retunes a playing note.
+      // Fresh nodes per hit, so a knob move never retunes an already-playing note.
+      let tail: AudioNode = source;
+
+      if (lowCutHz !== undefined) {
+        const highpass = context.createBiquadFilter();
+        highpass.type = "highpass";
+        highpass.frequency.value = lowCutHz;
+        tail.connect(highpass);
+        tail = highpass;
+      }
+
+      if (highCutHz !== undefined) {
+        const lowpass = context.createBiquadFilter();
+        lowpass.type = "lowpass";
+        lowpass.frequency.value = highCutHz;
+        tail.connect(lowpass);
+        tail = lowpass;
+      }
+
       const gainNode = context.createGain();
       gainNode.gain.value = gain;
 
-      source.connect(gainNode);
+      tail.connect(gainNode);
       gainNode.connect(context.destination);
       source.start(time);
     },
     [],
   );
 
-  return { ensureContext, loadSample, removeSample, trigger };
+  return {
+    ensureContext,
+    loadSample,
+    loadSampleFromUrl,
+    removeSample,
+    trigger,
+  };
 }

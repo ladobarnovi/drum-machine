@@ -4,20 +4,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
+import PresetPicker from "./PresetPicker";
 import Transport from "./Transport";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSequencer } from "@/hooks/useSequencer";
 import {
+  CHANNEL_COUNT,
   DEFAULT_BPM,
   channelIdForIndex,
   clampChannelName,
+  clampFrequency,
   clampLength,
   clampPitch,
   clampVolume,
   createInitialChannels,
+  isHighCutBypassed,
+  isLowCutBypassed,
   playbackRateForPitch,
   type Channel,
 } from "@/lib/sequencer";
+import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
 import { computePeaks } from "@/lib/waveform";
 
 export default function DrumMachine() {
@@ -27,7 +33,15 @@ export default function DrumMachine() {
     channelIdForIndex(0),
   );
 
-  const { ensureContext, loadSample, removeSample, trigger } = useSampleBank();
+  const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
+
+  const {
+    ensureContext,
+    loadSample,
+    loadSampleFromUrl,
+    removeSample,
+    trigger,
+  } = useSampleBank();
 
   // The scheduler runs outside React's render cycle, so it reads the current
   // pattern through a ref rather than through a captured prop.
@@ -45,6 +59,13 @@ export default function DrumMachine() {
           trigger(channel.id, time, {
             gain: clampVolume(channel.volume),
             playbackRate: playbackRateForPitch(channel.pitch),
+            // Undefined skips the filter node entirely when it would be inaudible.
+            lowCutHz: isLowCutBypassed(channel.lowCutHz)
+              ? undefined
+              : clampFrequency(channel.lowCutHz),
+            highCutHz: isHighCutBypassed(channel.highCutHz)
+              ? undefined
+              : clampFrequency(channel.highCutHz),
           });
         }
       }
@@ -152,6 +173,79 @@ export default function DrumMachine() {
     [updateChannel],
   );
 
+  const handleLowCutChange = useCallback(
+    (channelId: string, hz: number) => {
+      updateChannel(channelId, { lowCutHz: clampFrequency(hz) });
+    },
+    [updateChannel],
+  );
+
+  const handleHighCutChange = useCallback(
+    (channelId: string, hz: number) => {
+      updateChannel(channelId, { highCutHz: clampFrequency(hz) });
+    },
+    [updateChannel],
+  );
+
+  /**
+   * Fills the leading channels with a kit: names and loading state are applied
+   * up front in one pass, then each sample resolves independently so a single
+   * missing file can't stall the rest of the kit. Step patterns are untouched.
+   */
+  const handleLoadPreset = useCallback(
+    async (preset: Preset) => {
+      // Create the audio context while still inside the click gesture.
+      ensureContext();
+      setLoadingPresetId(preset.id);
+
+      const slots = preset.slots.slice(0, CHANNEL_COUNT);
+
+      setChannels((prev) =>
+        prev.map((channel, index) => {
+          const slot = slots[index];
+          if (!slot) return channel;
+          return {
+            ...channel,
+            name: clampChannelName(slot.channelName),
+            sample: { status: "loading", name: slot.file },
+          };
+        }),
+      );
+
+      await Promise.all(
+        slots.map(async (slot, index) => {
+          const channelId = channelIdForIndex(index);
+          try {
+            const buffer = await loadSampleFromUrl(
+              channelId,
+              presetSlotUrl(preset, slot),
+            );
+            updateChannel(channelId, {
+              sample: {
+                status: "loaded",
+                name: slot.file,
+                peaks: computePeaks(buffer),
+                durationSeconds: buffer.duration,
+              },
+            });
+          } catch (error) {
+            console.error(`Failed to load preset sample ${slot.file}`, error);
+            removeSample(channelId);
+            updateChannel(channelId, {
+              sample: {
+                status: "error",
+                message: "Couldn't load preset sample",
+              },
+            });
+          }
+        }),
+      );
+
+      setLoadingPresetId(null);
+    },
+    [ensureContext, loadSampleFromUrl, removeSample, updateChannel],
+  );
+
   const canPlay = channels.some(
     (channel) => channel.sample.status === "loaded",
   );
@@ -177,6 +271,12 @@ export default function DrumMachine() {
         onBpmChange={setBpm}
       />
 
+      <PresetPicker
+        presets={PRESETS}
+        loadingPresetId={loadingPresetId}
+        onLoadPreset={(preset) => void handleLoadPreset(preset)}
+      />
+
       <ChannelGrid
         channels={channels}
         selectedChannelId={selectedChannel.id}
@@ -199,6 +299,8 @@ export default function DrumMachine() {
         }
         onPitchChange={(pitch) => handlePitchChange(selectedChannel.id, pitch)}
         onNameChange={(name) => handleNameChange(selectedChannel.id, name)}
+        onLowCutChange={(hz) => handleLowCutChange(selectedChannel.id, hz)}
+        onHighCutChange={(hz) => handleHighCutChange(selectedChannel.id, hz)}
       />
     </div>
   );
