@@ -35,7 +35,13 @@ export const PRESET_909: Preset = {
 
 export const PRESETS: Preset[] = [PRESET_909];
 
-/** Sample filenames contain spaces, so the segment is encoded for the URL. */
+/**
+ * Sample filenames contain spaces, so the segment is encoded for the URL.
+ * `preset.directory` is root-relative, so the deployed base path (e.g.
+ * "/drum-machine" on GitHub Pages) has to be prepended by hand — Next.js
+ * only rewrites `next/link` and `next/image`, not plain fetch URLs.
+ */
 export function presetSlotUrl(preset: Preset, slot: PresetSlot): string {
-  return `${preset.directory}/${encodeURIComponent(slot.file)}`;
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  return `${basePath}${preset.directory}/${encodeURIComponent(slot.file)}`;
 }

@@ -37,6 +37,47 @@ export const MAX_DECAY_SECONDS = 2;
 export const DEFAULT_ATTACK_SECONDS = MIN_ATTACK_SECONDS;
 export const DEFAULT_DECAY_SECONDS = MAX_DECAY_SECONDS;
 
+/**
+ * How much of a channel is tapped off to a send bus. Sends are taken after the
+ * channel's own volume, so turning a channel down takes its delay and reverb
+ * with it and the balance of the mix survives the move.
+ */
+export const MIN_SEND = 0;
+export const MAX_SEND = 1;
+/** Sends start closed, so a fresh kit is dry until something is dialled in. */
+export const DEFAULT_SEND = 0;
+
+/**
+ * Delay times, in seconds. The floor is above the few milliseconds where a
+ * delay stops being an echo and starts being a comb filter; the ceiling is two
+ * seconds, which is a whole bar of 4/4 at 120 BPM.
+ */
+export const MIN_DELAY_SECONDS = 0.02;
+export const MAX_DELAY_SECONDS = 2;
+/** A dotted eighth at 120 BPM — the setting delay is most often reached for. */
+export const DEFAULT_DELAY_SECONDS = 0.375;
+
+/**
+ * How much of the delay's output is fed back in. Strictly below 1: at unity the
+ * loop would sustain forever and past it the repeats would grow without bound
+ * until the output clipped.
+ */
+export const MIN_FEEDBACK = 0;
+export const MAX_FEEDBACK = 0.9;
+export const DEFAULT_FEEDBACK = 0.35;
+
+/** How long the reverb tail takes to fall away, in seconds. */
+export const MIN_REVERB_DECAY_SECONDS = 0.2;
+export const MAX_REVERB_DECAY_SECONDS = 8;
+export const DEFAULT_REVERB_DECAY_SECONDS = 2;
+
+/**
+ * Lowpass on the reverb's output. Darkening the tail is what keeps a reverb
+ * sitting behind a kit instead of washing over the hats, so it defaults part
+ * way down rather than wide open.
+ */
+export const DEFAULT_REVERB_TONE_HZ = 6000;
+
 /** How hard the summed channels are pushed into saturation. */
 export const MIN_DRIVE = 0;
 export const MAX_DRIVE = 1;
@@ -111,6 +152,51 @@ export const DEFAULT_MASTER_FILTER: MasterFilter = {
   highCutHz: DEFAULT_HIGH_CUT_HZ,
 };
 
+/**
+ * The delay bus. Unlike drive and filter this is a *send* effect: nothing is
+ * routed through it, channels tap a copy of themselves into it, and its output
+ * is mixed back alongside the dry signal. So `level` is the whole of the
+ * bypass — at zero the bus is simply not heard, and the dry mix is untouched.
+ */
+export type MasterDelay = {
+  enabled: boolean;
+  /** Time between repeats. */
+  timeSeconds: number;
+  /** How much of each repeat feeds the next one. */
+  feedback: number;
+  /** Return level, on the same scale as a channel's volume. */
+  level: number;
+};
+
+/**
+ * Starts silent but already dialled in, so raising a channel's send after
+ * switching the bus on is enough to hear something.
+ */
+export const DEFAULT_MASTER_DELAY: MasterDelay = {
+  enabled: false,
+  timeSeconds: DEFAULT_DELAY_SECONDS,
+  feedback: DEFAULT_FEEDBACK,
+  level: DEFAULT_VOLUME,
+};
+
+/** The reverb bus, sent to and returned exactly like the delay. */
+export type MasterReverb = {
+  enabled: boolean;
+  /** How long the tail takes to fall away. */
+  decaySeconds: number;
+  /** Lowpass cutoff on the tail; at MAX_FILTER_HZ the tail is undamped. */
+  toneHz: number;
+  /** Return level, on the same scale as a channel's volume. */
+  level: number;
+};
+
+export const DEFAULT_MASTER_REVERB: MasterReverb = {
+  enabled: false,
+  decaySeconds: DEFAULT_REVERB_DECAY_SECONDS,
+  toneHz: DEFAULT_REVERB_TONE_HZ,
+  level: DEFAULT_VOLUME,
+};
+
 /** Per-channel sample loading state. */
 export type SampleState =
   | { status: "empty" }
@@ -154,6 +240,10 @@ export type Channel = {
    * MAX_DECAY_SECONDS the envelope is bypassed and the sample rings out in full.
    */
   decaySeconds: number;
+  /** How much of this channel is tapped off to the delay bus. */
+  delaySend: number;
+  /** How much of this channel is tapped off to the reverb bus. */
+  reverbSend: number;
   /** Silences this channel on its own. */
   muted: boolean;
   /** While any channel is soloed, every channel that isn't goes silent. */
@@ -178,6 +268,8 @@ export function createInitialChannels(): Channel[] {
     highCutHz: DEFAULT_HIGH_CUT_HZ,
     attackSeconds: DEFAULT_ATTACK_SECONDS,
     decaySeconds: DEFAULT_DECAY_SECONDS,
+    delaySend: DEFAULT_SEND,
+    reverbSend: DEFAULT_SEND,
     muted: false,
     soloed: false,
     sample: { status: "empty" },
@@ -205,6 +297,13 @@ export function triggerOptionsForChannel(channel: Channel) {
     decaySeconds: isDecayBypassed(channel.decaySeconds)
       ? undefined
       : clampDecay(channel.decaySeconds),
+    // A closed send costs nothing to skip, so the tap node is never built.
+    delaySend: isSendClosed(channel.delaySend)
+      ? undefined
+      : clampSend(channel.delaySend),
+    reverbSend: isSendClosed(channel.reverbSend)
+      ? undefined
+      : clampSend(channel.reverbSend),
   };
 }
 
@@ -253,6 +352,34 @@ export function clampDriveType(value: string): DriveType {
   return DRIVE_TYPES.includes(value as DriveType)
     ? (value as DriveType)
     : DEFAULT_DRIVE_TYPE;
+}
+
+export function clampSend(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_SEND;
+  return Math.min(Math.max(value, MIN_SEND), MAX_SEND);
+}
+
+/** A closed send feeds the bus nothing, so the tap is skipped entirely. */
+export function isSendClosed(value: number): boolean {
+  return clampSend(value) <= MIN_SEND;
+}
+
+export function clampDelaySeconds(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_DELAY_SECONDS;
+  return Math.min(Math.max(value, MIN_DELAY_SECONDS), MAX_DELAY_SECONDS);
+}
+
+export function clampFeedback(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_FEEDBACK;
+  return Math.min(Math.max(value, MIN_FEEDBACK), MAX_FEEDBACK);
+}
+
+export function clampReverbDecay(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_REVERB_DECAY_SECONDS;
+  return Math.min(
+    Math.max(value, MIN_REVERB_DECAY_SECONDS),
+    MAX_REVERB_DECAY_SECONDS,
+  );
 }
 
 export function clampPitch(value: number): number {

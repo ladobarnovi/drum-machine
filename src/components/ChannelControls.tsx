@@ -3,11 +3,14 @@
 import ControlSlider from "./ControlSlider";
 import {
   MAX_PITCH,
+  MAX_SEND,
   MAX_VOLUME,
   MIN_PITCH,
+  MIN_SEND,
   MIN_VOLUME,
   attackToSlider,
   clampPitch,
+  clampSend,
   clampVolume,
   decayToSlider,
   formatFrequency,
@@ -29,15 +32,22 @@ type ChannelControlsProps = {
   highCutHz: number;
   attackSeconds: number;
   decaySeconds: number;
+  delaySend: number;
+  reverbSend: number;
   onVolumeChange: (volume: number) => void;
   onPitchChange: (pitch: number) => void;
   onLowCutChange: (hz: number) => void;
   onHighCutChange: (hz: number) => void;
   onAttackChange: (seconds: number) => void;
   onDecayChange: (seconds: number) => void;
+  onDelaySendChange: (amount: number) => void;
+  onReverbSendChange: (amount: number) => void;
 };
 
-/** Volume, pitch, filters, and the amplitude envelope for the selected channel. */
+/**
+ * Volume, pitch, filters, the amplitude envelope, and the two send amounts for
+ * the selected channel.
+ */
 export default function ChannelControls({
   volume,
   pitch,
@@ -45,12 +55,16 @@ export default function ChannelControls({
   highCutHz,
   attackSeconds,
   decaySeconds,
+  delaySend,
+  reverbSend,
   onVolumeChange,
   onPitchChange,
   onLowCutChange,
   onHighCutChange,
   onAttackChange,
   onDecayChange,
+  onDelaySendChange,
+  onReverbSendChange,
 }: ChannelControlsProps) {
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -120,6 +134,27 @@ export default function ChannelControls({
           isDecayBypassed(decaySeconds) ? "Off" : formatSeconds(decaySeconds)
         }
         onChange={(position) => onDecayChange(sliderToDecay(position))}
+      />
+
+      {/* How much of this channel is fed to each master send bus. */}
+      <ControlSlider
+        label="Delay"
+        min={MIN_SEND}
+        max={MAX_SEND}
+        step={0.01}
+        value={delaySend}
+        readout={`${Math.round(delaySend * 100)}%`}
+        onChange={(value) => onDelaySendChange(clampSend(value))}
+      />
+
+      <ControlSlider
+        label="Reverb"
+        min={MIN_SEND}
+        max={MAX_SEND}
+        step={0.01}
+        value={reverbSend}
+        readout={`${Math.round(reverbSend * 100)}%`}
+        onChange={(value) => onReverbSendChange(clampSend(value))}
       />
     </div>
   );

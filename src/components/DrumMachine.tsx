@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
+import MasterDelayControls from "./MasterDelayControls";
 import MasterDriveControls from "./MasterDriveControls";
 import MasterFilterControls from "./MasterFilterControls";
+import MasterReverbControls from "./MasterReverbControls";
 import PresetPicker from "./PresetPicker";
 import Sidebar, { SIDEBAR_ID } from "./Sidebar";
 import Transport from "./Transport";
@@ -16,8 +18,10 @@ import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
 import {
   CHANNEL_COUNT,
   DEFAULT_BPM,
+  DEFAULT_MASTER_DELAY,
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
+  DEFAULT_MASTER_REVERB,
   channelIdForIndex,
   clampAttack,
   clampChannelName,
@@ -25,14 +29,17 @@ import {
   clampFrequency,
   clampLength,
   clampPitch,
+  clampSend,
   clampVolume,
   createInitialChannels,
   hasSoloedChannel,
   isChannelAudible,
   triggerOptionsForChannel,
   type Channel,
+  type MasterDelay,
   type MasterDrive,
   type MasterFilter,
+  type MasterReverb,
 } from "@/lib/sequencer";
 import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
 import { computePeaks } from "@/lib/waveform";
@@ -53,11 +60,18 @@ export default function DrumMachine() {
   const [masterFilter, setMasterFilter] = useState<MasterFilter>(
     DEFAULT_MASTER_FILTER,
   );
+  const [masterDelay, setMasterDelay] =
+    useState<MasterDelay>(DEFAULT_MASTER_DELAY);
+  const [masterReverb, setMasterReverb] = useState<MasterReverb>(
+    DEFAULT_MASTER_REVERB,
+  );
 
   const {
     ensureContext,
     applyMasterDrive,
     applyMasterFilter,
+    applyMasterDelay,
+    applyMasterReverb,
     loadSample,
     loadSampleFromUrl,
     removeSample,
@@ -73,6 +87,16 @@ export default function DrumMachine() {
   useEffect(() => {
     applyMasterFilter(masterFilter);
   }, [applyMasterFilter, masterFilter]);
+
+  // The send buses are persistent too. Only the per-channel send amounts are
+  // read at trigger time, since those ride the voice rather than the bus.
+  useEffect(() => {
+    applyMasterDelay(masterDelay);
+  }, [applyMasterDelay, masterDelay]);
+
+  useEffect(() => {
+    applyMasterReverb(masterReverb);
+  }, [applyMasterReverb, masterReverb]);
 
   // The scheduler runs outside React's render cycle, so it reads the current
   // pattern through a ref rather than through a captured prop.
@@ -286,6 +310,20 @@ export default function DrumMachine() {
     [updateChannel],
   );
 
+  const handleDelaySendChange = useCallback(
+    (channelId: string, amount: number) => {
+      updateChannel(channelId, { delaySend: clampSend(amount) });
+    },
+    [updateChannel],
+  );
+
+  const handleReverbSendChange = useCallback(
+    (channelId: string, amount: number) => {
+      updateChannel(channelId, { reverbSend: clampSend(amount) });
+    },
+    [updateChannel],
+  );
+
   /**
    * Fills the leading channels with a kit: names and loading state are applied
    * up front in one pass, then each sample resolves independently so a single
@@ -381,7 +419,19 @@ export default function DrumMachine() {
           onBpmChange={setBpm}
         />
 
-        {/* Master FX in signal-chain order: drive first, then the cuts. */}
+        {/*
+          Master FX in signal-chain order. The two send buses come first
+          because their returns rejoin at the master input, so the drive and
+          the cuts below them are working on the repeats and the tail as well
+          as on the dry channels.
+        */}
+        <MasterDelayControls delay={masterDelay} onChange={setMasterDelay} />
+
+        <MasterReverbControls
+          reverb={masterReverb}
+          onChange={setMasterReverb}
+        />
+
         <MasterDriveControls drive={masterDrive} onChange={setMasterDrive} />
 
         <MasterFilterControls
@@ -461,6 +511,12 @@ export default function DrumMachine() {
             }
             onDecayChange={(seconds) =>
               handleDecayChange(selectedChannel.id, seconds)
+            }
+            onDelaySendChange={(amount) =>
+              handleDelaySendChange(selectedChannel.id, amount)
+            }
+            onReverbSendChange={(amount) =>
+              handleReverbSendChange(selectedChannel.id, amount)
             }
           />
         </div>

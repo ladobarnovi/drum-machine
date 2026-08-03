@@ -5,14 +5,24 @@ import { useCallback, useEffect, useRef } from "react";
 import {
   DEFAULT_HIGH_CUT_HZ,
   DEFAULT_LOW_CUT_HZ,
+  DEFAULT_MASTER_DELAY,
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
+  DEFAULT_MASTER_REVERB,
+  DEFAULT_REVERB_TONE_HZ,
+  MAX_DELAY_SECONDS,
+  clampDelaySeconds,
   clampDrive,
+  clampFeedback,
   clampFrequency,
+  clampReverbDecay,
+  clampSend,
   clampVolume,
   type DriveType,
+  type MasterDelay,
   type MasterDrive,
   type MasterFilter,
+  type MasterReverb,
 } from "@/lib/sequencer";
 
 type TriggerOptions = {
@@ -28,6 +38,10 @@ type TriggerOptions = {
   attackSeconds?: number;
   /** Fade-out time in seconds, after the attack. Omit to let the sample ring out. */
   decaySeconds?: number;
+  /** How much of this hit is tapped to the delay bus. Omit to send nothing. */
+  delaySend?: number;
+  /** How much of this hit is tapped to the reverb bus. Omit to send nothing. */
+  reverbSend?: number;
 };
 
 /**
@@ -155,6 +169,34 @@ const DC_BLOCKER_HZ = 10;
  */
 const DECAY_FLOOR = 0.0001;
 
+/**
+ * How long the delay line can hold. Fixed when the node is built and not
+ * changeable afterwards, so it is sized to the top of the Time slider's range.
+ */
+const MAX_DELAY_LINE_SECONDS = MAX_DELAY_SECONDS;
+
+/**
+ * Delay time slides over this long rather than the usual ramp. Moving the read
+ * head of a delay line that is already sounding resamples what is in it, so the
+ * repeats bend in pitch on the way — the tape-delay sound. A ramp this slow
+ * makes that a slide; the 20 ms used elsewhere would make it a chirp.
+ */
+const DELAY_TIME_RAMP_SECONDS = 0.12;
+
+/**
+ * Stereo, and built from two independent noise runs rather than one copied
+ * twice. Decorrelated channels are what make the tail sound wide instead of
+ * like a single sound pinned to the centre.
+ */
+const REVERB_IMPULSE_CHANNELS = 2;
+
+/**
+ * How sharply the impulse response falls away. Real rooms decay exponentially;
+ * a plain linear fade reads as a burst of noise being cut off rather than as a
+ * space, and the ear hears the difference immediately.
+ */
+const REVERB_DECAY_CURVE = 2.5;
+
 /** The always-connected nodes every voice is summed through. */
 type MasterChain = {
   /** Where voices connect. Feeds the driven and the clean path in parallel. */
@@ -175,7 +217,55 @@ type MasterChain = {
   lowpass: BiquadFilterNode;
   filtered: GainNode;
   unfiltered: GainNode;
+
+  /** Where channel delay sends land. */
+  delayBus: GainNode;
+  delayLine: DelayNode;
+  feedback: GainNode;
+  /** The delay's return level, and its whole bypass. */
+  delayLevel: GainNode;
+
+  /** Where channel reverb sends land. */
+  reverbBus: GainNode;
+  convolver: ConvolverNode;
+  /** Damping on the tail, so a long reverb doesn't wash over the top end. */
+  damping: BiquadFilterNode;
+  /**
+   * The decay `convolver.buffer` was last built for. Regenerating the impulse
+   * costs a pass over a few hundred thousand samples, so it is only rebuilt
+   * when the decay actually moves and not when the level slider does.
+   */
+  impulseKey: number;
+  /** The reverb's return level, and its whole bypass. */
+  reverbLevel: GainNode;
 };
+
+/**
+ * Noise shaped by a decay envelope — the standard way to synthesise a plausible
+ * reverb without shipping a recorded impulse response as a binary asset. It is
+ * a dense, characterless space rather than a real room, which is what a drum
+ * bus generally wants anyway.
+ */
+function createReverbImpulse(
+  context: AudioContext,
+  decaySeconds: number,
+): AudioBuffer {
+  const rate = context.sampleRate;
+  // At least one frame: a zero-length buffer is not a legal AudioBuffer.
+  const length = Math.max(1, Math.round(rate * clampReverbDecay(decaySeconds)));
+  const impulse = context.createBuffer(REVERB_IMPULSE_CHANNELS, length, rate);
+
+  for (let channel = 0; channel < REVERB_IMPULSE_CHANNELS; channel += 1) {
+    const samples = impulse.getChannelData(channel);
+    for (let i = 0; i < length; i += 1) {
+      samples[i] =
+        (Math.random() * 2 - 1) *
+        Math.pow(1 - i / length, REVERB_DECAY_CURVE);
+    }
+  }
+
+  return impulse;
+}
 
 /**
  * Samples a shape into the lookup table a WaveShaperNode reads. The node maps
@@ -224,6 +314,14 @@ function createMasterChain(context: AudioContext): MasterChain {
   const lowpass = createCutFilter(context, "lowpass", DEFAULT_HIGH_CUT_HZ);
   const filtered = context.createGain();
   const unfiltered = context.createGain();
+  const delayBus = context.createGain();
+  const delayLine = context.createDelay(MAX_DELAY_LINE_SECONDS);
+  const feedback = context.createGain();
+  const delayLevel = context.createGain();
+  const reverbBus = context.createGain();
+  const convolver = context.createConvolver();
+  const damping = createCutFilter(context, "lowpass", DEFAULT_REVERB_TONE_HZ);
+  const reverbLevel = context.createGain();
 
   // Saturation generates harmonics above Nyquist that would otherwise fold back
   // down as aliasing, which reads as a metallic ring rather than as distortion.
@@ -254,12 +352,37 @@ function createMasterChain(context: AudioContext): MasterChain {
   driveOut.connect(unfiltered);
   unfiltered.connect(context.destination);
 
+  // The delay's own output is what feeds the loop, so the return level sets how
+  // loud the repeats are without changing how many of them there are. A cycle
+  // is legal here only because a DelayNode sits in it — the spec mutes any
+  // other feedback loop outright — and `feedback` is held below unity so the
+  // repeats always die away.
+  delayBus.connect(delayLine);
+  delayLine.connect(feedback);
+  feedback.connect(delayLine);
+  delayLine.connect(delayLevel);
+
+  // Damping sits after the convolver rather than before it, so it darkens the
+  // tail itself instead of just the signal being fed into the room.
+  reverbBus.connect(convolver);
+  convolver.connect(damping);
+  damping.connect(reverbLevel);
+
+  // Both returns land on the master input, so the sends are summed with the dry
+  // channels and the whole mix — repeats and tail included — is what the drive
+  // and filter stages downstream then work on.
+  delayLevel.connect(input);
+  reverbLevel.connect(input);
+
   // Start bypassed to match the defaults, so the first ramp has somewhere
   // sensible to come from rather than passing both paths at unity.
   driven.gain.value = 0;
   clean.gain.value = 1;
   filtered.gain.value = 0;
   unfiltered.gain.value = 1;
+  // Sends are parallel, so silencing the return *is* the bypass.
+  delayLevel.gain.value = 0;
+  reverbLevel.gain.value = 0;
 
   return {
     input,
@@ -274,15 +397,30 @@ function createMasterChain(context: AudioContext): MasterChain {
     lowpass,
     filtered,
     unfiltered,
+    delayBus,
+    delayLine,
+    feedback,
+    delayLevel,
+    reverbBus,
+    convolver,
+    damping,
+    // No impulse built yet, so the first apply always installs one.
+    impulseKey: 0,
+    reverbLevel,
   };
 }
 
-function rampTo(param: AudioParam, value: number, now: number) {
+function rampTo(
+  param: AudioParam,
+  value: number,
+  now: number,
+  seconds = RAMP_SECONDS,
+) {
   param.cancelScheduledValues(now);
   // Anchor at the live value first, or the ramp would jump to wherever the
   // last scheduled segment left the param.
   param.setValueAtTime(param.value, now);
-  param.linearRampToValueAtTime(value, now + RAMP_SECONDS);
+  param.linearRampToValueAtTime(value, now + seconds);
 }
 
 function applyDrive(
@@ -322,6 +460,57 @@ function applyFilter(
 }
 
 /**
+ * Time and feedback keep tracking while the bus is switched off, so a delay can
+ * be dialled in silently and then brought up. Silencing the return is the whole
+ * of the bypass: the dry mix never passed through here to begin with.
+ */
+function applyDelay(
+  context: AudioContext,
+  chain: MasterChain,
+  delay: MasterDelay,
+) {
+  const now = context.currentTime;
+
+  rampTo(
+    chain.delayLine.delayTime,
+    clampDelaySeconds(delay.timeSeconds),
+    now,
+    DELAY_TIME_RAMP_SECONDS,
+  );
+  rampTo(chain.feedback.gain, clampFeedback(delay.feedback), now);
+  rampTo(
+    chain.delayLevel.gain,
+    delay.enabled ? clampVolume(delay.level) : 0,
+    now,
+  );
+}
+
+function applyReverb(
+  context: AudioContext,
+  chain: MasterChain,
+  reverb: MasterReverb,
+) {
+  const now = context.currentTime;
+
+  // Swapping the impulse resets whatever the convolver was still ringing out,
+  // so a decay move cuts the current tail short. Acceptable for a knob that is
+  // set rather than ridden, and the alternative — crossfading two convolvers —
+  // costs a second one running permanently.
+  const impulseKey = clampReverbDecay(reverb.decaySeconds);
+  if (chain.impulseKey !== impulseKey) {
+    chain.convolver.buffer = createReverbImpulse(context, impulseKey);
+    chain.impulseKey = impulseKey;
+  }
+
+  rampTo(chain.damping.frequency, clampFrequency(reverb.toneHz), now);
+  rampTo(
+    chain.reverbLevel.gain,
+    reverb.enabled ? clampVolume(reverb.level) : 0,
+    now,
+  );
+}
+
+/**
  * Owns the AudioContext and the decoded AudioBuffer for each channel.
  *
  * Buffers live in a ref rather than state: they are large binary objects that
@@ -336,6 +525,8 @@ export function useSampleBank() {
   // so a knob moved before the first gesture isn't lost.
   const driveRef = useRef<MasterDrive>(DEFAULT_MASTER_DRIVE);
   const filterRef = useRef<MasterFilter>(DEFAULT_MASTER_FILTER);
+  const delayRef = useRef<MasterDelay>(DEFAULT_MASTER_DELAY);
+  const reverbRef = useRef<MasterReverb>(DEFAULT_MASTER_REVERB);
 
   useEffect(() => {
     return () => {
@@ -359,6 +550,8 @@ export function useSampleBank() {
       masterRef.current = chain;
       applyDrive(context, chain, driveRef.current);
       applyFilter(context, chain, filterRef.current);
+      applyDelay(context, chain, delayRef.current);
+      applyReverb(context, chain, reverbRef.current);
     }
 
     return context;
@@ -385,6 +578,28 @@ export function useSampleBank() {
     if (!context || !chain) return;
 
     applyFilter(context, chain, filter);
+  }, []);
+
+  /** Points the delay bus at `delay`, creating no context of its own. */
+  const applyMasterDelay = useCallback((delay: MasterDelay) => {
+    delayRef.current = delay;
+
+    const context = contextRef.current;
+    const chain = masterRef.current;
+    if (!context || !chain) return;
+
+    applyDelay(context, chain, delay);
+  }, []);
+
+  /** Points the reverb bus at `reverb`, creating no context of its own. */
+  const applyMasterReverb = useCallback((reverb: MasterReverb) => {
+    reverbRef.current = reverb;
+
+    const context = contextRef.current;
+    const chain = masterRef.current;
+    if (!context || !chain) return;
+
+    applyReverb(context, chain, reverb);
   }, []);
 
   /**
@@ -436,6 +651,8 @@ export function useSampleBank() {
         highCutHz,
         attackSeconds,
         decaySeconds,
+        delaySend,
+        reverbSend,
       }: TriggerOptions = {},
     ) => {
       const context = contextRef.current;
@@ -499,6 +716,24 @@ export function useSampleBank() {
       // Into the master bus rather than the destination, so every voice is
       // summed before the drive stage sees it.
       gainNode.connect(master.input);
+
+      // Sends are tapped off the volume node rather than off the raw source, so
+      // they are post-fader: they carry the channel's envelope and filters, and
+      // pulling a channel down takes its share of the delay and reverb with it.
+      if (delaySend !== undefined) {
+        const send = context.createGain();
+        send.gain.value = clampSend(delaySend);
+        gainNode.connect(send);
+        send.connect(master.delayBus);
+      }
+
+      if (reverbSend !== undefined) {
+        const send = context.createGain();
+        send.gain.value = clampSend(reverbSend);
+        gainNode.connect(send);
+        send.connect(master.reverbBus);
+      }
+
       source.start(time);
 
       // Past the decay there is nothing left to hear, so the voice is released
@@ -514,6 +749,8 @@ export function useSampleBank() {
     ensureContext,
     applyMasterDrive,
     applyMasterFilter,
+    applyMasterDelay,
+    applyMasterReverb,
     loadSample,
     loadSampleFromUrl,
     removeSample,
