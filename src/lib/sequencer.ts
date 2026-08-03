@@ -25,6 +25,18 @@ export const MAX_FILTER_HZ = 20000;
 export const DEFAULT_LOW_CUT_HZ = MIN_FILTER_HZ;
 export const DEFAULT_HIGH_CUT_HZ = MAX_FILTER_HZ;
 
+/**
+ * Amplitude envelope times, in seconds. Attack fades the hit in; decay then
+ * runs it back down to silence, so the two together set how long a voice lasts.
+ */
+export const MIN_ATTACK_SECONDS = 0;
+export const MAX_ATTACK_SECONDS = 0.5;
+export const MIN_DECAY_SECONDS = 0.005;
+export const MAX_DECAY_SECONDS = 2;
+/** Defaults sit at the extremes, where the envelope is bypassed. */
+export const DEFAULT_ATTACK_SECONDS = MIN_ATTACK_SECONDS;
+export const DEFAULT_DECAY_SECONDS = MAX_DECAY_SECONDS;
+
 /** How hard the summed channels are pushed into saturation. */
 export const MIN_DRIVE = 0;
 export const MAX_DRIVE = 1;
@@ -48,6 +60,29 @@ export const DEFAULT_MASTER_DRIVE: MasterDrive = {
   enabled: false,
   amount: DEFAULT_DRIVE,
   level: DEFAULT_VOLUME,
+};
+
+/**
+ * The low- and high-cut pair on the mix, last in the master chain: it filters
+ * what the drive stage put out, so the harmonics saturation adds are cut rather
+ * than fed back into it.
+ */
+export type MasterFilter = {
+  enabled: boolean;
+  /** Highpass cutoff; at MIN_FILTER_HZ the filter is flat. */
+  lowCutHz: number;
+  /** Lowpass cutoff; at MAX_FILTER_HZ the filter is flat. */
+  highCutHz: number;
+};
+
+/**
+ * Starts bypassed and flat. Unlike drive, a master filter is a control you
+ * sweep, so switching it in should be silent until a cutoff is moved.
+ */
+export const DEFAULT_MASTER_FILTER: MasterFilter = {
+  enabled: false,
+  lowCutHz: DEFAULT_LOW_CUT_HZ,
+  highCutHz: DEFAULT_HIGH_CUT_HZ,
 };
 
 /** Per-channel sample loading state. */
@@ -86,6 +121,13 @@ export type Channel = {
   lowCutHz: number;
   /** Lowpass cutoff; at MAX_FILTER_HZ the filter is bypassed. */
   highCutHz: number;
+  /** Fade-in time for each hit; at MIN_ATTACK_SECONDS the onset is instant. */
+  attackSeconds: number;
+  /**
+   * How long a hit takes to fade to silence after the attack. At
+   * MAX_DECAY_SECONDS the envelope is bypassed and the sample rings out in full.
+   */
+  decaySeconds: number;
   /** Silences this channel on its own. */
   muted: boolean;
   /** While any channel is soloed, every channel that isn't goes silent. */
@@ -108,6 +150,8 @@ export function createInitialChannels(): Channel[] {
     pitch: DEFAULT_PITCH,
     lowCutHz: DEFAULT_LOW_CUT_HZ,
     highCutHz: DEFAULT_HIGH_CUT_HZ,
+    attackSeconds: DEFAULT_ATTACK_SECONDS,
+    decaySeconds: DEFAULT_DECAY_SECONDS,
     muted: false,
     soloed: false,
     sample: { status: "empty" },
@@ -129,6 +173,12 @@ export function triggerOptionsForChannel(channel: Channel) {
     highCutHz: isHighCutBypassed(channel.highCutHz)
       ? undefined
       : clampFrequency(channel.highCutHz),
+    attackSeconds: isAttackBypassed(channel.attackSeconds)
+      ? undefined
+      : clampAttack(channel.attackSeconds),
+    decaySeconds: isDecayBypassed(channel.decaySeconds)
+      ? undefined
+      : clampDecay(channel.decaySeconds),
   };
 }
 
@@ -218,6 +268,72 @@ export function formatFrequency(hz: number): string {
   return clamped >= 1000
     ? `${(clamped / 1000).toFixed(1)} kHz`
     : `${clamped} Hz`;
+}
+
+export function clampAttack(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_ATTACK_SECONDS;
+  return Math.min(Math.max(value, MIN_ATTACK_SECONDS), MAX_ATTACK_SECONDS);
+}
+
+export function clampDecay(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_DECAY_SECONDS;
+  return Math.min(Math.max(value, MIN_DECAY_SECONDS), MAX_DECAY_SECONDS);
+}
+
+/**
+ * Envelope times map to a 0..1 slider position on a curve. Percussion lives in
+ * the first few tens of milliseconds, which a linear slider would cram into a
+ * sliver of the travel while the rest of it swept past unusably long times.
+ */
+const ENVELOPE_CURVE = 3;
+
+function timeToSlider(seconds: number, min: number, max: number): number {
+  return Math.pow((seconds - min) / (max - min), 1 / ENVELOPE_CURVE);
+}
+
+function sliderToTime(position: number, min: number, max: number): number {
+  const clamped = Math.min(Math.max(position, 0), 1);
+  return min + (max - min) * Math.pow(clamped, ENVELOPE_CURVE);
+}
+
+export function attackToSlider(seconds: number): number {
+  return timeToSlider(
+    clampAttack(seconds),
+    MIN_ATTACK_SECONDS,
+    MAX_ATTACK_SECONDS,
+  );
+}
+
+export function sliderToAttack(position: number): number {
+  return sliderToTime(position, MIN_ATTACK_SECONDS, MAX_ATTACK_SECONDS);
+}
+
+export function decayToSlider(seconds: number): number {
+  return timeToSlider(
+    clampDecay(seconds),
+    MIN_DECAY_SECONDS,
+    MAX_DECAY_SECONDS,
+  );
+}
+
+export function sliderToDecay(position: number): number {
+  return sliderToTime(position, MIN_DECAY_SECONDS, MAX_DECAY_SECONDS);
+}
+
+/** An instant onset needs no ramp, so the envelope's attack stage is skipped. */
+export function isAttackBypassed(seconds: number): boolean {
+  return clampAttack(seconds) <= MIN_ATTACK_SECONDS;
+}
+
+/** At the top of the range the sample is left to ring out on its own. */
+export function isDecayBypassed(seconds: number): boolean {
+  return clampDecay(seconds) >= MAX_DECAY_SECONDS;
+}
+
+export function formatSeconds(seconds: number): string {
+  return seconds >= 1
+    ? `${seconds.toFixed(2)} s`
+    : `${Math.round(seconds * 1000)} ms`;
 }
 
 export function clampBpm(value: number): number {

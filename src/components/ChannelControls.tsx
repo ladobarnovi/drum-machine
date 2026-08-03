@@ -6,12 +6,19 @@ import {
   MAX_VOLUME,
   MIN_PITCH,
   MIN_VOLUME,
+  attackToSlider,
   clampPitch,
   clampVolume,
+  decayToSlider,
   formatFrequency,
+  formatSeconds,
   frequencyToSlider,
+  isAttackBypassed,
+  isDecayBypassed,
   isHighCutBypassed,
   isLowCutBypassed,
+  sliderToAttack,
+  sliderToDecay,
   sliderToFrequency,
 } from "@/lib/sequencer";
 
@@ -20,22 +27,30 @@ type ChannelControlsProps = {
   pitch: number;
   lowCutHz: number;
   highCutHz: number;
+  attackSeconds: number;
+  decaySeconds: number;
   onVolumeChange: (volume: number) => void;
   onPitchChange: (pitch: number) => void;
   onLowCutChange: (hz: number) => void;
   onHighCutChange: (hz: number) => void;
+  onAttackChange: (seconds: number) => void;
+  onDecayChange: (seconds: number) => void;
 };
 
-/** Volume, pitch, and the two cutoff filters for the selected channel. */
+/** Volume, pitch, filters, and the amplitude envelope for the selected channel. */
 export default function ChannelControls({
   volume,
   pitch,
   lowCutHz,
   highCutHz,
+  attackSeconds,
+  decaySeconds,
   onVolumeChange,
   onPitchChange,
   onLowCutChange,
   onHighCutChange,
+  onAttackChange,
+  onDecayChange,
 }: ChannelControlsProps) {
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -80,6 +95,31 @@ export default function ChannelControls({
           isHighCutBypassed(highCutHz) ? "Off" : formatFrequency(highCutHz)
         }
         onChange={(position) => onHighCutChange(sliderToFrequency(position))}
+      />
+
+      {/* Envelope times ride a 0..1 curve, so the readout shows the real time. */}
+      <ControlSlider
+        label="Attack"
+        min={0}
+        max={1}
+        step={0.001}
+        value={attackToSlider(attackSeconds)}
+        readout={
+          isAttackBypassed(attackSeconds) ? "Off" : formatSeconds(attackSeconds)
+        }
+        onChange={(position) => onAttackChange(sliderToAttack(position))}
+      />
+
+      <ControlSlider
+        label="Decay"
+        min={0}
+        max={1}
+        step={0.001}
+        value={decayToSlider(decaySeconds)}
+        readout={
+          isDecayBypassed(decaySeconds) ? "Off" : formatSeconds(decaySeconds)
+        }
+        onChange={(position) => onDecayChange(sliderToDecay(position))}
       />
     </div>
   );

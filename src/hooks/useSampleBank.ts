@@ -3,10 +3,15 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import {
+  DEFAULT_HIGH_CUT_HZ,
+  DEFAULT_LOW_CUT_HZ,
   DEFAULT_MASTER_DRIVE,
+  DEFAULT_MASTER_FILTER,
   clampDrive,
+  clampFrequency,
   clampVolume,
   type MasterDrive,
+  type MasterFilter,
 } from "@/lib/sequencer";
 
 type TriggerOptions = {
@@ -18,6 +23,10 @@ type TriggerOptions = {
   lowCutHz?: number;
   /** Lowpass cutoff in Hz. Omit to skip the filter entirely. */
   highCutHz?: number;
+  /** Fade-in time in seconds. Omit for an instant onset. */
+  attackSeconds?: number;
+  /** Fade-out time in seconds, after the attack. Omit to let the sample ring out. */
+  decaySeconds?: number;
 };
 
 /**
@@ -52,6 +61,13 @@ function driveGain(amount: number): number {
 /** Gain moves ramp over this long, so nothing switches hard enough to click. */
 const RAMP_SECONDS = 0.02;
 
+/**
+ * Where a decay ramp lands before the voice is cut. An exponential curve is the
+ * one that sounds like a drum dying away, but it can only approach zero, so it
+ * runs down to -80 dB — inaudible — and is snapped to silence from there.
+ */
+const DECAY_FLOOR = 0.0001;
+
 /** The always-connected nodes every voice is summed through. */
 type MasterChain = {
   /** Where voices connect. Feeds the driven and the clean path in parallel. */
@@ -60,6 +76,12 @@ type MasterChain = {
   level: GainNode;
   driven: GainNode;
   clean: GainNode;
+  /** The drive stage's output, where the filter stage picks the signal up. */
+  driveOut: GainNode;
+  highpass: BiquadFilterNode;
+  lowpass: BiquadFilterNode;
+  filtered: GainNode;
+  unfiltered: GainNode;
 };
 
 /**
@@ -89,12 +111,30 @@ function driveCurve(amount: number): Float32Array<ArrayBuffer> {
   return curve;
 }
 
+/** A Butterworth cut filter, used per hit and again across the master bus. */
+function createCutFilter(
+  context: AudioContext,
+  type: "highpass" | "lowpass",
+  frequency: number,
+): BiquadFilterNode {
+  const filter = context.createBiquadFilter();
+  filter.type = type;
+  filter.frequency.value = frequency;
+  filter.Q.value = BUTTERWORTH_Q_DB;
+  return filter;
+}
+
 function createMasterChain(context: AudioContext): MasterChain {
   const input = context.createGain();
   const shaper = context.createWaveShaper();
   const level = context.createGain();
   const driven = context.createGain();
   const clean = context.createGain();
+  const driveOut = context.createGain();
+  const highpass = createCutFilter(context, "highpass", DEFAULT_LOW_CUT_HZ);
+  const lowpass = createCutFilter(context, "lowpass", DEFAULT_HIGH_CUT_HZ);
+  const filtered = context.createGain();
+  const unfiltered = context.createGain();
 
   // Saturation generates harmonics above Nyquist that would otherwise fold back
   // down as aliasing, which reads as a metallic ring rather than as distortion.
@@ -105,17 +145,41 @@ function createMasterChain(context: AudioContext): MasterChain {
   input.connect(shaper);
   shaper.connect(level);
   level.connect(driven);
-  driven.connect(context.destination);
+  driven.connect(driveOut);
 
   input.connect(clean);
-  clean.connect(context.destination);
+  clean.connect(driveOut);
 
-  // Start bypassed to match DEFAULT_MASTER_DRIVE, so the first ramp has
-  // somewhere sensible to come from rather than passing both paths at unity.
+  // The cuts hang off the drive stage's output rather than its input, so they
+  // filter the harmonics saturation added instead of feeding them into it.
+  // Bypassed the same way, by crossfading against the unfiltered signal.
+  driveOut.connect(highpass);
+  highpass.connect(lowpass);
+  lowpass.connect(filtered);
+  filtered.connect(context.destination);
+
+  driveOut.connect(unfiltered);
+  unfiltered.connect(context.destination);
+
+  // Start bypassed to match the defaults, so the first ramp has somewhere
+  // sensible to come from rather than passing both paths at unity.
   driven.gain.value = 0;
   clean.gain.value = 1;
+  filtered.gain.value = 0;
+  unfiltered.gain.value = 1;
 
-  return { input, shaper, level, driven, clean };
+  return {
+    input,
+    shaper,
+    level,
+    driven,
+    clean,
+    driveOut,
+    highpass,
+    lowpass,
+    filtered,
+    unfiltered,
+  };
 }
 
 function rampTo(param: AudioParam, value: number, now: number) {
@@ -140,6 +204,24 @@ function applyDrive(
 }
 
 /**
+ * Cutoffs are ramped rather than set, so dragging a slider sweeps the filter
+ * instead of stepping it. They keep tracking while the stage is bypassed, so
+ * switching it in lands on the cutoffs already shown in the rail.
+ */
+function applyFilter(
+  context: AudioContext,
+  chain: MasterChain,
+  filter: MasterFilter,
+) {
+  const now = context.currentTime;
+
+  rampTo(chain.highpass.frequency, clampFrequency(filter.lowCutHz), now);
+  rampTo(chain.lowpass.frequency, clampFrequency(filter.highCutHz), now);
+  rampTo(chain.filtered.gain, filter.enabled ? 1 : 0, now);
+  rampTo(chain.unfiltered.gain, filter.enabled ? 0 : 1, now);
+}
+
+/**
  * Owns the AudioContext and the decoded AudioBuffer for each channel.
  *
  * Buffers live in a ref rather than state: they are large binary objects that
@@ -153,6 +235,7 @@ export function useSampleBank() {
   // Holds the latest settings even before there is a context to apply them to,
   // so a knob moved before the first gesture isn't lost.
   const driveRef = useRef<MasterDrive>(DEFAULT_MASTER_DRIVE);
+  const filterRef = useRef<MasterFilter>(DEFAULT_MASTER_FILTER);
 
   useEffect(() => {
     return () => {
@@ -175,6 +258,7 @@ export function useSampleBank() {
       const chain = createMasterChain(context);
       masterRef.current = chain;
       applyDrive(context, chain, driveRef.current);
+      applyFilter(context, chain, filterRef.current);
     }
 
     return context;
@@ -190,6 +274,17 @@ export function useSampleBank() {
     if (!context || !chain) return;
 
     applyDrive(context, chain, drive);
+  }, []);
+
+  /** Points the master filter stage at `filter`, creating no context of its own. */
+  const applyMasterFilter = useCallback((filter: MasterFilter) => {
+    filterRef.current = filter;
+
+    const context = contextRef.current;
+    const chain = masterRef.current;
+    if (!context || !chain) return;
+
+    applyFilter(context, chain, filter);
   }, []);
 
   /**
@@ -234,7 +329,14 @@ export function useSampleBank() {
     (
       channelId: string,
       time: number,
-      { gain = 1, playbackRate = 1, lowCutHz, highCutHz }: TriggerOptions = {},
+      {
+        gain = 1,
+        playbackRate = 1,
+        lowCutHz,
+        highCutHz,
+        attackSeconds,
+        decaySeconds,
+      }: TriggerOptions = {},
     ) => {
       const context = contextRef.current;
       const master = masterRef.current;
@@ -249,21 +351,44 @@ export function useSampleBank() {
       let tail: AudioNode = source;
 
       if (lowCutHz !== undefined) {
-        const highpass = context.createBiquadFilter();
-        highpass.type = "highpass";
-        highpass.frequency.value = lowCutHz;
-        highpass.Q.value = BUTTERWORTH_Q_DB;
+        const highpass = createCutFilter(context, "highpass", lowCutHz);
         tail.connect(highpass);
         tail = highpass;
       }
 
       if (highCutHz !== undefined) {
-        const lowpass = context.createBiquadFilter();
-        lowpass.type = "lowpass";
-        lowpass.frequency.value = highCutHz;
-        lowpass.Q.value = BUTTERWORTH_Q_DB;
+        const lowpass = createCutFilter(context, "lowpass", highCutHz);
         tail.connect(lowpass);
         tail = lowpass;
+      }
+
+      // The envelope rides its own node rather than shaping the volume gain, so
+      // its curve stays a plain 0..1 shape. Scaling it by the channel volume
+      // would leave a silenced channel with a decay ramp running from zero,
+      // which an exponential curve can't express.
+      if (attackSeconds !== undefined || decaySeconds !== undefined) {
+        const attack = attackSeconds ?? 0;
+        const envelope = context.createGain();
+        const level = envelope.gain;
+
+        // Voices are scheduled ahead of the audio clock, so the envelope is
+        // pinned to the hit's own start time rather than to `currentTime`.
+        level.setValueAtTime(attack > 0 ? 0 : 1, time);
+        if (attack > 0) {
+          level.linearRampToValueAtTime(1, time + attack);
+        }
+
+        if (decaySeconds !== undefined) {
+          const end = time + attack + decaySeconds;
+          level.exponentialRampToValueAtTime(DECAY_FLOOR, end);
+          level.setValueAtTime(0, end);
+          // There is nothing left to hear, so the voice is released rather than
+          // left running silently until the buffer ends.
+          source.stop(end);
+        }
+
+        tail.connect(envelope);
+        tail = envelope;
       }
 
       const gainNode = context.createGain();
@@ -281,6 +406,7 @@ export function useSampleBank() {
   return {
     ensureContext,
     applyMasterDrive,
+    applyMasterFilter,
     loadSample,
     loadSampleFromUrl,
     removeSample,

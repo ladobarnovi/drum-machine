@@ -20,6 +20,8 @@ type ChannelEditorProps = {
   onNameChange: (name: string) => void;
   onLowCutChange: (hz: number) => void;
   onHighCutChange: (hz: number) => void;
+  onAttackChange: (seconds: number) => void;
+  onDecayChange: (seconds: number) => void;
 };
 
 /** Sample controls, length, and step grid for the currently selected channel. */
@@ -35,6 +37,8 @@ export default function ChannelEditor({
   onNameChange,
   onLowCutChange,
   onHighCutChange,
+  onAttackChange,
+  onDecayChange,
 }: ChannelEditorProps) {
   const displayName = channelDisplayName(channel);
 
@@ -67,10 +71,14 @@ export default function ChannelEditor({
         pitch={channel.pitch}
         lowCutHz={channel.lowCutHz}
         highCutHz={channel.highCutHz}
+        attackSeconds={channel.attackSeconds}
+        decaySeconds={channel.decaySeconds}
         onVolumeChange={onVolumeChange}
         onPitchChange={onPitchChange}
         onLowCutChange={onLowCutChange}
         onHighCutChange={onHighCutChange}
+        onAttackChange={onAttackChange}
+        onDecayChange={onDecayChange}
       />
 
       <StepGrid

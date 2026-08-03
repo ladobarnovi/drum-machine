@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
 import MasterDriveControls from "./MasterDriveControls";
+import MasterFilterControls from "./MasterFilterControls";
 import PresetPicker from "./PresetPicker";
 import Sidebar, { SIDEBAR_ID } from "./Sidebar";
 import Transport from "./Transport";
@@ -16,8 +17,11 @@ import {
   CHANNEL_COUNT,
   DEFAULT_BPM,
   DEFAULT_MASTER_DRIVE,
+  DEFAULT_MASTER_FILTER,
   channelIdForIndex,
+  clampAttack,
   clampChannelName,
+  clampDecay,
   clampFrequency,
   clampLength,
   clampPitch,
@@ -28,6 +32,7 @@ import {
   triggerOptionsForChannel,
   type Channel,
   type MasterDrive,
+  type MasterFilter,
 } from "@/lib/sequencer";
 import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
 import { computePeaks } from "@/lib/waveform";
@@ -43,24 +48,31 @@ export default function DrumMachine() {
 
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
 
-  const [masterDrive, setMasterDrive] = useState<MasterDrive>(
-    DEFAULT_MASTER_DRIVE,
+  const [masterDrive, setMasterDrive] =
+    useState<MasterDrive>(DEFAULT_MASTER_DRIVE);
+  const [masterFilter, setMasterFilter] = useState<MasterFilter>(
+    DEFAULT_MASTER_FILTER,
   );
 
   const {
     ensureContext,
     applyMasterDrive,
+    applyMasterFilter,
     loadSample,
     loadSampleFromUrl,
     removeSample,
     trigger,
   } = useSampleBank();
 
-  // The drive stage is persistent nodes rather than per-hit ones, so it is
-  // pushed across on change instead of being read at trigger time.
+  // The master stages are persistent nodes rather than per-hit ones, so they
+  // are pushed across on change instead of being read at trigger time.
   useEffect(() => {
     applyMasterDrive(masterDrive);
   }, [applyMasterDrive, masterDrive]);
+
+  useEffect(() => {
+    applyMasterFilter(masterFilter);
+  }, [applyMasterFilter, masterFilter]);
 
   // The scheduler runs outside React's render cycle, so it reads the current
   // pattern through a ref rather than through a captured prop.
@@ -228,7 +240,11 @@ export default function DrumMachine() {
       const channel = channelsRef.current.find((item) => item.id === channelId);
       if (!channel) return;
 
-      trigger(channelId, context.currentTime, triggerOptionsForChannel(channel));
+      trigger(
+        channelId,
+        context.currentTime,
+        triggerOptionsForChannel(channel),
+      );
     },
     [ensureContext, trigger],
   );
@@ -252,6 +268,20 @@ export default function DrumMachine() {
   const handleHighCutChange = useCallback(
     (channelId: string, hz: number) => {
       updateChannel(channelId, { highCutHz: clampFrequency(hz) });
+    },
+    [updateChannel],
+  );
+
+  const handleAttackChange = useCallback(
+    (channelId: string, seconds: number) => {
+      updateChannel(channelId, { attackSeconds: clampAttack(seconds) });
+    },
+    [updateChannel],
+  );
+
+  const handleDecayChange = useCallback(
+    (channelId: string, seconds: number) => {
+      updateChannel(channelId, { decaySeconds: clampDecay(seconds) });
     },
     [updateChannel],
   );
@@ -351,7 +381,13 @@ export default function DrumMachine() {
           onBpmChange={setBpm}
         />
 
+        {/* Master FX in signal-chain order: drive first, then the cuts. */}
         <MasterDriveControls drive={masterDrive} onChange={setMasterDrive} />
+
+        <MasterFilterControls
+          filter={masterFilter}
+          onChange={setMasterFilter}
+        />
       </Sidebar>
 
       {/* Padding clears the fixed sidebar so the content centres beside it. */}
@@ -419,6 +455,12 @@ export default function DrumMachine() {
             onLowCutChange={(hz) => handleLowCutChange(selectedChannel.id, hz)}
             onHighCutChange={(hz) =>
               handleHighCutChange(selectedChannel.id, hz)
+            }
+            onAttackChange={(seconds) =>
+              handleAttackChange(selectedChannel.id, seconds)
+            }
+            onDecayChange={(seconds) =>
+              handleDecayChange(selectedChannel.id, seconds)
             }
           />
         </div>
