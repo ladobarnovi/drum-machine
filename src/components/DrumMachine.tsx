@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
+import MasterDriveControls from "./MasterDriveControls";
 import PresetPicker from "./PresetPicker";
 import Sidebar, { SIDEBAR_ID } from "./Sidebar";
 import Transport from "./Transport";
@@ -14,6 +15,7 @@ import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
 import {
   CHANNEL_COUNT,
   DEFAULT_BPM,
+  DEFAULT_MASTER_DRIVE,
   channelIdForIndex,
   clampChannelName,
   clampFrequency,
@@ -23,10 +25,9 @@ import {
   createInitialChannels,
   hasSoloedChannel,
   isChannelAudible,
-  isHighCutBypassed,
-  isLowCutBypassed,
-  playbackRateForPitch,
+  triggerOptionsForChannel,
   type Channel,
+  type MasterDrive,
 } from "@/lib/sequencer";
 import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
 import { computePeaks } from "@/lib/waveform";
@@ -42,13 +43,24 @@ export default function DrumMachine() {
 
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
 
+  const [masterDrive, setMasterDrive] = useState<MasterDrive>(
+    DEFAULT_MASTER_DRIVE,
+  );
+
   const {
     ensureContext,
+    applyMasterDrive,
     loadSample,
     loadSampleFromUrl,
     removeSample,
     trigger,
   } = useSampleBank();
+
+  // The drive stage is persistent nodes rather than per-hit ones, so it is
+  // pushed across on change instead of being read at trigger time.
+  useEffect(() => {
+    applyMasterDrive(masterDrive);
+  }, [applyMasterDrive, masterDrive]);
 
   // The scheduler runs outside React's render cycle, so it reads the current
   // pattern through a ref rather than through a captured prop.
@@ -65,17 +77,7 @@ export default function DrumMachine() {
       for (const channel of channelsRef.current) {
         if (!isChannelAudible(channel, soloActive)) continue;
         if (channel.steps[tick % clampLength(channel.length)]) {
-          trigger(channel.id, time, {
-            gain: clampVolume(channel.volume),
-            playbackRate: playbackRateForPitch(channel.pitch),
-            // Undefined skips the filter node entirely when it would be inaudible.
-            lowCutHz: isLowCutBypassed(channel.lowCutHz)
-              ? undefined
-              : clampFrequency(channel.lowCutHz),
-            highCutHz: isHighCutBypassed(channel.highCutHz)
-              ? undefined
-              : clampFrequency(channel.highCutHz),
-          });
+          trigger(channel.id, time, triggerOptionsForChannel(channel));
         }
       }
     },
@@ -208,6 +210,29 @@ export default function DrumMachine() {
     [toggleChannelFlag],
   );
 
+  /**
+   * Auditions one channel outside the transport, so a sample can be checked
+   * without starting playback. Mute and solo are deliberately ignored: this is
+   * a direct request to hear that one channel, not a change to the mix.
+   *
+   * The context is created and resumed inside the click gesture, which is what
+   * browsers require before any sound can come out.
+   */
+  const handlePreviewChannel = useCallback(
+    (channelId: string) => {
+      const context = ensureContext();
+      if (context.state === "suspended") {
+        void context.resume();
+      }
+
+      const channel = channelsRef.current.find((item) => item.id === channelId);
+      if (!channel) return;
+
+      trigger(channelId, context.currentTime, triggerOptionsForChannel(channel));
+    },
+    [ensureContext, trigger],
+  );
+
   const handleSelectChannelIndex = useCallback((index: number) => {
     setSelectedChannelId(channelIdForIndex(index));
   }, []);
@@ -325,6 +350,8 @@ export default function DrumMachine() {
           onTogglePlay={handleTogglePlay}
           onBpmChange={setBpm}
         />
+
+        <MasterDriveControls drive={masterDrive} onChange={setMasterDrive} />
       </Sidebar>
 
       {/* Padding clears the fixed sidebar so the content centres beside it. */}
@@ -366,6 +393,7 @@ export default function DrumMachine() {
             channels={channels}
             selectedChannelId={selectedChannel.id}
             onSelectChannel={setSelectedChannelId}
+            onPreviewChannel={handlePreviewChannel}
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
           />

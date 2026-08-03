@@ -25,6 +25,31 @@ export const MAX_FILTER_HZ = 20000;
 export const DEFAULT_LOW_CUT_HZ = MIN_FILTER_HZ;
 export const DEFAULT_HIGH_CUT_HZ = MAX_FILTER_HZ;
 
+/** How hard the summed channels are pushed into saturation. */
+export const MIN_DRIVE = 0;
+export const MAX_DRIVE = 1;
+export const DEFAULT_DRIVE = 0.35;
+
+/**
+ * Saturation stage on the sum of every channel, wired like a pedal: `level` is
+ * the stage's own output, so bypassing takes the drive and the level with it
+ * and leaves the untouched sum to compare against.
+ */
+export type MasterDrive = {
+  enabled: boolean;
+  /** 0..1. At 0 the stage is linear, so only the level is heard. */
+  amount: number;
+  /** Linear output gain, on the same scale as a channel's volume. */
+  level: number;
+};
+
+/** Starts bypassed, already dialled in so switching it on does something. */
+export const DEFAULT_MASTER_DRIVE: MasterDrive = {
+  enabled: false,
+  amount: DEFAULT_DRIVE,
+  level: DEFAULT_VOLUME,
+};
+
 /** Per-channel sample loading state. */
 export type SampleState =
   | { status: "empty" }
@@ -89,6 +114,24 @@ export function createInitialChannels(): Channel[] {
   }));
 }
 
+/**
+ * The per-hit audio settings a channel plays with. Shared by the scheduler and
+ * by one-off previews so an audition sounds exactly like the sequenced hit.
+ */
+export function triggerOptionsForChannel(channel: Channel) {
+  return {
+    gain: clampVolume(channel.volume),
+    playbackRate: playbackRateForPitch(channel.pitch),
+    // Undefined skips the filter node entirely when it would be inaudible.
+    lowCutHz: isLowCutBypassed(channel.lowCutHz)
+      ? undefined
+      : clampFrequency(channel.lowCutHz),
+    highCutHz: isHighCutBypassed(channel.highCutHz)
+      ? undefined
+      : clampFrequency(channel.highCutHz),
+  };
+}
+
 /** True once any channel is soloed, which silences all the others. */
 export function hasSoloedChannel(channels: Channel[]): boolean {
   return channels.some((channel) => channel.soloed);
@@ -122,6 +165,11 @@ export function clampChannelName(value: string): string {
 export function clampVolume(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_VOLUME;
   return Math.min(Math.max(value, MIN_VOLUME), MAX_VOLUME);
+}
+
+export function clampDrive(value: number): number {
+  if (!Number.isFinite(value)) return MIN_DRIVE;
+  return Math.min(Math.max(value, MIN_DRIVE), MAX_DRIVE);
 }
 
 export function clampPitch(value: number): number {

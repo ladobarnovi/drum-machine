@@ -11,6 +11,7 @@ type ChannelGridProps = {
   channels: Channel[];
   selectedChannelId: string;
   onSelectChannel: (channelId: string) => void;
+  onPreviewChannel: (channelId: string) => void;
   onToggleMute: (channelId: string) => void;
   onToggleSolo: (channelId: string) => void;
 };
@@ -19,6 +20,7 @@ export default function ChannelGrid({
   channels,
   selectedChannelId,
   onSelectChannel,
+  onPreviewChannel,
   onToggleMute,
   onToggleSolo,
 }: ChannelGridProps) {
@@ -38,6 +40,7 @@ export default function ChannelGrid({
           isSelected={channel.id === selectedChannelId}
           isSilenced={!isChannelAudible(channel, soloActive)}
           onSelect={() => onSelectChannel(channel.id)}
+          onPreview={() => onPreviewChannel(channel.id)}
           onToggleMute={() => onToggleMute(channel.id)}
           onToggleSolo={() => onToggleSolo(channel.id)}
         />

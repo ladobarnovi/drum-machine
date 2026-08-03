@@ -44,8 +44,9 @@ export default function Sidebar({ isOpen, onClose, children }: SidebarProps) {
         id={SIDEBAR_ID}
         // `invisible` keeps the off-screen drawer out of the tab order; it is
         // in the transition so it only takes effect once the slide-out ends.
+        // `md:visible` overrides it from `md` up, where the rail is permanent.
         className={`fixed inset-y-0 left-0 z-40 flex w-56 flex-col gap-6 overflow-y-auto border-r border-neutral-200 bg-white p-6 transition-[transform,visibility] duration-200 ease-out md:visible md:translate-x-0 dark:border-neutral-800 dark:bg-neutral-900 ${
-          isOpen ? "translate-x-0" : "-translate-x-full max-md:invisible"
+          isOpen ? "translate-x-0" : "invisible -translate-x-full"
         }`}
       >
         {children}
