@@ -1,7 +1,9 @@
+import Sequencer from "@/components/Sequencer";
+
 export default function Home() {
   return (
-    <main>
-      <div>Hello world!</div>
+    <main className="min-h-screen bg-white dark:bg-neutral-900">
+      <Sequencer />
     </main>
   );
 }
