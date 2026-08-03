@@ -39,6 +39,16 @@ const DRIVE_CURVE_SAMPLES = 1024;
 /** How hard full drive pushes into tanh before the curve is normalised. */
 const MAX_DRIVE_GAIN = 25;
 
+/**
+ * Drive is squared on its way to the tanh input gain. tanh saturates
+ * exponentially, so a linear map spends the whole effect in the first quarter
+ * of the slider and leaves the rest of the travel doing nothing audible.
+ */
+function driveGain(amount: number): number {
+  const clamped = clampDrive(amount);
+  return clamped * clamped * MAX_DRIVE_GAIN;
+}
+
 /** Gain moves ramp over this long, so nothing switches hard enough to click. */
 const RAMP_SECONDS = 0.02;
 
@@ -67,7 +77,7 @@ type MasterChain = {
 // `Float32Array` widens to `ArrayBufferLike` and no longer assigns to it.
 function driveCurve(amount: number): Float32Array<ArrayBuffer> {
   const curve = new Float32Array(DRIVE_CURVE_SAMPLES);
-  const k = clampDrive(amount) * MAX_DRIVE_GAIN;
+  const k = driveGain(amount);
   // tanh(k*x)/tanh(k) is 0/0 as k approaches 0; the limit there is x.
   const normalise = k < 1e-6 ? 0 : 1 / Math.tanh(k);
 
