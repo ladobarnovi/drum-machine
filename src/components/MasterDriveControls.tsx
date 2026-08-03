@@ -3,11 +3,14 @@
 import MasterFxSection from "./MasterFxSection";
 import RailSlider from "./RailSlider";
 import {
+  DRIVE_TYPES,
+  DRIVE_TYPE_LABELS,
   MAX_DRIVE,
   MAX_VOLUME,
   MIN_DRIVE,
   MIN_VOLUME,
   clampDrive,
+  clampDriveType,
   clampVolume,
   type MasterDrive,
 } from "@/lib/sequencer";
@@ -33,6 +36,25 @@ export default function MasterDriveControls({
       enabled={drive.enabled}
       onToggle={() => onChange({ ...drive, enabled: !drive.enabled })}
     >
+      {/* Type first: it decides what Amount is dialling in. */}
+      <label className="flex flex-col gap-1 text-xs">
+        <span>Type</span>
+        <select
+          value={drive.type}
+          onChange={(event) =>
+            onChange({ ...drive, type: clampDriveType(event.target.value) })
+          }
+          aria-label="Master drive type"
+          className="w-full rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800"
+        >
+          {DRIVE_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {DRIVE_TYPE_LABELS[type]}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <RailSlider
         label="Amount"
         ariaLabel="Master drive amount"

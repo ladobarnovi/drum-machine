@@ -10,6 +10,7 @@ import {
   clampDrive,
   clampFrequency,
   clampVolume,
+  type DriveType,
   type MasterDrive,
   type MasterFilter,
 } from "@/lib/sequencer";
@@ -49,7 +50,23 @@ const DRIVE_CURVE_SAMPLES = 1024;
 const MAX_DRIVE_GAIN = 25;
 
 /**
- * Drive is squared on its way to the tanh input gain. tanh saturates
+ * Fold gain at full drive. Seven, not eight: the triangle's zero crossings land
+ * on even multiples, so a gain of eight would map a full-scale peak onto
+ * silence and swallow exactly the transients a drum bus is made of. Odd
+ * multiples land on a fold peak instead, which keeps the level (the polarity
+ * flips, which is not audible on its own).
+ */
+const MAX_FOLD_GAIN = 7;
+
+/**
+ * How much softer the tube shape's negative half is than its positive half.
+ * The mismatch between the two halves is the whole effect, so this is the one
+ * number that decides how "tube" it sounds.
+ */
+const TUBE_ASYMMETRY = 0.55;
+
+/**
+ * Drive is squared on its way to the shaper's input gain. Saturation builds
  * exponentially, so a linear map spends the whole effect in the first quarter
  * of the slider and leaves the rest of the travel doing nothing audible.
  */
@@ -58,8 +75,78 @@ function driveGain(amount: number): number {
   return clamped * clamped * MAX_DRIVE_GAIN;
 }
 
+/**
+ * The same taper, but starting at unity instead of zero — what the shapes that
+ * clip or fold need, since for them it is a gain into a fixed threshold rather
+ * than a parameter of the curve itself.
+ */
+function thresholdGain(amount: number, max: number): number {
+  const clamped = clampDrive(amount);
+  return 1 + clamped * clamped * (max - 1);
+}
+
+/**
+ * Maps one input sample to one output sample. Every shape is the identity at
+ * amount 0 and none may leave -1..1, so the Amount slider reads the same
+ * everywhere and no shape can clip the output on its own.
+ *
+ * The three saturating shapes also hold full scale in at full scale out, which
+ * is what keeps a type change a change of character rather than of level. Fold
+ * is the exception and cannot be otherwise: folding is by definition
+ * non-monotonic, so where a peak lands depends on how far it was pushed.
+ */
+type Shaper = (x: number, amount: number) => number;
+
+const SHAPERS: Record<DriveType, Shaper> = {
+  /**
+   * Symmetric tanh, normalised by `tanh(k)` rather than by the slope at zero.
+   * That is what makes it get *louder* as it saturates: quiet material is
+   * pushed up towards the asymptote while peaks stay put. Round and forgiving.
+   */
+  soft: (x, amount) => {
+    const k = driveGain(amount);
+    // tanh(k*x)/tanh(k) is 0/0 as k approaches 0; the limit there is x.
+    return k < 1e-6 ? x : Math.tanh(k * x) / Math.tanh(k);
+  },
+
+  /**
+   * tanh again, but each half normalised on its own, so both still reach full
+   * scale while the negative half keeps a softer knee. A curve that treats up
+   * and down differently is what puts *even* harmonics in the output, which is
+   * the warmth people reach for; it also puts DC there, hence the DC blocker.
+   */
+  tube: (x, amount) => {
+    const k = driveGain(amount);
+    if (k < 1e-6) return x;
+    const half = x >= 0 ? k : k * TUBE_ASYMMETRY;
+    return Math.tanh(half * x) / Math.tanh(half);
+  },
+
+  /** Gain into a flat ceiling. No knee at all, so it buzzes where soft rounds. */
+  hard: (x, amount) => {
+    const driven = thresholdGain(amount, MAX_DRIVE_GAIN) * x;
+    return Math.min(Math.max(driven, -1), 1);
+  },
+
+  /**
+   * Triangle wavefolder: identity while |driven| stays inside 1, then mirrored
+   * back on itself again and again past that. Unlike the others it is not
+   * monotonic — loud input can come out quiet — which is why it sounds metallic
+   * and unlike anything the per-channel controls can do.
+   */
+  fold: (x, amount) => {
+    const driven = thresholdGain(amount, MAX_FOLD_GAIN) * x;
+    // Wrapped into one period of 4, which the ramps below cover exactly.
+    const wrapped = (((driven + 1) % 4) + 4) % 4;
+    return wrapped <= 2 ? wrapped - 1 : 3 - wrapped;
+  },
+};
+
 /** Gain moves ramp over this long, so nothing switches hard enough to click. */
 const RAMP_SECONDS = 0.02;
+
+/** Where the drive stage's DC blocker sits: below hearing, above 0 Hz. */
+const DC_BLOCKER_HZ = 10;
 
 /**
  * Where a decay ramp lands before the voice is cut. An exponential curve is the
@@ -73,6 +160,12 @@ type MasterChain = {
   /** Where voices connect. Feeds the driven and the clean path in parallel. */
   input: GainNode;
   shaper: WaveShaperNode;
+  /**
+   * The type and amount `shaper.curve` was last built for. Rebuilding the table
+   * on every change would swap it mid-signal each time the volume slider moved,
+   * which zippers; this lets the level ramp on its own.
+   */
+  curveKey: string;
   level: GainNode;
   driven: GainNode;
   clean: GainNode;
@@ -85,27 +178,22 @@ type MasterChain = {
 };
 
 /**
- * A tanh transfer curve, normalised so full scale in stays full scale out.
- *
- * Normalising by `tanh(k)` rather than by the slope at zero is what makes the
- * stage get *louder* as it saturates — quiet material is pushed up towards the
- * asymptote while peaks stay put, which is the loudness people reach for drive
- * to get. The Volume control is there to give it back.
- *
- * At `amount` 0 the curve is the identity line, so an enabled stage with no
- * drive dialled in is transparent apart from its level.
+ * Samples a shape into the lookup table a WaveShaperNode reads. The node maps
+ * an input of -1..1 across the whole table and pins anything beyond that to the
+ * end points, so the table *is* the sound of the stage.
  */
 // The explicit buffer type is what `WaveShaperNode.curve` asks for; a bare
 // `Float32Array` widens to `ArrayBufferLike` and no longer assigns to it.
-function driveCurve(amount: number): Float32Array<ArrayBuffer> {
+function driveCurve(
+  type: DriveType,
+  amount: number,
+): Float32Array<ArrayBuffer> {
   const curve = new Float32Array(DRIVE_CURVE_SAMPLES);
-  const k = driveGain(amount);
-  // tanh(k*x)/tanh(k) is 0/0 as k approaches 0; the limit there is x.
-  const normalise = k < 1e-6 ? 0 : 1 / Math.tanh(k);
+  const shape = SHAPERS[type];
 
   for (let i = 0; i < DRIVE_CURVE_SAMPLES; i += 1) {
     const x = (i / (DRIVE_CURVE_SAMPLES - 1)) * 2 - 1;
-    curve[i] = normalise === 0 ? x : Math.tanh(k * x) * normalise;
+    curve[i] = shape(x, amount);
   }
 
   return curve;
@@ -127,6 +215,7 @@ function createCutFilter(
 function createMasterChain(context: AudioContext): MasterChain {
   const input = context.createGain();
   const shaper = context.createWaveShaper();
+  const dcBlocker = createCutFilter(context, "highpass", DC_BLOCKER_HZ);
   const level = context.createGain();
   const driven = context.createGain();
   const clean = context.createGain();
@@ -143,7 +232,11 @@ function createMasterChain(context: AudioContext): MasterChain {
   // Both paths stay wired up and the bypass just crossfades between them.
   // Reconnecting live nodes instead would click on every toggle.
   input.connect(shaper);
-  shaper.connect(level);
+  // An asymmetric shape puts a DC offset on its output, which eats headroom
+  // silently and thumps when the stage is switched in. A highpass this low is
+  // inaudible to the shapes that don't need it, so it stays in the path always.
+  shaper.connect(dcBlocker);
+  dcBlocker.connect(level);
   level.connect(driven);
   driven.connect(driveOut);
 
@@ -171,6 +264,8 @@ function createMasterChain(context: AudioContext): MasterChain {
   return {
     input,
     shaper,
+    // No curve built yet, so the first apply always installs one.
+    curveKey: "",
     level,
     driven,
     clean,
@@ -197,7 +292,12 @@ function applyDrive(
 ) {
   const now = context.currentTime;
 
-  chain.shaper.curve = driveCurve(drive.amount);
+  const curveKey = `${drive.type}:${clampDrive(drive.amount)}`;
+  if (chain.curveKey !== curveKey) {
+    chain.shaper.curve = driveCurve(drive.type, drive.amount);
+    chain.curveKey = curveKey;
+  }
+
   rampTo(chain.level.gain, clampVolume(drive.level), now);
   rampTo(chain.driven.gain, drive.enabled ? 1 : 0, now);
   rampTo(chain.clean.gain, drive.enabled ? 0 : 1, now);

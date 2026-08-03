@@ -43,12 +43,37 @@ export const MAX_DRIVE = 1;
 export const DEFAULT_DRIVE = 0.35;
 
 /**
+ * The saturation shapes on offer, ordered from tamest to wildest.
+ *
+ * Every shape is the identity line at amount 0, so the Amount slider keeps its
+ * meaning across all of them. Soft, tube, and hard also pass full scale through
+ * unchanged, so switching between those three is a change of character rather
+ * than of level; fold is louder or quieter depending on where its folding lands
+ * a peak, and is meant to be reached for knowing that.
+ */
+export const DRIVE_TYPES = ["soft", "tube", "hard", "fold"] as const;
+
+export type DriveType = (typeof DRIVE_TYPES)[number];
+
+export const DEFAULT_DRIVE_TYPE: DriveType = "soft";
+
+/** Rail labels. Kept short: the sidebar select is only so wide. */
+export const DRIVE_TYPE_LABELS: Record<DriveType, string> = {
+  soft: "Soft",
+  tube: "Tube",
+  hard: "Hard",
+  fold: "Fold",
+};
+
+/**
  * Saturation stage on the sum of every channel, wired like a pedal: `level` is
  * the stage's own output, so bypassing takes the drive and the level with it
  * and leaves the untouched sum to compare against.
  */
 export type MasterDrive = {
   enabled: boolean;
+  /** Which saturation shape the stage runs. */
+  type: DriveType;
   /** 0..1. At 0 the stage is linear, so only the level is heard. */
   amount: number;
   /** Linear output gain, on the same scale as a channel's volume. */
@@ -58,6 +83,7 @@ export type MasterDrive = {
 /** Starts bypassed, already dialled in so switching it on does something. */
 export const DEFAULT_MASTER_DRIVE: MasterDrive = {
   enabled: false,
+  type: DEFAULT_DRIVE_TYPE,
   amount: DEFAULT_DRIVE,
   level: DEFAULT_VOLUME,
 };
@@ -220,6 +246,13 @@ export function clampVolume(value: number): number {
 export function clampDrive(value: number): number {
   if (!Number.isFinite(value)) return MIN_DRIVE;
   return Math.min(Math.max(value, MIN_DRIVE), MAX_DRIVE);
+}
+
+/** Narrows the raw string a `<select>` hands back to a known shape. */
+export function clampDriveType(value: string): DriveType {
+  return DRIVE_TYPES.includes(value as DriveType)
+    ? (value as DriveType)
+    : DEFAULT_DRIVE_TYPE;
 }
 
 export function clampPitch(value: number): number {
