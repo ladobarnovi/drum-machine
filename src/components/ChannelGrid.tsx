@@ -18,7 +18,7 @@ export default function ChannelGrid({
     <div
       role="group"
       aria-label="Channels"
-      className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+      className="grid grid-cols-4 gap-2 sm:grid-cols-8"
     >
       {channels.map((channel) => (
         <ChannelPad

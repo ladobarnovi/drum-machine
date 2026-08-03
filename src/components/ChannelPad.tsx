@@ -26,9 +26,9 @@ export default function ChannelPad({
       aria-pressed={isSelected}
       aria-label={`Select channel ${displayName}`}
       title={displayName}
-      className={`rounded-md border p-3 text-left transition-colors ${selection}`}
+      className={`rounded-md border p-2 text-center transition-colors sm:p-3 ${selection}`}
     >
-      <span className="block truncate text-sm font-semibold">
+      <span className="block truncate text-xs font-semibold sm:text-sm">
         {displayName}
       </span>
     </button>

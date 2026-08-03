@@ -1,4 +1,4 @@
-export const CHANNEL_COUNT = 8;
+export const CHANNEL_COUNT = 16;
 export const STEPS_PER_BEAT = 4;
 
 export const MIN_STEPS = 1;
