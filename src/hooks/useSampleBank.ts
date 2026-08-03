@@ -362,6 +362,10 @@ export function useSampleBank() {
         tail = lowpass;
       }
 
+      // When the decay ends. Held until after `source.start` below, because a
+      // source that has not been started yet rejects `stop` outright.
+      let releaseTime: number | null = null;
+
       // The envelope rides its own node rather than shaping the volume gain, so
       // its curve stays a plain 0..1 shape. Scaling it by the channel volume
       // would leave a silenced channel with a decay ramp running from zero,
@@ -379,12 +383,9 @@ export function useSampleBank() {
         }
 
         if (decaySeconds !== undefined) {
-          const end = time + attack + decaySeconds;
-          level.exponentialRampToValueAtTime(DECAY_FLOOR, end);
-          level.setValueAtTime(0, end);
-          // There is nothing left to hear, so the voice is released rather than
-          // left running silently until the buffer ends.
-          source.stop(end);
+          releaseTime = time + attack + decaySeconds;
+          level.exponentialRampToValueAtTime(DECAY_FLOOR, releaseTime);
+          level.setValueAtTime(0, releaseTime);
         }
 
         tail.connect(envelope);
@@ -399,6 +400,12 @@ export function useSampleBank() {
       // summed before the drive stage sees it.
       gainNode.connect(master.input);
       source.start(time);
+
+      // Past the decay there is nothing left to hear, so the voice is released
+      // rather than left running silently until the buffer ends.
+      if (releaseTime !== null) {
+        source.stop(releaseTime);
+      }
     },
     [],
   );
