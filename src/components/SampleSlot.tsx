@@ -38,7 +38,7 @@ export default function SampleSlot({
   }
 
   return (
-    <div className="flex w-56 shrink-0 items-center gap-2">
+    <div className="flex min-w-0 flex-1 items-center gap-2">
       <label className="shrink-0 cursor-pointer rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800">
         {hasSample ? "Replace" : "Load"}
         <input

@@ -30,7 +30,7 @@ export default function StepButton({
       aria-label={label}
       aria-pressed={active}
       onClick={onToggle}
-      className={`h-9 flex-1 rounded border transition-colors ${fill} ${playhead}`}
+      className={`h-12 flex-1 rounded border transition-colors ${fill} ${playhead}`}
     />
   );
 }

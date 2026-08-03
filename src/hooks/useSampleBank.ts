@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
+type TriggerOptions = {
+  /** Linear gain for this hit. */
+  gain?: number;
+  /** Playback rate multiplier; also changes pitch. */
+  playbackRate?: number;
+};
+
 /**
  * Owns the AudioContext and the decoded AudioBuffer for each channel.
  *
@@ -30,13 +37,17 @@ export function useSampleBank() {
     return contextRef.current;
   }, []);
 
-  /** Decodes `file` for `channelId`. Throws if the file isn't decodable audio. */
+  /**
+   * Decodes `file` for `channelId` and returns the buffer so the caller can
+   * derive display data from it. Throws if the file isn't decodable audio.
+   */
   const loadSample = useCallback(
-    async (channelId: string, file: File) => {
+    async (channelId: string, file: File): Promise<AudioBuffer> => {
       const context = ensureContext();
       const arrayBuffer = await file.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
       buffersRef.current.set(channelId, audioBuffer);
+      return audioBuffer;
     },
     [ensureContext],
   );
@@ -46,16 +57,30 @@ export function useSampleBank() {
   }, []);
 
   /** Schedules the channel's sample to play at `time` on the audio clock. */
-  const trigger = useCallback((channelId: string, time: number) => {
-    const context = contextRef.current;
-    const buffer = buffersRef.current.get(channelId);
-    if (!context || !buffer) return;
+  const trigger = useCallback(
+    (
+      channelId: string,
+      time: number,
+      { gain = 1, playbackRate = 1 }: TriggerOptions = {},
+    ) => {
+      const context = contextRef.current;
+      const buffer = buffersRef.current.get(channelId);
+      if (!context || !buffer) return;
 
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(context.destination);
-    source.start(time);
-  }, []);
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.playbackRate.value = playbackRate;
+
+      // A gain node per hit, so changing volume never retunes a playing note.
+      const gainNode = context.createGain();
+      gainNode.gain.value = gain;
+
+      source.connect(gainNode);
+      gainNode.connect(context.destination);
+      source.start(time);
+    },
+    [],
+  );
 
   return { ensureContext, loadSample, removeSample, trigger };
 }

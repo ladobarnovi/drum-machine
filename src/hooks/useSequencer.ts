@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { STEP_COUNT, secondsPerStep } from "@/lib/sequencer";
+import { secondsPerStep } from "@/lib/sequencer";
 
 /** How often the scheduler wakes up to look for notes to queue. */
 const SCHEDULER_INTERVAL_MS = 25;
@@ -14,8 +14,8 @@ const START_DELAY_S = 0.05;
 type UseSequencerOptions = {
   bpm: number;
   ensureContext: () => AudioContext;
-  /** Called for each step as it is queued, with its exact audio-clock time. */
-  onStep: (stepIndex: number, time: number) => void;
+  /** Called for each tick as it is queued, with its exact audio-clock time. */
+  onStep: (tick: number, time: number) => void;
 };
 
 /**
@@ -25,6 +25,9 @@ type UseSequencerOptions = {
  * slightly ahead against the sample-accurate audio clock, so playback doesn't
  * drift the way `setInterval`-driven playback would. BPM and the step callback
  * are read through refs so edits apply mid-playback without restarting.
+ *
+ * Counts an absolute tick rather than a wrapped step index: channels each have
+ * their own length, so every channel wraps this tick by its own cycle.
  */
 export function useSequencer({
   bpm,
@@ -32,11 +35,11 @@ export function useSequencer({
   onStep,
 }: UseSequencerOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentStep, setCurrentStep] = useState<number | null>(null);
+  const [currentTick, setCurrentTick] = useState<number | null>(null);
 
   const bpmRef = useRef(bpm);
   const onStepRef = useRef(onStep);
-  const nextStepRef = useRef(0);
+  const nextTickRef = useRef(0);
   const nextNoteTimeRef = useRef(0);
   const schedulerTimeoutRef = useRef<number | null>(null);
   const visualTimeoutsRef = useRef(new Set<number>());
@@ -64,7 +67,7 @@ export function useSequencer({
 
   const stop = useCallback(() => {
     setIsPlaying(false);
-    setCurrentStep(null);
+    setCurrentTick(null);
     clearTimers();
   }, [clearTimers]);
 
@@ -74,40 +77,40 @@ export function useSequencer({
       void context.resume();
     }
 
-    nextStepRef.current = 0;
+    nextTickRef.current = 0;
     nextNoteTimeRef.current = context.currentTime + START_DELAY_S;
     setIsPlaying(true);
 
-    const tick = () => {
+    const pump = () => {
       while (
         nextNoteTimeRef.current <
         context.currentTime + SCHEDULE_AHEAD_TIME_S
       ) {
-        const stepIndex = nextStepRef.current;
+        const tick = nextTickRef.current;
         const time = nextNoteTimeRef.current;
 
-        onStepRef.current(stepIndex, time);
+        onStepRef.current(tick, time);
 
         // Move the playhead highlight when the step is actually audible.
         const delayMs = Math.max(0, (time - context.currentTime) * 1000);
         const timeoutId = window.setTimeout(() => {
           visualTimeoutsRef.current.delete(timeoutId);
-          setCurrentStep(stepIndex);
+          setCurrentTick(tick);
         }, delayMs);
         visualTimeoutsRef.current.add(timeoutId);
 
         nextNoteTimeRef.current += secondsPerStep(bpmRef.current);
-        nextStepRef.current = (stepIndex + 1) % STEP_COUNT;
+        nextTickRef.current = tick + 1;
       }
 
       schedulerTimeoutRef.current = window.setTimeout(
-        tick,
+        pump,
         SCHEDULER_INTERVAL_MS,
       );
     };
 
-    tick();
+    pump();
   }, [ensureContext]);
 
-  return { isPlaying, currentStep, play, stop };
+  return { isPlaying, currentTick, play, stop };
 }

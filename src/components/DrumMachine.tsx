@@ -2,20 +2,30 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import ChannelRow from "./ChannelRow";
+import ChannelEditor from "./ChannelEditor";
+import ChannelGrid from "./ChannelGrid";
 import Transport from "./Transport";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSequencer } from "@/hooks/useSequencer";
 import {
   DEFAULT_BPM,
+  channelIdForIndex,
+  clampChannelName,
+  clampLength,
+  clampPitch,
+  clampVolume,
   createInitialChannels,
+  playbackRateForPitch,
   type Channel,
-  type SampleState,
 } from "@/lib/sequencer";
+import { computePeaks } from "@/lib/waveform";
 
 export default function DrumMachine() {
   const [channels, setChannels] = useState<Channel[]>(createInitialChannels);
   const [bpm, setBpm] = useState(DEFAULT_BPM);
+  const [selectedChannelId, setSelectedChannelId] = useState(
+    channelIdForIndex(0),
+  );
 
   const { ensureContext, loadSample, removeSample, trigger } = useSampleBank();
 
@@ -26,28 +36,34 @@ export default function DrumMachine() {
     channelsRef.current = channels;
   }, [channels]);
 
+  // Each channel wraps the absolute tick by its own length, so channels with
+  // different lengths drift against each other instead of restarting together.
   const handleStep = useCallback(
-    (stepIndex: number, time: number) => {
+    (tick: number, time: number) => {
       for (const channel of channelsRef.current) {
-        if (channel.steps[stepIndex]) {
-          trigger(channel.id, time);
+        if (channel.steps[tick % clampLength(channel.length)]) {
+          trigger(channel.id, time, {
+            gain: clampVolume(channel.volume),
+            playbackRate: playbackRateForPitch(channel.pitch),
+          });
         }
       }
     },
     [trigger],
   );
 
-  const { isPlaying, currentStep, play, stop } = useSequencer({
+  const { isPlaying, currentTick, play, stop } = useSequencer({
     bpm,
     ensureContext,
     onStep: handleStep,
   });
 
-  const setSampleState = useCallback(
-    (channelId: string, sample: SampleState) => {
+  /** Applies a partial update to a single channel. */
+  const updateChannel = useCallback(
+    (channelId: string, patch: Partial<Channel>) => {
       setChannels((prev) =>
         prev.map((channel) =>
-          channel.id === channelId ? { ...channel, sample } : channel,
+          channel.id === channelId ? { ...channel, ...patch } : channel,
         ),
       );
     },
@@ -74,20 +90,28 @@ export default function DrumMachine() {
 
   const handleUpload = useCallback(
     async (channelId: string, file: File) => {
-      setSampleState(channelId, { status: "loading", name: file.name });
+      updateChannel(channelId, {
+        sample: { status: "loading", name: file.name },
+      });
       try {
-        await loadSample(channelId, file);
-        setSampleState(channelId, { status: "loaded", name: file.name });
+        const buffer = await loadSample(channelId, file);
+        updateChannel(channelId, {
+          sample: {
+            status: "loaded",
+            name: file.name,
+            peaks: computePeaks(buffer),
+            durationSeconds: buffer.duration,
+          },
+        });
       } catch (error) {
         console.error(`Failed to decode audio for ${channelId}`, error);
         removeSample(channelId);
-        setSampleState(channelId, {
-          status: "error",
-          message: "Couldn't load that file",
+        updateChannel(channelId, {
+          sample: { status: "error", message: "Couldn't load that file" },
         });
       }
     },
-    [loadSample, removeSample, setSampleState],
+    [loadSample, removeSample, updateChannel],
   );
 
   // Removing a sample keeps the channel's pattern, so a new sample can be
@@ -95,14 +119,51 @@ export default function DrumMachine() {
   const handleRemove = useCallback(
     (channelId: string) => {
       removeSample(channelId);
-      setSampleState(channelId, { status: "empty" });
+      updateChannel(channelId, { sample: { status: "empty" } });
     },
-    [removeSample, setSampleState],
+    [removeSample, updateChannel],
+  );
+
+  const handleLengthChange = useCallback(
+    (channelId: string, length: number) => {
+      updateChannel(channelId, { length: clampLength(length) });
+    },
+    [updateChannel],
+  );
+
+  const handleVolumeChange = useCallback(
+    (channelId: string, volume: number) => {
+      updateChannel(channelId, { volume: clampVolume(volume) });
+    },
+    [updateChannel],
+  );
+
+  const handlePitchChange = useCallback(
+    (channelId: string, pitch: number) => {
+      updateChannel(channelId, { pitch: clampPitch(pitch) });
+    },
+    [updateChannel],
+  );
+
+  const handleNameChange = useCallback(
+    (channelId: string, name: string) => {
+      updateChannel(channelId, { name: clampChannelName(name) });
+    },
+    [updateChannel],
   );
 
   const canPlay = channels.some(
     (channel) => channel.sample.status === "loaded",
   );
+
+  const selectedChannel =
+    channels.find((channel) => channel.id === selectedChannelId) ?? channels[0];
+
+  // The playhead shown is the selected channel's own position in its cycle.
+  const currentStep =
+    currentTick === null
+      ? null
+      : currentTick % clampLength(selectedChannel.length);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6 text-neutral-900 dark:text-neutral-100">
@@ -116,20 +177,29 @@ export default function DrumMachine() {
         onBpmChange={setBpm}
       />
 
-      <div className="flex flex-col gap-2">
-        {channels.map((channel) => (
-          <ChannelRow
-            key={channel.id}
-            channel={channel}
-            currentStep={currentStep}
-            onToggleStep={(stepIndex) =>
-              handleToggleStep(channel.id, stepIndex)
-            }
-            onUpload={(file) => void handleUpload(channel.id, file)}
-            onRemove={() => handleRemove(channel.id)}
-          />
-        ))}
-      </div>
+      <ChannelGrid
+        channels={channels}
+        selectedChannelId={selectedChannel.id}
+        onSelectChannel={setSelectedChannelId}
+      />
+
+      <ChannelEditor
+        channel={selectedChannel}
+        currentStep={currentStep}
+        onToggleStep={(stepIndex) =>
+          handleToggleStep(selectedChannel.id, stepIndex)
+        }
+        onUpload={(file) => void handleUpload(selectedChannel.id, file)}
+        onRemove={() => handleRemove(selectedChannel.id)}
+        onLengthChange={(length) =>
+          handleLengthChange(selectedChannel.id, length)
+        }
+        onVolumeChange={(volume) =>
+          handleVolumeChange(selectedChannel.id, volume)
+        }
+        onPitchChange={(pitch) => handlePitchChange(selectedChannel.id, pitch)}
+        onNameChange={(name) => handleNameChange(selectedChannel.id, name)}
+      />
     </div>
   );
 }
