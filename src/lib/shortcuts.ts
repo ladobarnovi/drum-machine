@@ -22,6 +22,41 @@ export function channelIndexForShortcut(
   return (withShift ? SHORTCUT_BANK_SIZE : 0) + (digit - 1);
 }
 
+/**
+ * Input types where a keystroke isn't text, so a shortcut may safely claim it.
+ * Space in a number or range field does nothing useful natively.
+ */
+const NON_TEXT_INPUT_TYPES = new Set([
+  "range",
+  "number",
+  "checkbox",
+  "radio",
+  "button",
+  "submit",
+  "reset",
+  "file",
+  "color",
+]);
+
+/**
+ * True when the event target is somewhere the user is typing, so Space still
+ * inserts a space in the channel-name field instead of toggling playback.
+ */
+export function isTextEntryTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+
+  switch (target.tagName) {
+    case "TEXTAREA":
+    case "SELECT":
+      return true;
+    case "INPUT":
+      return !NON_TEXT_INPUT_TYPES.has((target as HTMLInputElement).type);
+    default:
+      return false;
+  }
+}
+
 /** Human-readable shortcut for a channel index, for tooltips. */
 export function shortcutLabelForIndex(index: number): string | null {
   if (index < 0 || index >= SHORTCUT_BANK_SIZE * 2) return null;

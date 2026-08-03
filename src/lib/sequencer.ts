@@ -7,7 +7,7 @@ export const DEFAULT_STEP_COUNT = 16;
 
 export const DEFAULT_BPM = 120;
 export const MIN_BPM = 40;
-export const MAX_BPM = 300;
+export const MAX_BPM = 200;
 
 export const MIN_VOLUME = 0;
 export const MAX_VOLUME = 1.5;
@@ -61,6 +61,10 @@ export type Channel = {
   lowCutHz: number;
   /** Lowpass cutoff; at MAX_FILTER_HZ the filter is bypassed. */
   highCutHz: number;
+  /** Silences this channel on its own. */
+  muted: boolean;
+  /** While any channel is soloed, every channel that isn't goes silent. */
+  soloed: boolean;
   sample: SampleState;
 };
 
@@ -79,8 +83,26 @@ export function createInitialChannels(): Channel[] {
     pitch: DEFAULT_PITCH,
     lowCutHz: DEFAULT_LOW_CUT_HZ,
     highCutHz: DEFAULT_HIGH_CUT_HZ,
+    muted: false,
+    soloed: false,
     sample: { status: "empty" },
   }));
+}
+
+/** True once any channel is soloed, which silences all the others. */
+export function hasSoloedChannel(channels: Channel[]): boolean {
+  return channels.some((channel) => channel.soloed);
+}
+
+/**
+ * Mute wins over solo, so each button keeps one meaning: mute always silences
+ * its own channel, solo only decides which of the unmuted channels survive.
+ */
+export function isChannelAudible(
+  channel: Channel,
+  soloActive: boolean,
+): boolean {
+  return !channel.muted && (!soloActive || channel.soloed);
 }
 
 export function clampLength(value: number): number {
@@ -150,13 +172,17 @@ export function formatFrequency(hz: number): string {
     : `${clamped} Hz`;
 }
 
+export function clampBpm(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_BPM;
+  return Math.min(Math.max(value, MIN_BPM), MAX_BPM);
+}
+
 /**
  * Length of a single 16th-note step. BPM is clamped so a stray input value
  * (0, empty, or absurdly large) can never produce a broken step duration.
  */
 export function secondsPerStep(bpm: number): number {
-  const safeBpm = Math.min(Math.max(bpm, MIN_BPM), MAX_BPM);
-  return 60 / safeBpm / STEPS_PER_BEAT;
+  return 60 / clampBpm(bpm) / STEPS_PER_BEAT;
 }
 
 export function isDownbeat(stepIndex: number): boolean {

@@ -1,6 +1,6 @@
 "use client";
 
-import { MAX_BPM, MIN_BPM } from "@/lib/sequencer";
+import { MAX_BPM, MIN_BPM, clampBpm } from "@/lib/sequencer";
 
 type TransportProps = {
   isPlaying: boolean;
@@ -18,32 +18,36 @@ export default function Transport({
   onTogglePlay,
   onBpmChange,
 }: TransportProps) {
-  function handleBpmChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const value = Number(event.target.value);
-    if (!Number.isNaN(value)) onBpmChange(value);
-  }
-
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-col gap-3">
       <button
         type="button"
         onClick={onTogglePlay}
         // Stay enabled while playing so the transport can always be stopped.
         disabled={!isPlaying && !canPlay}
-        className="w-20 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+        className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
       >
         {isPlaying ? "Stop" : "Play"}
       </button>
 
-      <label className="flex items-center gap-2 text-sm">
-        BPM
+      <label className="flex flex-col gap-1 text-xs">
+        <span className="flex items-baseline justify-between">
+          <span>BPM</span>
+          <span className="text-neutral-500 tabular-nums dark:text-neutral-400">
+            {bpm}
+          </span>
+        </span>
         <input
-          type="number"
+          type="range"
           min={MIN_BPM}
           max={MAX_BPM}
+          step={1}
           value={bpm}
-          onChange={handleBpmChange}
-          className="w-20 rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800"
+          onChange={(event) =>
+            onBpmChange(clampBpm(Number(event.target.value)))
+          }
+          aria-label="BPM"
+          className="w-full accent-orange-500"
         />
       </label>
 

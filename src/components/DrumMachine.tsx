@@ -5,10 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
 import PresetPicker from "./PresetPicker";
+import Sidebar, { SIDEBAR_ID } from "./Sidebar";
 import Transport from "./Transport";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSequencer } from "@/hooks/useSequencer";
+import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
 import {
   CHANNEL_COUNT,
   DEFAULT_BPM,
@@ -19,6 +21,8 @@ import {
   clampPitch,
   clampVolume,
   createInitialChannels,
+  hasSoloedChannel,
+  isChannelAudible,
   isHighCutBypassed,
   isLowCutBypassed,
   playbackRateForPitch,
@@ -33,6 +37,8 @@ export default function DrumMachine() {
   const [selectedChannelId, setSelectedChannelId] = useState(
     channelIdForIndex(0),
   );
+  /** Drawer state, only used below `md` where the sidebar is an overlay. */
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
 
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
 
@@ -55,7 +61,9 @@ export default function DrumMachine() {
   // different lengths drift against each other instead of restarting together.
   const handleStep = useCallback(
     (tick: number, time: number) => {
+      const soloActive = hasSoloedChannel(channelsRef.current);
       for (const channel of channelsRef.current) {
+        if (!isChannelAudible(channel, soloActive)) continue;
         if (channel.steps[tick % clampLength(channel.length)]) {
           trigger(channel.id, time, {
             gain: clampVolume(channel.volume),
@@ -174,6 +182,32 @@ export default function DrumMachine() {
     [updateChannel],
   );
 
+  /** Flips one of the boolean routing flags on a single channel. */
+  const toggleChannelFlag = useCallback(
+    (channelId: string, key: "muted" | "soloed") => {
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === channelId
+            ? { ...channel, [key]: !channel[key] }
+            : channel,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleToggleMute = useCallback(
+    (channelId: string) => toggleChannelFlag(channelId, "muted"),
+    [toggleChannelFlag],
+  );
+
+  // Solo is additive: soloing a second channel leaves both playing, and
+  // clearing the last solo brings every unmuted channel back.
+  const handleToggleSolo = useCallback(
+    (channelId: string) => toggleChannelFlag(channelId, "soloed"),
+    [toggleChannelFlag],
+  );
+
   const handleSelectChannelIndex = useCallback((index: number) => {
     setSelectedChannelId(channelIdForIndex(index));
   }, []);
@@ -260,6 +294,18 @@ export default function DrumMachine() {
     (channel) => channel.sample.status === "loaded",
   );
 
+  // Stopping always works; starting needs at least one loaded sample, matching
+  // the transport button's own disabled rule.
+  const handleTogglePlay = useCallback(() => {
+    if (isPlaying) {
+      stop();
+    } else if (canPlay) {
+      play();
+    }
+  }, [canPlay, isPlaying, play, stop]);
+
+  useTransportShortcuts({ onTogglePlay: handleTogglePlay });
+
   const selectedChannel =
     channels.find((channel) => channel.id === selectedChannelId) ?? channels[0];
 
@@ -270,48 +316,85 @@ export default function DrumMachine() {
       : currentTick % clampLength(selectedChannel.length);
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6 text-neutral-900 dark:text-neutral-100">
-      <h1 className="text-lg font-semibold">Drum Machine</h1>
+    <div className="min-h-screen text-neutral-900 dark:text-neutral-100">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)}>
+        <Transport
+          isPlaying={isPlaying}
+          bpm={bpm}
+          canPlay={canPlay}
+          onTogglePlay={handleTogglePlay}
+          onBpmChange={setBpm}
+        />
+      </Sidebar>
 
-      <Transport
-        isPlaying={isPlaying}
-        bpm={bpm}
-        canPlay={canPlay}
-        onTogglePlay={isPlaying ? stop : play}
-        onBpmChange={setBpm}
-      />
+      {/* Padding clears the fixed sidebar so the content centres beside it. */}
+      <div className="md:pl-56">
+        <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+          <header className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((open) => !open)}
+              aria-label="Show controls"
+              aria-expanded={isSidebarOpen}
+              aria-controls={SIDEBAR_ID}
+              className="rounded-md border border-neutral-300 p-1.5 md:hidden dark:border-neutral-700"
+            >
+              <svg
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.75}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="size-4"
+              >
+                <path d="M7 4l6 6-6 6" />
+              </svg>
+            </button>
 
-      <PresetPicker
-        presets={PRESETS}
-        loadingPresetId={loadingPresetId}
-        onLoadPreset={(preset) => void handleLoadPreset(preset)}
-      />
+            <h1 className="text-lg font-semibold">Drum Machine</h1>
+          </header>
 
-      <ChannelGrid
-        channels={channels}
-        selectedChannelId={selectedChannel.id}
-        onSelectChannel={setSelectedChannelId}
-      />
+          <PresetPicker
+            presets={PRESETS}
+            loadingPresetId={loadingPresetId}
+            onLoadPreset={(preset) => void handleLoadPreset(preset)}
+          />
 
-      <ChannelEditor
-        channel={selectedChannel}
-        currentStep={currentStep}
-        onToggleStep={(stepIndex) =>
-          handleToggleStep(selectedChannel.id, stepIndex)
-        }
-        onUpload={(file) => void handleUpload(selectedChannel.id, file)}
-        onRemove={() => handleRemove(selectedChannel.id)}
-        onLengthChange={(length) =>
-          handleLengthChange(selectedChannel.id, length)
-        }
-        onVolumeChange={(volume) =>
-          handleVolumeChange(selectedChannel.id, volume)
-        }
-        onPitchChange={(pitch) => handlePitchChange(selectedChannel.id, pitch)}
-        onNameChange={(name) => handleNameChange(selectedChannel.id, name)}
-        onLowCutChange={(hz) => handleLowCutChange(selectedChannel.id, hz)}
-        onHighCutChange={(hz) => handleHighCutChange(selectedChannel.id, hz)}
-      />
+          <ChannelGrid
+            channels={channels}
+            selectedChannelId={selectedChannel.id}
+            onSelectChannel={setSelectedChannelId}
+            onToggleMute={handleToggleMute}
+            onToggleSolo={handleToggleSolo}
+          />
+
+          <ChannelEditor
+            channel={selectedChannel}
+            currentStep={currentStep}
+            onToggleStep={(stepIndex) =>
+              handleToggleStep(selectedChannel.id, stepIndex)
+            }
+            onUpload={(file) => void handleUpload(selectedChannel.id, file)}
+            onRemove={() => handleRemove(selectedChannel.id)}
+            onLengthChange={(length) =>
+              handleLengthChange(selectedChannel.id, length)
+            }
+            onVolumeChange={(volume) =>
+              handleVolumeChange(selectedChannel.id, volume)
+            }
+            onPitchChange={(pitch) =>
+              handlePitchChange(selectedChannel.id, pitch)
+            }
+            onNameChange={(name) => handleNameChange(selectedChannel.id, name)}
+            onLowCutChange={(hz) => handleLowCutChange(selectedChannel.id, hz)}
+            onHighCutChange={(hz) =>
+              handleHighCutChange(selectedChannel.id, hz)
+            }
+          />
+        </div>
+      </div>
     </div>
   );
 }
