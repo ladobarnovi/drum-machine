@@ -20,10 +20,11 @@ export default function ChannelGrid({
       aria-label="Channels"
       className="grid grid-cols-4 gap-2 sm:grid-cols-8"
     >
-      {channels.map((channel) => (
+      {channels.map((channel, index) => (
         <ChannelPad
           key={channel.id}
           channel={channel}
+          index={index}
           isSelected={channel.id === selectedChannelId}
           onSelect={() => onSelectChannel(channel.id)}
         />

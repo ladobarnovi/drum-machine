@@ -6,6 +6,7 @@ import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
 import PresetPicker from "./PresetPicker";
 import Transport from "./Transport";
+import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSequencer } from "@/hooks/useSequencer";
 import {
@@ -172,6 +173,15 @@ export default function DrumMachine() {
     },
     [updateChannel],
   );
+
+  const handleSelectChannelIndex = useCallback((index: number) => {
+    setSelectedChannelId(channelIdForIndex(index));
+  }, []);
+
+  useChannelShortcuts({
+    channelCount: channels.length,
+    onSelectChannelIndex: handleSelectChannelIndex,
+  });
 
   const handleLowCutChange = useCallback(
     (channelId: string, hz: number) => {
