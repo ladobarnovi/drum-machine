@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
+import LoadSamplesNotice from "./LoadSamplesNotice";
 import MasterDelayControls from "./MasterDelayControls";
 import MasterDriveControls from "./MasterDriveControls";
 import MasterFilterControls from "./MasterFilterControls";
 import MasterReverbControls from "./MasterReverbControls";
 import MasterVolumeControls from "./MasterVolumeControls";
+import PlayButton from "./PlayButton";
 import PresetPicker from "./PresetPicker";
 import RailGroup from "./RailGroup";
 import Sidebar, { CONTROLS_SIDEBAR_ID, FX_SIDEBAR_ID } from "./Sidebar";
@@ -680,17 +682,44 @@ export default function DrumMachine() {
         */}
         <header className="border-line bg-surface sticky top-0 z-20 border-b">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-6 py-3">
-            <h1 className="text-lg font-semibold">Drum Machine</h1>
-
-            <SnapshotControls
-              hasSnapshot={snapshot !== null}
-              onSave={handleSaveSnapshot}
-              onRecall={handleRecallSnapshot}
+            {/* Below `lg` the rail holding Play is a closed drawer, so the
+                transport gets a stand-in here — first in the row, since it is
+                the control reached for most. */}
+            <PlayButton
+              isPlaying={isPlaying}
+              canPlay={canPlay}
+              onTogglePlay={handleTogglePlay}
             />
+
+            {/*
+              Kept for screen readers at every width — it is the page's only h1
+              — but off the phone header, where the title is the one thing there
+              that does nothing, and the play button says what the page is
+              better than the words do.
+            */}
+            <h1 className="sr-only text-lg font-semibold lg:not-sr-only">
+              Drum Machine
+            </h1>
+
+            {/* Pushed to the far edge below `lg`, away from the play button, so
+                a snapshot is never saved by a thumb aiming for the transport.
+                From `lg` up it stays beside the title, as before. */}
+            <div className="ml-auto lg:ml-0">
+              <SnapshotControls
+                hasSnapshot={snapshot !== null}
+                onSave={handleSaveSnapshot}
+                onRecall={handleRecallSnapshot}
+              />
+            </div>
           </div>
         </header>
 
         <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+          {/* First thing in the column, directly above the sample slot that
+              answers it. Only while the kit is empty: once anything is loaded
+              the greyed-out transport is no longer a mystery worth explaining. */}
+          {!canPlay && <LoadSamplesNotice />}
+
           <ChannelEditor
             channel={selectedChannel}
             showSampleOnly={true}

@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node scripts/build-service-worker.mjs",
     "start": "next start",
+    "serve": "node scripts/serve-export.mjs",
+    "icons": "node scripts/generate-icons.mjs",
     "lint": "eslint",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
