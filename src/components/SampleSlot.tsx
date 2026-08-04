@@ -39,7 +39,7 @@ export default function SampleSlot({
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
-      <label className="shrink-0 cursor-pointer rounded border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800">
+      <label className="border-edge hover:bg-raised shrink-0 cursor-pointer rounded border px-2 py-1 text-xs">
         {hasSample ? "Replace" : "Load"}
         <input
           type="file"
@@ -53,9 +53,7 @@ export default function SampleSlot({
       <span
         title={statusText(sample)}
         className={`min-w-0 flex-1 truncate text-xs ${
-          sample.status === "error"
-            ? "text-red-500"
-            : "text-neutral-500 dark:text-neutral-400"
+          sample.status === "error" ? "text-danger" : "text-muted"
         }`}
       >
         {statusText(sample)}
@@ -66,7 +64,7 @@ export default function SampleSlot({
           type="button"
           onClick={onRemove}
           aria-label={`Remove sample from channel ${channelLabel}`}
-          className="shrink-0 rounded px-1.5 text-sm text-neutral-500 hover:bg-neutral-100 hover:text-red-500 dark:hover:bg-neutral-800"
+          className="text-muted hover:bg-raised hover:text-danger shrink-0 rounded px-1.5 text-sm"
         >
           ×
         </button>

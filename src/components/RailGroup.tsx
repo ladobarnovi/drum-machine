@@ -14,7 +14,7 @@ type RailGroupProps = {
 export default function RailGroup({ title, children }: RailGroupProps) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
+      <h2 className="text-muted text-[10px] font-semibold tracking-wide uppercase">
         {title}
       </h2>
 

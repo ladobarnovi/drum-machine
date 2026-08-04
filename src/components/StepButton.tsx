@@ -16,12 +16,12 @@ export default function StepButton({
   onToggle,
 }: StepButtonProps) {
   const fill = active
-    ? "border-orange-400 bg-orange-500 hover:bg-orange-400"
+    ? "border-accent-soft bg-accent hover:bg-accent-soft"
     : isDownbeat
-      ? "border-neutral-300 bg-neutral-200 hover:bg-neutral-300 dark:border-neutral-600 dark:bg-neutral-700 dark:hover:bg-neutral-600"
-      : "border-neutral-300 bg-neutral-100 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700";
+      ? "border-step-beat-edge bg-step-beat hover:bg-step-beat-hover"
+      : "border-step-edge bg-step hover:bg-step-hover";
   const playhead = isCurrent
-    ? "ring-2 ring-sky-400 ring-offset-1 dark:ring-offset-neutral-900"
+    ? "ring-select ring-offset-surface ring-2 ring-offset-1"
     : "";
 
   return (

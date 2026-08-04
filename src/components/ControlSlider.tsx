@@ -33,7 +33,7 @@ export default function ControlSlider({
         aria-label={label}
         className="flex-1 sm:w-32 sm:flex-none"
       />
-      <span className="w-16 shrink-0 text-right text-neutral-500 tabular-nums dark:text-neutral-400">
+      <span className="text-muted w-16 shrink-0 text-right tabular-nums">
         {readout}
       </span>
     </label>

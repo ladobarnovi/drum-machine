@@ -14,6 +14,7 @@ import RailGroup from "./RailGroup";
 import Sidebar, { CONTROLS_SIDEBAR_ID, FX_SIDEBAR_ID } from "./Sidebar";
 import SidebarTab from "./SidebarTab";
 import SnapshotControls from "./SnapshotControls";
+import ThemeSelector from "./ThemeSelector";
 import Transport from "./Transport";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
@@ -45,6 +46,7 @@ import {
   clearSteps,
   createInitialChannels,
   hasSoloedChannel,
+  invertSteps,
   isChannelAudible,
   nudgeSteps,
   triggerOptionsForChannel,
@@ -246,6 +248,16 @@ export default function DrumMachine() {
       prev.map((channel) =>
         channel.id === channelId
           ? { ...channel, steps: clearSteps(channel.steps, channel.length) }
+          : channel,
+      ),
+    );
+  }, []);
+
+  const handleInvertSteps = useCallback((channelId: string) => {
+    setChannels((prev) =>
+      prev.map((channel) =>
+        channel.id === channelId
+          ? { ...channel, steps: invertSteps(channel.steps, channel.length) }
           : channel,
       ),
     );
@@ -562,7 +574,7 @@ export default function DrumMachine() {
   return (
     // The page carries the surface colour now that the cards are unfilled —
     // the header and the rails already assume this pairing.
-    <div className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100">
+    <div className="bg-surface text-fg min-h-screen">
       {/*
         Everything that acts on the machine as a whole rather than on one
         channel: what it plays with, how it plays, and how loud it comes out.
@@ -592,11 +604,19 @@ export default function DrumMachine() {
           onLoadPreset={(preset) => void handleLoadPreset(preset)}
         />
 
-        {/* Last, because it is last in the signal too. */}
+        {/* Last of the controls, because it is last in the signal too. */}
         <MasterVolumeControls
           volume={masterVolume}
           onChange={setMasterVolume}
         />
+
+        {/*
+          Below the fader, and so below everything that makes a sound: how the
+          machine looks is a preference about the page rather than a control on
+          the instrument, and putting it last keeps it out of the way of the
+          things that are reached for while playing.
+        */}
+        <ThemeSelector />
       </Sidebar>
 
       <SidebarTab
@@ -658,7 +678,7 @@ export default function DrumMachine() {
           from anywhere in a long page. It sits below the drawer's backdrop, so
           on mobile the header goes behind the overlay with everything else.
         */}
-        <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <header className="border-line bg-surface sticky top-0 z-20 border-b">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-6 py-3">
             <h1 className="text-lg font-semibold">Drum Machine</h1>
 
@@ -703,6 +723,7 @@ export default function DrumMachine() {
               handleNudgeSteps(selectedChannel.id, offset)
             }
             onClearSteps={() => handleClearSteps(selectedChannel.id)}
+            onInvertSteps={() => handleInvertSteps(selectedChannel.id)}
             onLengthChange={(length) =>
               handleLengthChange(selectedChannel.id, length)
             }

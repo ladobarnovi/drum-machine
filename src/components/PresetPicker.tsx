@@ -36,7 +36,7 @@ export default function PresetPicker({
         value={selected.id}
         onChange={(event) => setSelectedId(event.target.value)}
         aria-label="Kit"
-        className="w-full rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-800"
+        className="border-edge bg-field w-full rounded border px-2 py-1 text-xs"
       >
         {presets.map((preset) => (
           <option key={preset.id} value={preset.id}>
@@ -49,12 +49,12 @@ export default function PresetPicker({
         type="button"
         onClick={() => onLoadPreset(selected)}
         disabled={isLoading}
-        className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        className="border-edge hover:bg-raised w-full rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isLoading ? "Loading…" : "Load kit"}
       </button>
 
-      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+      <p className="text-muted text-xs">
         Fills channels 1–{selected.slots.length}. Step patterns are kept.
       </p>
     </RailGroup>

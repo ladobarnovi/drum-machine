@@ -23,7 +23,7 @@ export default function ChannelNameInput({
         placeholder={fallback}
         maxLength={MAX_CHANNEL_NAME_LENGTH}
         onChange={(event) => onNameChange(clampChannelName(event.target.value))}
-        className="w-32 rounded border border-neutral-300 px-2 py-1 text-sm font-semibold dark:border-neutral-700 dark:bg-neutral-800"
+        className="border-edge bg-field w-32 rounded border px-2 py-1 text-sm font-semibold"
       />
     </label>
   );

@@ -23,8 +23,7 @@ type ChannelPadProps = {
 
 const TOGGLE_BASE =
   "flex-1 rounded border py-0.5 text-[10px] leading-4 font-semibold transition-colors";
-const TOGGLE_OFF =
-  "border-neutral-300 text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800";
+const TOGGLE_OFF = "border-edge text-muted hover:bg-raised";
 
 export default function ChannelPad({
   channel,
@@ -47,16 +46,14 @@ export default function ChannelPad({
     if (event.altKey) onPreview();
   };
 
-  const selection = isSelected
-    ? "border-sky-400 bg-sky-50 dark:bg-sky-950/40"
-    : "border-neutral-300 dark:border-neutral-700";
+  const selection = isSelected ? "border-select bg-select-soft" : "border-edge";
 
   // A hit lights the pad instantly and then fades out, so a repeat reads as a
   // fresh pulse rather than one long glow. Carried on the ring, which leaves
   // the border and background to the selected state.
   const trigger = isTriggered
-    ? "ring-orange-400 duration-0"
-    : "ring-orange-400/0 duration-300";
+    ? "ring-accent-soft duration-0"
+    : "ring-accent-soft/0 duration-300";
 
   return (
     // aspect-square keeps a pad at least as tall as it is wide; the grid row can
@@ -71,7 +68,7 @@ export default function ChannelPad({
         aria-label={`Select channel ${displayName}`}
         title={`${shortcut ? `${displayName} (${shortcut})` : displayName}\nAlt+click to preview`}
         // A neutral overlay so the hover reads the same on the selected pad's tint.
-        className={`flex flex-1 items-center justify-center rounded px-1 text-xs font-semibold transition-colors hover:bg-black/5 sm:text-sm dark:hover:bg-white/10 ${isSilenced ? "opacity-40" : ""}`}
+        className={`hover:bg-pad-hover flex flex-1 items-center justify-center rounded px-1 text-xs font-semibold transition-colors sm:text-sm ${isSilenced ? "opacity-40" : ""}`}
       >
         <span className="min-w-0 truncate">{displayName}</span>
       </button>
@@ -84,9 +81,7 @@ export default function ChannelPad({
           aria-label={`Mute channel ${displayName}`}
           title={`Mute ${displayName}`}
           className={`${TOGGLE_BASE} ${
-            channel.muted
-              ? "border-amber-500 bg-amber-500 text-white"
-              : TOGGLE_OFF
+            channel.muted ? "border-mute bg-mute text-on-accent" : TOGGLE_OFF
           }`}
         >
           M
@@ -99,9 +94,7 @@ export default function ChannelPad({
           aria-label={`Solo channel ${displayName}`}
           title={`Solo ${displayName}`}
           className={`${TOGGLE_BASE} ${
-            channel.soloed
-              ? "border-emerald-500 bg-emerald-500 text-white"
-              : TOGGLE_OFF
+            channel.soloed ? "border-solo bg-solo text-on-accent" : TOGGLE_OFF
           }`}
         >
           S

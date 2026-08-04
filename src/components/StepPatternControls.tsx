@@ -17,24 +17,28 @@ type StepPatternControlsProps = {
   /** Steps to slide the pattern by: positive later, negative earlier. */
   onNudge: (offset: number) => void;
   onClear: () => void;
+  /** Flips the played steps: hits off, silences on. */
+  onInvert: () => void;
   onLengthChange: (length: number) => void;
 };
 
 /**
- * Writes the grid below without clicking through it, in three rows: the lengths
- * decide how much grid there is, the fills put a rhythm on it, and the nudges
- * move whatever is there against the beat.
+ * Writes the grid below without clicking through it, in three labelled groups:
+ * the length decides how much grid there is, the suggestions put a rhythm on
+ * it, and the actions move or wipe whatever is already there.
  *
- * The step count sits in the header rather than up with the sample, because
+ * The step count sits in this section rather than up with the sample, because
  * it is the one control every button here answers to: it decides how far a
- * fill is written and how far a nudge wraps. The lengths are first for the same
- * reason — they are the thing the rest of the section is measured against.
+ * fill is written and how far a nudge wraps. It heads the section for the same
+ * reason — it is the thing the rest of the controls are measured against.
  *
  * A fill button stays lit while the pattern is still exactly what it wrote, so
  * the row doubles as a readout of what is programmed — and nudging a fill off
  * the beat drops the light, which is the honest answer once the rhythm has
  * been moved. Clear is what makes a fill reversible: without it, undoing a
- * busy one would mean switching off every step by hand.
+ * busy one would mean switching off every step by hand. It sits with the
+ * nudges rather than with the fills, as the other thing you do to a pattern
+ * once one is written.
  */
 export default function StepPatternControls({
   steps,
@@ -42,106 +46,135 @@ export default function StepPatternControls({
   onApplyFill,
   onNudge,
   onClear,
+  onInvert,
   onLengthChange,
 }: StepPatternControlsProps) {
   // An empty pattern is deliberately never a match: on a channel too short to
   // reach a fill's first hit, writing it changes nothing, and lighting the
   // button up would claim a rhythm that isn't there. Nothing to nudge or
-  // clear either, so the same test disables both.
+  // clear either, so the same test disables both. Invert is the exception:
+  // flipping an empty pattern fills it, so it stays live.
   const hasHits = hasActiveSteps(steps, length);
 
   const actionClass =
-    "rounded border border-neutral-300 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800";
+    "border-edge hover:bg-raised rounded border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
   // Shared by the lengths and the fills: both are buttons that stay lit while
   // the pattern is still what they set, so they read as one kind of control.
   const toggleClass = (isActive: boolean) =>
     `rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
       isActive
-        ? "border-orange-500 bg-orange-500 text-white"
-        : "border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        ? "border-accent bg-accent text-on-accent"
+        : "border-edge hover:bg-raised"
     }`;
 
+  // Each group is a heading over its row, so the gap inside a group has to stay
+  // tighter than the gap between them — otherwise a heading floats midway and
+  // stops reading as the label for the row beneath it.
+  const groupClass = "flex flex-col gap-2";
+  const headingClass = "text-xs font-semibold";
+
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xs font-semibold">Pattern</h2>
+    <section className="border-line flex flex-col gap-4 rounded-md border p-3">
+      <div className={groupClass}>
+        <h2 className={headingClass}>Sequence Length</h2>
 
+        {/*
+          Field and presets side by side, since they set the same number two
+          ways: type any count, or take one of the usual ones. Field first,
+          because the presets read as shortcuts past it. The presets are sized
+          to the widest of them so the row is even, and labelled in full for
+          screen readers, where a bare "32" would say nothing.
+        */}
+        <div className="flex flex-wrap items-center gap-3">
           <LengthControl length={length} onLengthChange={onLengthChange} />
+
+          <div className="flex flex-wrap gap-2">
+            {STEP_LENGTH_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => onLengthChange(preset)}
+                aria-pressed={length === preset}
+                aria-label={`${preset} steps`}
+                className={`w-10 ${toggleClass(length === preset)}`}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
         </div>
-
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={!hasHits}
-          className="rounded border border-neutral-300 px-2 py-0.5 text-[10px] leading-4 font-semibold text-neutral-500 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
-        >
-          Clear
-        </button>
       </div>
 
-      {/*
-        Directly under the step field, whose value they set. Sized to the widest
-        of them so the row is even, and labelled in full for screen readers,
-        where a bare "32" alongside the fills would say nothing.
-      */}
-      <div className="flex flex-wrap gap-2">
-        {STEP_LENGTH_PRESETS.map((preset) => (
+      <div className={groupClass}>
+        <h2 className={headingClass}>Patterns</h2>
+
+        <div className="flex flex-wrap gap-2">
+          {STEP_FILLS.map((fill) => {
+            const isActive = hasHits && matchesStepFill(steps, length, fill);
+
+            return (
+              <button
+                key={fill.id}
+                type="button"
+                onClick={() => onApplyFill(fill)}
+                aria-pressed={isActive}
+                className={toggleClass(isActive)}
+              >
+                {fill.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className={groupClass}>
+        <h2 className={headingClass}>Actions</h2>
+
+        {/* Earlier before later, so the pair reads left to right the way the
+            pattern moves. The signs alone are ambiguous read aloud, hence the
+            spelt-out labels. Clear last, as the one that throws work away. */}
+        <div className="flex flex-wrap gap-2">
           <button
-            key={preset}
             type="button"
-            onClick={() => onLengthChange(preset)}
-            aria-pressed={length === preset}
-            aria-label={`${preset} steps`}
-            className={`w-10 ${toggleClass(length === preset)}`}
+            onClick={() => onNudge(-1)}
+            disabled={!hasHits}
+            aria-label="Nudge pattern one step earlier"
+            className={actionClass}
           >
-            {preset}
+            Nudge −
           </button>
-        ))}
-      </div>
 
-      <div className="flex flex-wrap gap-2">
-        {STEP_FILLS.map((fill) => {
-          const isActive = hasHits && matchesStepFill(steps, length, fill);
+          <button
+            type="button"
+            onClick={() => onNudge(1)}
+            disabled={!hasHits}
+            aria-label="Nudge pattern one step later"
+            className={actionClass}
+          >
+            Nudge +
+          </button>
 
-          return (
-            <button
-              key={fill.id}
-              type="button"
-              onClick={() => onApplyFill(fill)}
-              aria-pressed={isActive}
-              className={toggleClass(isActive)}
-            >
-              {fill.label}
-            </button>
-          );
-        })}
-      </div>
+          {/* The one action with something to do on an empty pattern — it
+              fills every step — so it stays enabled where the others grey out. */}
+          <button
+            type="button"
+            onClick={onInvert}
+            aria-label="Invert pattern: switch every step to its opposite"
+            className={actionClass}
+          >
+            Invert
+          </button>
 
-      {/* Earlier before later, so the pair reads left to right the way the
-          pattern moves. The signs alone are ambiguous read aloud, hence the
-          spelt-out labels. */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onNudge(-1)}
-          disabled={!hasHits}
-          aria-label="Nudge pattern one step earlier"
-          className={actionClass}
-        >
-          Nudge −
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNudge(1)}
-          disabled={!hasHits}
-          aria-label="Nudge pattern one step later"
-          className={actionClass}
-        >
-          Nudge +
-        </button>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={!hasHits}
+            className={actionClass}
+          >
+            Clear
+          </button>
+        </div>
       </div>
     </section>
   );

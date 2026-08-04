@@ -45,7 +45,7 @@ export default function MasterDriveControls({
             onChange({ ...drive, type: clampDriveType(event.target.value) })
           }
           aria-label="Master drive type"
-          className="w-full rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800"
+          className="border-edge bg-field w-full rounded border px-2 py-1"
         >
           {DRIVE_TYPES.map((type) => (
             <option key={type} value={type}>

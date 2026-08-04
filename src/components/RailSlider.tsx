@@ -34,9 +34,7 @@ export default function RailSlider({
     <label className="flex flex-col gap-1 text-xs">
       <span className="flex items-baseline justify-between">
         <span>{label}</span>
-        <span className="text-neutral-500 tabular-nums dark:text-neutral-400">
-          {readout}
-        </span>
+        <span className="text-muted tabular-nums">{readout}</span>
       </span>
       <input
         type="range"

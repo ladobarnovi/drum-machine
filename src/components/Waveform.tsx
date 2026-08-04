@@ -21,8 +21,8 @@ function buildPath(peaks: number[]): string {
 
 export default function Waveform({ sample }: WaveformProps) {
   const frame =
-    "flex h-20 items-center justify-center overflow-hidden rounded border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900";
-  const message = "text-xs text-neutral-400 dark:text-neutral-500";
+    "border-line bg-panel flex h-20 items-center justify-center overflow-hidden rounded border";
+  const message = "text-muted text-xs";
 
   if (sample.status === "loading") {
     return (
@@ -35,7 +35,7 @@ export default function Waveform({ sample }: WaveformProps) {
   if (sample.status === "error") {
     return (
       <div className={frame}>
-        <span className="text-xs text-red-500">{sample.message}</span>
+        <span className="text-danger text-xs">{sample.message}</span>
       </div>
     );
   }
@@ -58,7 +58,7 @@ export default function Waveform({ sample }: WaveformProps) {
         preserveAspectRatio="none"
         aria-label={`Waveform for ${sample.name}`}
         role="img"
-        className="h-full w-full text-orange-500"
+        className="text-accent h-full w-full"
       >
         <line
           x1={0}
@@ -73,7 +73,7 @@ export default function Waveform({ sample }: WaveformProps) {
         <path d={buildPath(sample.peaks)} fill="currentColor" />
       </svg>
 
-      <span className="absolute right-1.5 bottom-1 rounded bg-white/70 px-1 text-[10px] text-neutral-500 tabular-nums dark:bg-neutral-900/70 dark:text-neutral-400">
+      <span className="bg-surface/70 text-muted absolute right-1.5 bottom-1 rounded px-1 text-[10px] tabular-nums">
         {sample.durationSeconds.toFixed(2)}s
       </span>
     </div>

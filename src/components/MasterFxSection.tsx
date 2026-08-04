@@ -28,7 +28,7 @@ export default function MasterFxSection({
   children,
 }: MasterFxSectionProps) {
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+    <section className="border-line flex flex-col gap-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
         {/* Nested under the group heading `RailGroup` puts above these boxes. */}
         <h3 className="text-xs font-semibold">{title}</h3>
@@ -41,8 +41,8 @@ export default function MasterFxSection({
           title={shortcut ? `${toggleLabel} (${shortcut})` : toggleLabel}
           className={`rounded border px-2 py-0.5 text-[10px] leading-4 font-semibold transition-colors ${
             enabled
-              ? "border-orange-500 bg-orange-500 text-white"
-              : "border-neutral-300 text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
+              ? "border-accent bg-accent text-on-accent"
+              : "border-edge text-muted hover:bg-raised"
           }`}
         >
           {enabled ? "On" : "Off"}

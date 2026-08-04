@@ -44,14 +44,14 @@ export default function Transport({
         onClick={onTogglePlay}
         // Stay enabled while playing so the transport can always be stopped.
         disabled={!isPlaying && !canPlay}
-        className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+        className="bg-invert text-on-invert w-full rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isPlaying ? "Stop" : "Play"}
       </button>
 
       {/* Says why Play is dead rather than leaving it greyed out unexplained. */}
       {!canPlay && (
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="text-muted text-xs">
           Load a sample on any channel to start.
         </p>
       )}

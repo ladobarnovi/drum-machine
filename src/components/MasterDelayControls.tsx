@@ -77,7 +77,7 @@ export default function MasterDelayControls({
         <span className="flex items-baseline justify-between">
           <span>Sync</span>
           {delay.synced && (
-            <span className="text-neutral-500 tabular-nums dark:text-neutral-400">
+            <span className="text-muted tabular-nums">
               {formatSeconds(delayTimeSeconds(delay, bpm))}
             </span>
           )}
@@ -99,7 +99,7 @@ export default function MasterDelayControls({
             );
           }}
           aria-label="Master delay sync"
-          className="w-full rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800"
+          className="border-edge bg-field w-full rounded border px-2 py-1"
         >
           <option value={FREE_OPTION}>Free</option>
           {DELAY_DIVISIONS.map((division) => (

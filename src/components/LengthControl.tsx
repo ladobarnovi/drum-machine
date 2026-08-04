@@ -7,24 +7,28 @@ type LengthControlProps = {
   onLengthChange: (length: number) => void;
 };
 
+/**
+ * The free-entry half of the length row: any count the presets don't offer.
+ * Unlabelled on screen because the heading above it already reads "Sequence
+ * Length" — the aria-label carries that across for screen readers, where a
+ * bare number field beside the presets would say nothing.
+ */
 export default function LengthControl({
   length,
   onLengthChange,
 }: LengthControlProps) {
   return (
-    <label className="flex shrink-0 items-center gap-2 text-xs">
-      Steps
-      <input
-        type="number"
-        min={MIN_STEPS}
-        max={MAX_STEPS}
-        value={length}
-        // Clamped on the way in: this value indexes the pattern directly.
-        onChange={(event) =>
-          onLengthChange(clampLength(Number(event.target.value)))
-        }
-        className="w-16 rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800"
-      />
-    </label>
+    <input
+      type="number"
+      min={MIN_STEPS}
+      max={MAX_STEPS}
+      value={length}
+      aria-label="Sequence length in steps"
+      // Clamped on the way in: this value indexes the pattern directly.
+      onChange={(event) =>
+        onLengthChange(clampLength(Number(event.target.value)))
+      }
+      className="border-edge bg-field w-16 rounded border px-2 py-1 text-xs"
+    />
   );
 }

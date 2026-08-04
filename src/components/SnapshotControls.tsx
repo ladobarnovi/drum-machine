@@ -53,7 +53,7 @@ export default function SnapshotControls({
   // Both buttons are sized to their widest label, so the header doesn't shift
   // when Save confirms or when Recall comes out of its disabled state.
   const buttonClass =
-    "min-w-16 rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800";
+    "border-edge hover:bg-raised min-w-16 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <div className="flex items-center gap-2">

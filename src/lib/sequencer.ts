@@ -760,6 +760,19 @@ export function clearSteps(steps: boolean[], length: number): boolean[] {
 }
 
 /**
+ * Flips every step a channel plays: hits fall silent, silences become hits.
+ *
+ * Steps past `length` are left alone, like every other pattern write, so the
+ * pattern a shortened channel is holding on to past its end survives the flip.
+ * That also makes inverting its own undo — pressing it twice hands back exactly
+ * what you started with, so it is safe to try on a pattern worth keeping.
+ */
+export function invertSteps(steps: boolean[], length: number): boolean[] {
+  const playing = clampLength(length);
+  return steps.map((active, index) => (index < playing ? !active : active));
+}
+
+/**
  * Slides the whole pattern along by `offset` steps — positive later, negative
  * earlier.
  *

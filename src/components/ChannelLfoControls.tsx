@@ -37,7 +37,7 @@ export default function ChannelLfoControls({
   onChange,
 }: ChannelLfoControlsProps) {
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+    <section className="border-line flex flex-col gap-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold">LFO</h2>
 
@@ -48,8 +48,8 @@ export default function ChannelLfoControls({
           aria-label="Channel LFO"
           className={`rounded border px-2 py-0.5 text-[10px] leading-4 font-semibold transition-colors ${
             lfo.enabled
-              ? "border-orange-500 bg-orange-500 text-white"
-              : "border-neutral-300 text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
+              ? "border-accent bg-accent text-on-accent"
+              : "border-edge text-muted hover:bg-raised"
           }`}
         >
           {lfo.enabled ? "On" : "Off"}
@@ -67,7 +67,7 @@ export default function ChannelLfoControls({
               onChange({ ...lfo, shape: clampLfoShape(event.target.value) })
             }
             aria-label="LFO shape"
-            className="w-32 rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800"
+            className="border-edge bg-field w-32 rounded border px-2 py-1"
           >
             {LFO_SHAPES.map((shape) => (
               <option key={shape} value={shape}>
@@ -92,7 +92,7 @@ export default function ChannelLfoControls({
               })
             }
             aria-label="LFO mode"
-            className="w-32 rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800"
+            className="border-edge bg-field w-32 rounded border px-2 py-1"
           >
             <option value="retrigger">Retrigger</option>
             <option value="free">Free running</option>
@@ -110,7 +110,7 @@ export default function ChannelLfoControls({
               })
             }
             aria-label="LFO destination"
-            className="w-32 rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800"
+            className="border-edge bg-field w-32 rounded border px-2 py-1"
           >
             {LFO_DESTINATIONS.map((destination) => (
               <option key={destination} value={destination}>

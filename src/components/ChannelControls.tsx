@@ -67,7 +67,7 @@ export default function ChannelControls({
   onReverbSendChange,
 }: ChannelControlsProps) {
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+    <section className="border-line flex flex-col gap-3 rounded-md border p-3">
       <h2 className="text-xs font-semibold">Params</h2>
 
       <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">

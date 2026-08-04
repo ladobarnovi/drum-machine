@@ -63,7 +63,7 @@ export default function Sidebar({
           type="button"
           aria-label={`Close ${label}`}
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-neutral-900/40 lg:hidden"
+          className="bg-backdrop fixed inset-0 z-30 lg:hidden"
         />
       )}
 
@@ -76,7 +76,7 @@ export default function Sidebar({
         // on a phone, so the controls get the extra room. It stops short of the
         // full width to leave a strip of backdrop to tap back out through.
         // From `lg` it narrows to the width the page's own padding clears.
-        className={`quiet-scrollbar fixed inset-y-0 z-40 flex w-80 max-w-[85%] flex-col gap-6 overflow-y-auto border-neutral-200 bg-white p-6 transition-[transform,visibility] duration-200 ease-out lg:visible lg:w-64 lg:translate-x-0 dark:border-neutral-800 dark:bg-neutral-900 ${edge} ${
+        className={`quiet-scrollbar border-line bg-surface fixed inset-y-0 z-40 flex w-80 max-w-[85%] flex-col gap-6 overflow-y-auto p-6 transition-[transform,visibility] duration-200 ease-out lg:visible lg:w-64 lg:translate-x-0 ${edge} ${
           isOpen ? "translate-x-0" : `invisible ${offscreen}`
         }`}
       >

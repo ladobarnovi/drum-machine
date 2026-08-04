@@ -21,6 +21,7 @@ type ChannelEditorProps = {
   onApplyStepFill?: (fill: StepFill) => void;
   onNudgeSteps?: (offset: number) => void;
   onClearSteps?: () => void;
+  onInvertSteps?: () => void;
   onUpload?: (file: File) => void;
   onRemove?: () => void;
   onLengthChange?: (length: number) => void;
@@ -47,6 +48,7 @@ export default function ChannelEditor({
   onApplyStepFill,
   onNudgeSteps,
   onClearSteps,
+  onInvertSteps,
   onUpload,
   onRemove,
   onLengthChange,
@@ -69,7 +71,7 @@ export default function ChannelEditor({
   return (
     // No fill: the border alone is enough to group a card, and a tint behind
     // the step grid and the sliders competed with the controls sitting on it.
-    <div className="flex flex-col gap-4 rounded-md border border-neutral-200 p-4 dark:border-neutral-800">
+    <div className="border-line flex flex-col gap-4 rounded-md border p-4">
       {showSampleOnly ? (
         <>
           <div className="flex flex-wrap items-center gap-3">
@@ -105,6 +107,7 @@ export default function ChannelEditor({
             onApplyFill={onApplyStepFill}
             onNudge={onNudgeSteps}
             onClear={onClearSteps}
+            onInvert={onInvertSteps}
             onLengthChange={onLengthChange}
           />
         </>
@@ -179,6 +182,7 @@ export default function ChannelEditor({
             onApplyFill={onApplyStepFill}
             onNudge={onNudgeSteps}
             onClear={onClearSteps}
+            onInvert={onInvertSteps}
             onLengthChange={onLengthChange}
           />
 
