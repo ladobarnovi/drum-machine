@@ -1,7 +1,7 @@
 "use client";
 
-import RailGroup from "./RailGroup";
-import RailSlider from "./RailSlider";
+import RailGroup from "@/components/ui/RailGroup";
+import RailSlider from "@/components/ui/RailSlider";
 import {
   MAX_BPM,
   MAX_SWING,

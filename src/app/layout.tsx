@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import ServiceWorkerRegistrar from "@/components/shell/ServiceWorkerRegistrar";
 import { DEFAULT_THEME_ID, THEME_INIT_SCRIPT } from "@/lib/themes";
 
 export const metadata: Metadata = {

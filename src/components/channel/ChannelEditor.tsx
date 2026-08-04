@@ -6,9 +6,9 @@ import ChannelControls from "./ChannelControls";
 import ChannelLfoControls from "./ChannelLfoControls";
 import ChannelNameInput from "./ChannelNameInput";
 import SampleSlot from "./SampleSlot";
-import StepGrid from "./StepGrid";
-import StepPatternControls from "./StepPatternControls";
 import Waveform from "./Waveform";
+import StepGrid from "./steps/StepGrid";
+import StepPatternControls from "./steps/StepPatternControls";
 import {
   channelDisplayName,
   type Channel,

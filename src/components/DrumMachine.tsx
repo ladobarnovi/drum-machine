@@ -2,22 +2,25 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import ChannelEditor from "./ChannelEditor";
-import ChannelGrid from "./ChannelGrid";
-import LoadSamplesNotice from "./LoadSamplesNotice";
-import MasterDelayControls from "./MasterDelayControls";
-import MasterDriveControls from "./MasterDriveControls";
-import MasterFilterControls from "./MasterFilterControls";
-import MasterReverbControls from "./MasterReverbControls";
-import MasterVolumeControls from "./MasterVolumeControls";
-import PlayButton from "./PlayButton";
-import PresetPicker from "./PresetPicker";
-import RailGroup from "./RailGroup";
-import Sidebar, { CONTROLS_SIDEBAR_ID, FX_SIDEBAR_ID } from "./Sidebar";
-import SidebarTab from "./SidebarTab";
-import SnapshotControls from "./SnapshotControls";
-import ThemeSelector from "./ThemeSelector";
-import Transport from "./Transport";
+import ChannelEditor from "@/components/channel/ChannelEditor";
+import ChannelGrid from "@/components/channel/ChannelGrid";
+import MasterDelayControls from "@/components/master/MasterDelayControls";
+import MasterDriveControls from "@/components/master/MasterDriveControls";
+import MasterFilterControls from "@/components/master/MasterFilterControls";
+import MasterReverbControls from "@/components/master/MasterReverbControls";
+import MasterVolumeControls from "@/components/master/MasterVolumeControls";
+import PresetPicker from "@/components/session/PresetPicker";
+import SnapshotControls from "@/components/session/SnapshotControls";
+import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
+import Sidebar, {
+  CONTROLS_SIDEBAR_ID,
+  FX_SIDEBAR_ID,
+} from "@/components/shell/Sidebar";
+import SidebarTab from "@/components/shell/SidebarTab";
+import ThemeSelector from "@/components/shell/ThemeSelector";
+import PlayButton from "@/components/transport/PlayButton";
+import Transport from "@/components/transport/Transport";
+import RailGroup from "@/components/ui/RailGroup";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";

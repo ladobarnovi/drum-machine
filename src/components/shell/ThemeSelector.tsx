@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-import RailGroup from "./RailGroup";
+import RailGroup from "@/components/ui/RailGroup";
 import {
   THEMES,
   getServerThemeSnapshot,

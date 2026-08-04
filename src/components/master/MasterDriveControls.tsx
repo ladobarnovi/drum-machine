@@ -1,7 +1,7 @@
 "use client";
 
 import MasterFxSection from "./MasterFxSection";
-import RailSlider from "./RailSlider";
+import RailSlider from "@/components/ui/RailSlider";
 import {
   DRIVE_TYPES,
   DRIVE_TYPE_LABELS,

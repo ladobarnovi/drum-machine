@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import RailGroup from "./RailGroup";
+import RailGroup from "@/components/ui/RailGroup";
 import type { Preset } from "@/lib/presets";
 
 type PresetPickerProps = {

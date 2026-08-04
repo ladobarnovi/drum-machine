@@ -1,6 +1,6 @@
 "use client";
 
-import ControlSlider from "./ControlSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import {
   LFO_DESTINATIONS,
   LFO_DESTINATION_LABELS,
