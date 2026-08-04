@@ -1,6 +1,7 @@
 "use client";
 
-import TransportSlider from "./TransportSlider";
+import RailGroup from "./RailGroup";
+import RailSlider from "./RailSlider";
 import {
   MAX_BPM,
   MAX_SWING,
@@ -23,9 +24,9 @@ type TransportProps = {
 };
 
 /**
- * Play, tempo, and feel, laid out as a row for the header. These are the
- * controls reached for while a pattern is being written, so they live on screen
- * next to the title rather than in the rail with the effects.
+ * Play, tempo, and feel, stacked for the left-hand rail. These are the controls
+ * that act on the whole pattern rather than on one channel, so they sit off to
+ * the side rather than in among the steps.
  */
 export default function Transport({
   isPlaying,
@@ -37,25 +38,27 @@ export default function Transport({
   onSwingChange,
 }: TransportProps) {
   return (
-    <div className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-      {!canPlay && (
-        <span className="text-xs text-neutral-500 dark:text-neutral-400">
-          Load a sample on any channel to start.
-        </span>
-      )}
-
+    <RailGroup title="Transport">
       <button
         type="button"
         onClick={onTogglePlay}
         // Stay enabled while playing so the transport can always be stopped.
         disabled={!isPlaying && !canPlay}
-        className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+        className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
       >
         {isPlaying ? "Stop" : "Play"}
       </button>
 
-      <TransportSlider
+      {/* Says why Play is dead rather than leaving it greyed out unexplained. */}
+      {!canPlay && (
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          Load a sample on any channel to start.
+        </p>
+      )}
+
+      <RailSlider
         label="BPM"
+        ariaLabel="BPM"
         min={MIN_BPM}
         max={MAX_BPM}
         step={1}
@@ -64,8 +67,9 @@ export default function Transport({
         onChange={(value) => onBpmChange(clampBpm(value))}
       />
 
-      <TransportSlider
+      <RailSlider
         label="Swing"
+        ariaLabel="Swing"
         min={MIN_SWING}
         max={MAX_SWING}
         step={0.01}
@@ -73,6 +77,6 @@ export default function Transport({
         readout={formatSwing(swing)}
         onChange={(value) => onSwingChange(clampSwing(value))}
       />
-    </div>
+    </RailGroup>
   );
 }

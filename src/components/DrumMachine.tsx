@@ -4,13 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
-import FxGroup from "./FxGroup";
 import MasterDelayControls from "./MasterDelayControls";
 import MasterDriveControls from "./MasterDriveControls";
 import MasterFilterControls from "./MasterFilterControls";
 import MasterReverbControls from "./MasterReverbControls";
 import PresetPicker from "./PresetPicker";
-import Sidebar, { SIDEBAR_ID } from "./Sidebar";
+import RailGroup from "./RailGroup";
+import Sidebar, { FX_SIDEBAR_ID, TRANSPORT_SIDEBAR_ID } from "./Sidebar";
 import SnapshotControls from "./SnapshotControls";
 import Transport from "./Transport";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
@@ -64,8 +64,18 @@ export default function DrumMachine() {
   const [selectedChannelId, setSelectedChannelId] = useState(
     channelIdForIndex(0),
   );
-  /** Drawer state, only used below `md` where the sidebar is an overlay. */
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  /**
+   * Which rail is showing as a drawer, only meaningful below `lg` where the
+   * rails are overlays. One field rather than two flags, so opening one drawer
+   * closes the other instead of stacking them on top of each other.
+   */
+  const [openDrawer, setOpenDrawer] = useState<"fx" | "transport" | null>(null);
+
+  const toggleDrawer = useCallback((drawer: "fx" | "transport") => {
+    setOpenDrawer((open) => (open === drawer ? null : drawer));
+  }, []);
+
+  const closeDrawer = useCallback(() => setOpenDrawer(null), []);
 
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
 
@@ -539,14 +549,43 @@ export default function DrumMachine() {
 
   return (
     <div className="min-h-screen text-neutral-900 dark:text-neutral-100">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)}>
+      {/*
+        The transport gets a rail of its own: it acts on the whole pattern
+        rather than on one channel, and keeping it off the page means it stays
+        put however far the channel list is scrolled.
+      */}
+      <Sidebar
+        id={TRANSPORT_SIDEBAR_ID}
+        side="left"
+        label="transport"
+        isOpen={openDrawer === "transport"}
+        onClose={closeDrawer}
+      >
+        <Transport
+          isPlaying={isPlaying}
+          bpm={bpm}
+          swing={swing}
+          canPlay={canPlay}
+          onTogglePlay={handleTogglePlay}
+          onBpmChange={setBpm}
+          onSwingChange={setSwing}
+        />
+      </Sidebar>
+
+      <Sidebar
+        id={FX_SIDEBAR_ID}
+        side="right"
+        label="effects"
+        isOpen={openDrawer === "fx"}
+        onClose={closeDrawer}
+      >
         {/*
           Both groups run in signal-chain order, and the sends come first
           because their returns rejoin at the master input — so the drive and
           the cuts in the group below are working on the repeats and the tail
           as well as on the dry channels.
         */}
-        <FxGroup title="Send FX">
+        <RailGroup title="Send FX">
           <MasterDelayControls
             delay={masterDelay}
             bpm={bpm}
@@ -557,20 +596,20 @@ export default function DrumMachine() {
             reverb={masterReverb}
             onChange={setMasterReverb}
           />
-        </FxGroup>
+        </RailGroup>
 
-        <FxGroup title="Master FX">
+        <RailGroup title="Master FX">
           <MasterDriveControls drive={masterDrive} onChange={setMasterDrive} />
 
           <MasterFilterControls
             filter={masterFilter}
             onChange={setMasterFilter}
           />
-        </FxGroup>
+        </RailGroup>
       </Sidebar>
 
-      {/* Padding clears the fixed sidebar so the content centres beside it. */}
-      <div className="md:pl-64">
+      {/* Padding clears the fixed rails so the content centres between them. */}
+      <div className="lg:px-64">
         {/*
           Sticky, so the transport stays on screen and playback can be stopped
           from anywhere in a long page. It sits below the drawer's backdrop, so
@@ -578,13 +617,14 @@ export default function DrumMachine() {
         */}
         <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-6 py-3">
+            {/* Each chevron points at the rail it opens. */}
             <button
               type="button"
-              onClick={() => setSidebarOpen((open) => !open)}
-              aria-label="Show effects"
-              aria-expanded={isSidebarOpen}
-              aria-controls={SIDEBAR_ID}
-              className="rounded-md border border-neutral-300 p-1.5 md:hidden dark:border-neutral-700"
+              onClick={() => toggleDrawer("transport")}
+              aria-label="Show transport"
+              aria-expanded={openDrawer === "transport"}
+              aria-controls={TRANSPORT_SIDEBAR_ID}
+              className="rounded-md border border-neutral-300 p-1.5 lg:hidden dark:border-neutral-700"
             >
               <svg
                 viewBox="0 0 20 20"
@@ -608,15 +648,27 @@ export default function DrumMachine() {
               onRecall={handleRecallSnapshot}
             />
 
-            <Transport
-              isPlaying={isPlaying}
-              bpm={bpm}
-              swing={swing}
-              canPlay={canPlay}
-              onTogglePlay={handleTogglePlay}
-              onBpmChange={setBpm}
-              onSwingChange={setSwing}
-            />
+            <button
+              type="button"
+              onClick={() => toggleDrawer("fx")}
+              aria-label="Show effects"
+              aria-expanded={openDrawer === "fx"}
+              aria-controls={FX_SIDEBAR_ID}
+              className="ml-auto rounded-md border border-neutral-300 p-1.5 lg:hidden dark:border-neutral-700"
+            >
+              <svg
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.75}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="size-4"
+              >
+                <path d="M13 4l-6 6 6 6" />
+              </svg>
+            </button>
           </div>
         </header>
 

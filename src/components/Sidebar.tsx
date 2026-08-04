@@ -2,22 +2,44 @@
 
 import { useEffect } from "react";
 
-export const SIDEBAR_ID = "controls-sidebar";
+export const FX_SIDEBAR_ID = "fx-sidebar";
+export const TRANSPORT_SIDEBAR_ID = "transport-sidebar";
+
+/**
+ * Which edge the rail is pinned to, and which way it leaves the screen. Written
+ * out in full rather than composed from fragments, so Tailwind sees every class
+ * it has to generate in the source.
+ */
+const SIDE_CLASSES = {
+  left: { edge: "left-0 border-r", offscreen: "-translate-x-full" },
+  right: { edge: "right-0 border-l", offscreen: "translate-x-full" },
+} as const;
 
 type SidebarProps = {
-  /** Only meaningful below `md`, where the sidebar is an overlay drawer. */
+  id: string;
+  side: "left" | "right";
+  /** Names the rail in the backdrop's label, e.g. "Close effects". */
+  label: string;
+  /** Only meaningful below `lg`, where the sidebar is an overlay drawer. */
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
 };
 
 /**
- * Effects rail pinned to the left edge of the viewport. From `md` up it is
- * always on screen; below that it slides in over the content as a drawer.
- * The transport lives in the header instead, so nothing here is needed to
- * start or stop playback.
+ * Rail pinned to one edge of the viewport. From `lg` up it is always on screen;
+ * below that it slides in over the content as a drawer. Two of them flank the
+ * page — the transport on the left, the effects on the right — and `lg` is where
+ * both fit beside the pattern rather than on top of it.
  */
-export default function Sidebar({ isOpen, onClose, children }: SidebarProps) {
+export default function Sidebar({
+  id,
+  side,
+  label,
+  isOpen,
+  onClose,
+  children,
+}: SidebarProps) {
   // The header's toggle sits under the backdrop while the drawer is open, so
   // Escape is the keyboard way back out.
   useEffect(() => {
@@ -31,24 +53,26 @@ export default function Sidebar({ isOpen, onClose, children }: SidebarProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
+  const { edge, offscreen } = SIDE_CLASSES[side];
+
   return (
     <>
       {isOpen && (
         <button
           type="button"
-          aria-label="Close effects"
+          aria-label={`Close ${label}`}
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-neutral-900/40 md:hidden"
+          className="fixed inset-0 z-30 bg-neutral-900/40 lg:hidden"
         />
       )}
 
       <aside
-        id={SIDEBAR_ID}
+        id={id}
         // `invisible` keeps the off-screen drawer out of the tab order; it is
         // in the transition so it only takes effect once the slide-out ends.
-        // `md:visible` overrides it from `md` up, where the rail is permanent.
-        className={`quiet-scrollbar fixed inset-y-0 left-0 z-40 flex w-64 flex-col gap-6 overflow-y-auto border-r border-neutral-200 bg-white p-6 transition-[transform,visibility] duration-200 ease-out md:visible md:translate-x-0 dark:border-neutral-800 dark:bg-neutral-900 ${
-          isOpen ? "translate-x-0" : "invisible -translate-x-full"
+        // `lg:visible` overrides it from `lg` up, where the rail is permanent.
+        className={`quiet-scrollbar fixed inset-y-0 z-40 flex w-64 flex-col gap-6 overflow-y-auto border-neutral-200 bg-white p-6 transition-[transform,visibility] duration-200 ease-out lg:visible lg:translate-x-0 dark:border-neutral-800 dark:bg-neutral-900 ${edge} ${
+          isOpen ? "translate-x-0" : `invisible ${offscreen}`
         }`}
       >
         {children}
