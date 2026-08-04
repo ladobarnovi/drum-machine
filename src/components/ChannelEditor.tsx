@@ -16,24 +16,27 @@ import {
 
 type ChannelEditorProps = {
   channel: Channel;
-  currentStep: number | null;
-  onToggleStep: (stepIndex: number) => void;
-  onApplyStepFill: (fill: StepFill) => void;
-  onNudgeSteps: (offset: number) => void;
-  onClearSteps: () => void;
-  onUpload: (file: File) => void;
-  onRemove: () => void;
-  onLengthChange: (length: number) => void;
-  onVolumeChange: (volume: number) => void;
-  onPitchChange: (pitch: number) => void;
-  onNameChange: (name: string) => void;
-  onLowCutChange: (hz: number) => void;
-  onHighCutChange: (hz: number) => void;
-  onAttackChange: (seconds: number) => void;
-  onDecayChange: (seconds: number) => void;
-  onDelaySendChange: (amount: number) => void;
-  onReverbSendChange: (amount: number) => void;
-  onLfoChange: (lfo: ChannelLfo) => void;
+  currentStep?: number | null;
+  onToggleStep?: (stepIndex: number) => void;
+  onApplyStepFill?: (fill: StepFill) => void;
+  onNudgeSteps?: (offset: number) => void;
+  onClearSteps?: () => void;
+  onUpload?: (file: File) => void;
+  onRemove?: () => void;
+  onLengthChange?: (length: number) => void;
+  onVolumeChange?: (volume: number) => void;
+  onPitchChange?: (pitch: number) => void;
+  onNameChange?: (name: string) => void;
+  onLowCutChange?: (hz: number) => void;
+  onHighCutChange?: (hz: number) => void;
+  onAttackChange?: (seconds: number) => void;
+  onDecayChange?: (seconds: number) => void;
+  onDelaySendChange?: (amount: number) => void;
+  onReverbSendChange?: (amount: number) => void;
+  onLfoChange?: (lfo: ChannelLfo) => void;
+  showSampleOnly?: boolean;
+  showSequencerOnly?: boolean;
+  showControlsOnly?: boolean;
 };
 
 /** Sample controls, length, and step grid for the currently selected channel. */
@@ -57,67 +60,135 @@ export default function ChannelEditor({
   onDelaySendChange,
   onReverbSendChange,
   onLfoChange,
+  showSampleOnly,
+  showSequencerOnly,
+  showControlsOnly,
 }: ChannelEditorProps) {
   const displayName = channelDisplayName(channel);
 
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-neutral-200 p-4 dark:border-neutral-800">
-      <div className="flex flex-wrap items-center gap-3">
-        <ChannelNameInput
-          name={channel.name}
-          fallback={channel.label}
-          onNameChange={onNameChange}
-        />
+    <div className="flex flex-col gap-4 rounded-md border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800">
+      {showSampleOnly ? (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <ChannelNameInput
+              name={channel.name}
+              fallback={channel.label}
+              onNameChange={onNameChange}
+            />
 
-        <SampleSlot
-          channelLabel={displayName}
-          sample={channel.sample}
-          onUpload={onUpload}
-          onRemove={onRemove}
-        />
-      </div>
+            <SampleSlot
+              channelLabel={displayName}
+              sample={channel.sample}
+              onUpload={onUpload}
+              onRemove={onRemove}
+            />
+          </div>
 
-      <Waveform sample={channel.sample} />
+          <Waveform sample={channel.sample} />
+        </>
+      ) : showSequencerOnly ? (
+        <>
+          <StepGrid
+            channelLabel={displayName}
+            steps={channel.steps}
+            length={channel.length}
+            currentStep={currentStep}
+            onToggleStep={onToggleStep}
+          />
 
-      <ChannelControls
-        volume={channel.volume}
-        pitch={channel.pitch}
-        lowCutHz={channel.lowCutHz}
-        highCutHz={channel.highCutHz}
-        attackSeconds={channel.attackSeconds}
-        decaySeconds={channel.decaySeconds}
-        delaySend={channel.delaySend}
-        reverbSend={channel.reverbSend}
-        onVolumeChange={onVolumeChange}
-        onPitchChange={onPitchChange}
-        onLowCutChange={onLowCutChange}
-        onHighCutChange={onHighCutChange}
-        onAttackChange={onAttackChange}
-        onDecayChange={onDecayChange}
-        onDelaySendChange={onDelaySendChange}
-        onReverbSendChange={onReverbSendChange}
-      />
+          <StepPatternControls
+            steps={channel.steps}
+            length={channel.length}
+            onApplyFill={onApplyStepFill}
+            onNudge={onNudgeSteps}
+            onClear={onClearSteps}
+            onLengthChange={onLengthChange}
+          />
+        </>
+      ) : showControlsOnly ? (
+        <>
+          <ChannelControls
+            volume={channel.volume}
+            pitch={channel.pitch}
+            lowCutHz={channel.lowCutHz}
+            highCutHz={channel.highCutHz}
+            attackSeconds={channel.attackSeconds}
+            decaySeconds={channel.decaySeconds}
+            delaySend={channel.delaySend}
+            reverbSend={channel.reverbSend}
+            onVolumeChange={onVolumeChange}
+            onPitchChange={onPitchChange}
+            onLowCutChange={onLowCutChange}
+            onHighCutChange={onHighCutChange}
+            onAttackChange={onAttackChange}
+            onDecayChange={onDecayChange}
+            onDelaySendChange={onDelaySendChange}
+            onReverbSendChange={onReverbSendChange}
+          />
 
-      <ChannelLfoControls lfo={channel.lfo} onChange={onLfoChange} />
+          <ChannelLfoControls lfo={channel.lfo} onChange={onLfoChange} />
+        </>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <ChannelNameInput
+              name={channel.name}
+              fallback={channel.label}
+              onNameChange={onNameChange}
+            />
 
-      {/* Sits directly above the grid it writes, so the effect of a press is
-          the next thing read. */}
-      <StepPatternControls
-        steps={channel.steps}
-        length={channel.length}
-        onApplyFill={onApplyStepFill}
-        onNudge={onNudgeSteps}
-        onClear={onClearSteps}
-        onLengthChange={onLengthChange}
-      />
+            <SampleSlot
+              channelLabel={displayName}
+              sample={channel.sample}
+              onUpload={onUpload}
+              onRemove={onRemove}
+            />
+          </div>
 
-      <StepGrid
-        channelLabel={displayName}
-        steps={channel.steps}
-        length={channel.length}
-        currentStep={currentStep}
-        onToggleStep={onToggleStep}
-      />
+          <Waveform sample={channel.sample} />
+
+          <ChannelControls
+            volume={channel.volume}
+            pitch={channel.pitch}
+            lowCutHz={channel.lowCutHz}
+            highCutHz={channel.highCutHz}
+            attackSeconds={channel.attackSeconds}
+            decaySeconds={channel.decaySeconds}
+            delaySend={channel.delaySend}
+            reverbSend={channel.reverbSend}
+            onVolumeChange={onVolumeChange}
+            onPitchChange={onPitchChange}
+            onLowCutChange={onLowCutChange}
+            onHighCutChange={onHighCutChange}
+            onAttackChange={onAttackChange}
+            onDecayChange={onDecayChange}
+            onDelaySendChange={onDelaySendChange}
+            onReverbSendChange={onReverbSendChange}
+          />
+
+          <ChannelLfoControls lfo={channel.lfo} onChange={onLfoChange} />
+
+          {/* Sits directly above the grid it writes, so the effect of a press is
+              the next thing read. */}
+          <StepPatternControls
+            steps={channel.steps}
+            length={channel.length}
+            onApplyFill={onApplyStepFill}
+            onNudge={onNudgeSteps}
+            onClear={onClearSteps}
+            onLengthChange={onLengthChange}
+          />
+
+          <StepGrid
+            channelLabel={displayName}
+            steps={channel.steps}
+            length={channel.length}
+            currentStep={currentStep}
+            onToggleStep={onToggleStep}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -580,6 +580,14 @@ export default function DrumMachine() {
             onLoadPreset={(preset) => void handleLoadPreset(preset)}
           />
 
+          <ChannelEditor
+            channel={selectedChannel}
+            showSampleOnly={true}
+            onUpload={(file) => void handleUpload(selectedChannel.id, file)}
+            onRemove={() => handleRemove(selectedChannel.id)}
+            onNameChange={(name) => handleNameChange(selectedChannel.id, name)}
+          />
+
           <ChannelGrid
             channels={channels}
             selectedChannelId={selectedChannel.id}
@@ -593,6 +601,7 @@ export default function DrumMachine() {
           <ChannelEditor
             channel={selectedChannel}
             currentStep={currentStep}
+            showSequencerOnly={true}
             onToggleStep={(stepIndex) =>
               handleToggleStep(selectedChannel.id, stepIndex)
             }
@@ -603,18 +612,21 @@ export default function DrumMachine() {
               handleNudgeSteps(selectedChannel.id, offset)
             }
             onClearSteps={() => handleClearSteps(selectedChannel.id)}
-            onUpload={(file) => void handleUpload(selectedChannel.id, file)}
-            onRemove={() => handleRemove(selectedChannel.id)}
             onLengthChange={(length) =>
               handleLengthChange(selectedChannel.id, length)
             }
+          />
+
+          <ChannelEditor
+            channel={selectedChannel}
+            currentStep={currentStep}
+            showControlsOnly={true}
             onVolumeChange={(volume) =>
               handleVolumeChange(selectedChannel.id, volume)
             }
             onPitchChange={(pitch) =>
               handlePitchChange(selectedChannel.id, pitch)
             }
-            onNameChange={(name) => handleNameChange(selectedChannel.id, name)}
             onLowCutChange={(hz) => handleLowCutChange(selectedChannel.id, hz)}
             onHighCutChange={(hz) =>
               handleHighCutChange(selectedChannel.id, hz)
