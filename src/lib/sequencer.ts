@@ -486,8 +486,8 @@ export function channelIdForIndex(index: number): string {
 export function createInitialChannels(): Channel[] {
   return Array.from({ length: CHANNEL_COUNT }, (_, index) => ({
     id: channelIdForIndex(index),
-    label: String(index + 1),
-    name: String(index + 1),
+    label: `Ch. ${index + 1}`,
+    name: `Ch. ${index + 1}`,
     steps: Array<boolean>(MAX_STEPS).fill(false),
     length: DEFAULT_STEP_COUNT,
     volume: DEFAULT_VOLUME,
