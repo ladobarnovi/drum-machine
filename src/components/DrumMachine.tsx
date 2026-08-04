@@ -39,9 +39,12 @@ import {
   applyChannelSnapshots,
   applyStepFill,
   captureChannelSnapshots,
+  channelDisplayName,
   channelIdForIndex,
+  channelsChokedBy,
   clampAttack,
   clampChannelName,
+  clampChokeSource,
   clampDecay,
   clampFrequency,
   clampLength,
@@ -115,6 +118,7 @@ export default function DrumMachine() {
     loadSampleFromUrl,
     removeSample,
     trigger,
+    choke,
   } = useSampleBank();
 
   // The master stages are persistent nodes rather than per-hit ones, so they
@@ -172,8 +176,17 @@ export default function DrumMachine() {
       // One call for the whole step, so a busy tick lights every pad it hit in
       // a single update.
       flashChannels(firedChannelIds, time);
+
+      // Whatever these hits choke is cut at the same instant they land, and only
+      // what was already ringing goes: a channel firing on the same step as the
+      // channel that chokes it is heard, not swallowed. A muted or un-soloed
+      // channel never reaches this loop, so a channel nobody can hear also
+      // cannot take anything away.
+      for (const sourceId of firedChannelIds) {
+        choke(channelsChokedBy(channelsRef.current, sourceId), time);
+      }
     },
-    [flashChannels, trigger],
+    [choke, flashChannels, trigger],
   );
 
   const { isPlaying, currentTick, play, stop } = useSequencer({
@@ -382,8 +395,16 @@ export default function DrumMachine() {
         triggerOptionsForChannel(channel),
       );
       flashChannels([channelId], context.currentTime);
+
+      // Chokes apply here as well: what a pad does to the rest of the kit is
+      // part of hearing the channel, and a hat pedal that only worked under the
+      // transport would be the odd exception rather than the rule.
+      choke(
+        channelsChokedBy(channelsRef.current, channelId),
+        context.currentTime,
+      );
     },
-    [ensureContext, flashChannels, trigger],
+    [choke, ensureContext, flashChannels, trigger],
   );
 
   const handleSelectChannelIndex = useCallback((index: number) => {
@@ -441,6 +462,29 @@ export default function DrumMachine() {
       updateChannel(channelId, { reverbSend: clampSend(amount) });
     },
     [updateChannel],
+  );
+
+  /**
+   * Points a channel at the channel that chokes it, or at nothing.
+   *
+   * The raw select value is narrowed against the channels that exist rather than
+   * trusted, so a stale id — or the channel's own, which would make it
+   * monophonic instead of routed — falls back to no choke at all.
+   */
+  const handleChokedByChange = useCallback(
+    (channelId: string, sourceId: string) => {
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === channelId
+            ? {
+                ...channel,
+                chokedBy: clampChokeSource(sourceId, prev, channelId),
+              }
+            : channel,
+        ),
+      );
+    },
+    [],
   );
 
   // Arrives already clamped field by field, like the master stages: the section
@@ -569,6 +613,15 @@ export default function DrumMachine() {
 
   const selectedChannel =
     channels.find((channel) => channel.id === selectedChannelId) ?? channels[0];
+
+  /**
+   * What the choke select offers: every channel but the selected one, under the
+   * name shown on its pad, so the choice reads as "Hihat Closed" rather than as
+   * a channel number.
+   */
+  const chokeOptions = channels
+    .filter((channel) => channel.id !== selectedChannel.id)
+    .map((channel) => ({ id: channel.id, name: channelDisplayName(channel) }));
 
   // The playhead shown is the selected channel's own position in its cycle.
   const currentStep =
@@ -764,6 +817,7 @@ export default function DrumMachine() {
           <ChannelEditor
             channel={selectedChannel}
             showControlsOnly={true}
+            chokeOptions={chokeOptions}
             onVolumeChange={(volume) =>
               handleVolumeChange(selectedChannel.id, volume)
             }
@@ -785,6 +839,9 @@ export default function DrumMachine() {
             }
             onReverbSendChange={(amount) =>
               handleReverbSendChange(selectedChannel.id, amount)
+            }
+            onChokedByChange={(sourceId) =>
+              handleChokedByChange(selectedChannel.id, sourceId)
             }
             onLfoChange={(lfo) => handleLfoChange(selectedChannel.id, lfo)}
           />

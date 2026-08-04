@@ -33,7 +33,28 @@ export const PRESET_909: Preset = {
   ],
 };
 
-export const PRESETS: Preset[] = [PRESET_909];
+export const PRESET_808: Preset = {
+  id: "808",
+  name: "808",
+  directory: "/presets/808",
+  slots: [
+    { channelName: "Kick", file: "Kick 808.wav" },
+    { channelName: "Snare", file: "Snare 808.wav" },
+    { channelName: "Low Tom", file: "Tom 808 Low.wav" },
+    { channelName: "Mid Tom", file: "Tom 808 Mid.wav" },
+    { channelName: "High Tom", file: "Tom 808 Hi.wav" },
+    { channelName: "Rim Shot", file: "Rim 808.wav" },
+    { channelName: "Clap", file: "Clap 808.wav" },
+    { channelName: "Hihat Closed", file: "Hihat Closed 808.wav" },
+    { channelName: "Hihat Open", file: "Hihat Open 808.wav" },
+    { channelName: "Maracas", file: "Maracas 808.wav" },
+    { channelName: "Shaker", file: "Shaker 808.wav" },
+    { channelName: "Cowbell", file: "Cowbell 808.wav" },
+    { channelName: "Cymbal", file: "Cymbal 808.wav" },
+  ],
+};
+
+export const PRESETS: Preset[] = [PRESET_909, PRESET_808];
 
 /**
  * Sample filenames contain spaces, so the segment is encoded for the URL.

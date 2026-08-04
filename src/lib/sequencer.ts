@@ -496,6 +496,12 @@ export type Channel = {
   muted: boolean;
   /** While any channel is soloed, every channel that isn't goes silent. */
   soloed: boolean;
+  /**
+   * The channel whose hits cut this one short, or null for none. Named for the
+   * channel being *choked* rather than the one doing the choking, so the setting
+   * sits on the channel it affects and one hit can silence several others.
+   */
+  chokedBy: string | null;
   /** Modulation applied to every hit on this channel. */
   lfo: ChannelLfo;
   sample: SampleState;
@@ -522,6 +528,9 @@ export function createInitialChannels(): Channel[] {
     reverbSend: DEFAULT_SEND,
     muted: false,
     soloed: false,
+    // Nothing chokes anything until it is asked to: a kit where hits cut each
+    // other off is a routing decision, not a starting point.
+    chokedBy: null,
     lfo: DEFAULT_CHANNEL_LFO,
     sample: { status: "empty" },
   }));
@@ -548,6 +557,7 @@ export type ChannelSnapshot = Pick<
   | "reverbSend"
   | "muted"
   | "soloed"
+  | "chokedBy"
   | "lfo"
 >;
 
@@ -594,6 +604,7 @@ export function captureChannelSnapshots(
         reverbSend: channel.reverbSend,
         muted: channel.muted,
         soloed: channel.soloed,
+        chokedBy: channel.chokedBy,
         lfo: { ...channel.lfo },
       },
     ]),
@@ -652,8 +663,44 @@ export function triggerOptionsForChannel(channel: Channel) {
     reverbSend: isSendClosed(channel.reverbSend)
       ? undefined
       : clampSend(channel.reverbSend),
+    // A voice only needs the node a choke fades when something can actually
+    // choke it, so an unrouted channel costs nothing.
+    chokeable: channel.chokedBy !== null,
     lfo,
   };
+}
+
+/**
+ * Every channel a hit on `sourceId` cuts short.
+ *
+ * Read from the choked channels rather than held on the choking one, so one hit
+ * can silence any number of channels and no list has to be kept in step with a
+ * setting that lives elsewhere.
+ */
+export function channelsChokedBy(
+  channels: Channel[],
+  sourceId: string,
+): string[] {
+  return channels
+    .filter((channel) => channel.chokedBy === sourceId)
+    .map((channel) => channel.id);
+}
+
+/**
+ * Narrows the raw string a `<select>` hands back to a channel that still exists,
+ * with the empty option meaning no choke at all.
+ *
+ * A channel is never allowed to choke itself: that would make every hit cut off
+ * the one before it, which is a monophonic voice rather than the routing this
+ * control is for.
+ */
+export function clampChokeSource(
+  value: string,
+  channels: Channel[],
+  chokedId: string,
+): string | null {
+  if (!value || value === chokedId) return null;
+  return channels.some((channel) => channel.id === value) ? value : null;
 }
 
 /** True once any channel is soloed, which silences all the others. */

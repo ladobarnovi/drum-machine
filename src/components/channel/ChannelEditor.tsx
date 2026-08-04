@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import ChannelControls from "./ChannelControls";
+import ChannelControls, { type ChokeOption } from "./ChannelControls";
 import ChannelLfoControls from "./ChannelLfoControls";
 import ChannelNameInput from "./ChannelNameInput";
 import SampleSlot from "./SampleSlot";
@@ -63,6 +63,8 @@ type ControlsSectionProps = {
   showSampleOnly?: false;
   showSequencerOnly?: false;
   showControlsOnly: true;
+  /** The other channels, any one of which could be this one's choke source. */
+  chokeOptions: ChokeOption[];
   onVolumeChange: (volume: number) => void;
   onPitchChange: (pitch: number) => void;
   onLowCutChange: (hz: number) => void;
@@ -71,6 +73,7 @@ type ControlsSectionProps = {
   onDecayChange: (seconds: number) => void;
   onDelaySendChange: (amount: number) => void;
   onReverbSendChange: (amount: number) => void;
+  onChokedByChange: (channelId: string) => void;
   onLfoChange: (lfo: ChannelLfo) => void;
 };
 
@@ -152,6 +155,8 @@ export default function ChannelEditor(props: ChannelEditorProps) {
         decaySeconds={channel.decaySeconds}
         delaySend={channel.delaySend}
         reverbSend={channel.reverbSend}
+        chokedBy={channel.chokedBy}
+        chokeOptions={props.chokeOptions}
         onVolumeChange={props.onVolumeChange}
         onPitchChange={props.onPitchChange}
         onLowCutChange={props.onLowCutChange}
@@ -160,6 +165,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
         onDecayChange={props.onDecayChange}
         onDelaySendChange={props.onDelaySendChange}
         onReverbSendChange={props.onReverbSendChange}
+        onChokedByChange={props.onChokedByChange}
       />
 
       <ChannelLfoControls lfo={channel.lfo} onChange={props.onLfoChange} />

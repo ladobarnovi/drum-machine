@@ -51,8 +51,28 @@ type TriggerOptions = {
   delaySend?: number;
   /** How much of this hit is tapped to the reverb bus. Omit to send nothing. */
   reverbSend?: number;
+  /** Whether another channel can cut this hit short. Omit when nothing can. */
+  chokeable?: boolean;
   /** Modulation running for the length of this hit. Omit for none. */
   lfo?: ChannelLfo;
+};
+
+/**
+ * A hit that something can cut short, held from the moment it is scheduled until
+ * it ends. Only channels with a choke source register one: every other voice is
+ * fire-and-forget, and keeping a handle on it would be bookkeeping for a cut
+ * that can never come.
+ */
+type Voice = {
+  source: AudioBufferSourceNode;
+  /** Where a choke writes its fade. Nothing else ever touches this gain. */
+  fade: GainNode;
+  /** When the voice starts on the audio clock. */
+  startTime: number;
+  /** When the voice already ends, if its decay scheduled a stop. */
+  releaseTime: number | null;
+  /** Set once a choke is scheduled, so a second one can't re-open the fade. */
+  choked: boolean;
 };
 
 /**
@@ -179,6 +199,14 @@ const DC_BLOCKER_HZ = 10;
  * runs down to -80 dB — inaudible — and is snapped to silence from there.
  */
 const DECAY_FLOOR = 0.0001;
+
+/**
+ * How long a choked voice takes to fade before it is cut. Cutting a buffer
+ * outright is a step to silence, which clicks; a few milliseconds is enough to
+ * avoid that while still reading as one sound taking another away rather than as
+ * a fade of its own.
+ */
+const CHOKE_FADE_SECONDS = 0.005;
 
 /**
  * Delay time slides over this long rather than the usual ramp. Moving the read
@@ -780,6 +808,10 @@ export function useSampleBank() {
   const randomLfoRef = useRef<AudioBuffer | null>(null);
   // The continuous LFO of every channel currently running one, by channel id.
   const channelLfosRef = useRef(new Map<string, ChannelLfoNodes>());
+  // The sounding voices of every channel something chokes, by channel id. Each
+  // voice removes itself as it ends, so this only ever holds what is still
+  // audible and there is nothing to sweep up.
+  const voicesRef = useRef(new Map<string, Set<Voice>>());
 
   useEffect(() => {
     return () => {
@@ -919,6 +951,7 @@ export function useSampleBank() {
         decaySeconds,
         delaySend,
         reverbSend,
+        chokeable = false,
         lfo,
       }: TriggerOptions = {},
     ) => {
@@ -933,6 +966,23 @@ export function useSampleBank() {
 
       // Fresh nodes per hit, so a knob move never retunes an already-playing note.
       let tail: AudioNode = source;
+
+      // Everything the voice has to let go of when it ends, run as one handler:
+      // `onended` is a single slot and more than one thing can need cleaning up.
+      const onEnded: Array<() => void> = [];
+
+      // A choked channel's voices run through a gain node of their own, which is
+      // where the fade before the cut is written. It cannot ride `gainNode`
+      // below: a volume LFO is summed into that param, so pulling its base value
+      // down would leave the modulation still swinging above silence. First in
+      // the chain, so the cut takes the sends and the envelope with it.
+      let fade: GainNode | null = null;
+
+      if (chokeable) {
+        fade = context.createGain();
+        tail.connect(fade);
+        tail = fade;
+      }
 
       // Held rather than folded into `tail`, since an LFO aimed at a cut needs
       // that particular filter back to modulate it.
@@ -1041,7 +1091,7 @@ export function useSampleBank() {
           // every node it feeds alive with it. The voice's own end — the decay
           // below, or the buffer simply running out — is the moment there is no
           // longer anything to modulate.
-          source.onended = () => modulator.stop();
+          onEnded.push(() => modulator.stop());
         } else {
           const channelLfo = ensureChannelLfo(
             context,
@@ -1055,10 +1105,10 @@ export function useSampleBank() {
           // The tap has to come back out when the voice ends. The LFO outlives
           // the voice, so a connection left in place would keep that voice —
           // and everything downstream of it — alive and processing for good.
-          source.onended = () => {
+          onEnded.push(() => {
             channelLfo.output.disconnect(depth);
             depth.disconnect();
-          };
+          });
         }
 
         switch (lfo.destination) {
@@ -1093,6 +1143,40 @@ export function useSampleBank() {
         }
       }
 
+      // Registered before it starts, so a choke scheduled for this same instant
+      // can already see it and decide — by its start time — to leave it alone.
+      if (fade) {
+        const voice: Voice = {
+          source,
+          fade,
+          startTime: time,
+          releaseTime,
+          choked: false,
+        };
+
+        const voices = voicesRef.current;
+        const sounding = voices.get(channelId);
+        if (sounding) {
+          sounding.add(voice);
+        } else {
+          voices.set(channelId, new Set([voice]));
+        }
+
+        onEnded.push(() => {
+          const live = voices.get(channelId);
+          live?.delete(voice);
+          // The channel's set goes with its last voice, so a kit that stops
+          // playing leaves nothing behind here.
+          if (live?.size === 0) voices.delete(channelId);
+        });
+      }
+
+      if (onEnded.length > 0) {
+        source.onended = () => {
+          for (const cleanUp of onEnded) cleanUp();
+        };
+      }
+
       source.start(time);
 
       // Past the decay there is nothing left to hear, so the voice is released
@@ -1103,6 +1187,40 @@ export function useSampleBank() {
     },
     [],
   );
+
+  /**
+   * Cuts short whatever `channelIds` are still sounding, at `time` on the audio
+   * clock — an open hat taken away by the pedal, which is what a choke is for.
+   *
+   * Voices that start at `time` or later are left alone. That is what lets a
+   * channel and the channel that chokes it land on the same step: the hit being
+   * scheduled for that instant survives, and only what was already ringing goes.
+   */
+  const choke = useCallback((channelIds: string[], time: number) => {
+    // Nothing can be sounding before there is a context, so there is nothing to
+    // cut and nothing to remember either.
+    if (!contextRef.current) return;
+
+    for (const channelId of channelIds) {
+      const sounding = voicesRef.current.get(channelId);
+      if (!sounding) continue;
+
+      for (const voice of sounding) {
+        if (voice.choked || voice.startTime >= time) continue;
+        voice.choked = true;
+
+        // The fade node's gain is untouched otherwise, so unity is what it is
+        // holding when the ramp starts and there is nothing to anchor against.
+        const cutAt = time + CHOKE_FADE_SECONDS;
+        voice.fade.gain.setValueAtTime(1, time);
+        voice.fade.gain.linearRampToValueAtTime(0, cutAt);
+
+        // Never later than the voice was already going to end, so a choke can
+        // only ever shorten a hit — a short decay still finishes when it would.
+        voice.source.stop(Math.min(cutAt, voice.releaseTime ?? cutAt));
+      }
+    }
+  }, []);
 
   return {
     ensureContext,
@@ -1115,5 +1233,6 @@ export function useSampleBank() {
     loadSampleFromUrl,
     removeSample,
     trigger,
+    choke,
   };
 }
