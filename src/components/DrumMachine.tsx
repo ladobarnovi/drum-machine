@@ -11,6 +11,7 @@ import MasterFilterControls from "./MasterFilterControls";
 import MasterReverbControls from "./MasterReverbControls";
 import PresetPicker from "./PresetPicker";
 import Sidebar, { SIDEBAR_ID } from "./Sidebar";
+import SnapshotControls from "./SnapshotControls";
 import Transport from "./Transport";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
@@ -26,7 +27,9 @@ import {
   DEFAULT_MASTER_FILTER,
   DEFAULT_MASTER_REVERB,
   DEFAULT_SWING,
+  applyChannelSnapshots,
   applyStepFill,
+  captureChannelSnapshots,
   channelIdForIndex,
   clampAttack,
   clampChannelName,
@@ -48,6 +51,7 @@ import {
   type MasterDrive,
   type MasterFilter,
   type MasterReverb,
+  type ParameterSnapshot,
   type StepFill,
 } from "@/lib/sequencer";
 import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
@@ -75,6 +79,9 @@ export default function DrumMachine() {
   const [masterReverb, setMasterReverb] = useState<MasterReverb>(
     DEFAULT_MASTER_REVERB,
   );
+
+  /** The last saved parameter snapshot, or null until one has been taken. */
+  const [snapshot, setSnapshot] = useState<ParameterSnapshot | null>(null);
 
   const {
     ensureContext,
@@ -410,6 +417,40 @@ export default function DrumMachine() {
   );
 
   /**
+   * Freezes the current sound: every channel's parameters and all four master
+   * stages, in one go. Patterns, samples and the transport are deliberately not
+   * part of it, so a snapshot is a mix to come back to rather than a whole song.
+   *
+   * The channels are read through the ref rather than taken as a dependency, so
+   * this doesn't have to be rebuilt every time a step is toggled.
+   */
+  const handleSaveSnapshot = useCallback(() => {
+    setSnapshot({
+      channels: captureChannelSnapshots(channelsRef.current),
+      drive: masterDrive,
+      filter: masterFilter,
+      delay: masterDelay,
+      reverb: masterReverb,
+    });
+  }, [masterDelay, masterDrive, masterFilter, masterReverb]);
+
+  /**
+   * Puts every parameter back to the last save. The master stages reach the
+   * audio graph through the effects above, so setting the state here is the
+   * whole of it — including the reverb, whose impulse is rebuilt on the way if
+   * the decay has moved since.
+   */
+  const handleRecallSnapshot = useCallback(() => {
+    if (!snapshot) return;
+
+    setChannels((prev) => applyChannelSnapshots(prev, snapshot.channels));
+    setMasterDrive(snapshot.drive);
+    setMasterFilter(snapshot.filter);
+    setMasterDelay(snapshot.delay);
+    setMasterReverb(snapshot.reverb);
+  }, [snapshot]);
+
+  /**
    * Fills the leading channels with a kit: names and loading state are applied
    * up front in one pass, then each sample resolves independently so a single
    * missing file can't stall the rest of the kit. Step patterns are untouched.
@@ -560,6 +601,12 @@ export default function DrumMachine() {
             </button>
 
             <h1 className="text-lg font-semibold">Drum Machine</h1>
+
+            <SnapshotControls
+              hasSnapshot={snapshot !== null}
+              onSave={handleSaveSnapshot}
+              onRecall={handleRecallSnapshot}
+            />
 
             <Transport
               isPlaying={isPlaying}

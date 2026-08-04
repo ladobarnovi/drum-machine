@@ -506,6 +506,90 @@ export function createInitialChannels(): Channel[] {
 }
 
 /**
+ * What a snapshot keeps for one channel: everything that shapes how the channel
+ * *sounds*, and nothing about what it plays.
+ *
+ * The pattern, the length, the name and the loaded sample are deliberately left
+ * out. Recalling is for putting a sound back where it was, so it must not undo
+ * the writing done since — and a sample could not be restored from here anyway,
+ * since the decoded audio lives outside React state.
+ */
+export type ChannelSnapshot = Pick<
+  Channel,
+  | "volume"
+  | "pitch"
+  | "lowCutHz"
+  | "highCutHz"
+  | "attackSeconds"
+  | "decaySeconds"
+  | "delaySend"
+  | "reverbSend"
+  | "muted"
+  | "soloed"
+  | "lfo"
+>;
+
+/**
+ * Every channel's parameters and all four master stages, taken at one moment.
+ *
+ * Channels are keyed by id rather than held in order, so a snapshot lands on the
+ * channel it was taken from however the list is read back. The master stages are
+ * held as they are: each one is replaced wholesale on every change, so keeping
+ * the object is keeping its values.
+ */
+export type ParameterSnapshot = {
+  channels: Record<string, ChannelSnapshot>;
+  drive: MasterDrive;
+  filter: MasterFilter;
+  delay: MasterDelay;
+  reverb: MasterReverb;
+};
+
+/**
+ * Reads the parameters out of every channel. The nested LFO is copied rather
+ * than referenced, so the snapshot is a value of its own from here on.
+ */
+export function captureChannelSnapshots(
+  channels: Channel[],
+): Record<string, ChannelSnapshot> {
+  return Object.fromEntries(
+    channels.map((channel) => [
+      channel.id,
+      {
+        volume: channel.volume,
+        pitch: channel.pitch,
+        lowCutHz: channel.lowCutHz,
+        highCutHz: channel.highCutHz,
+        attackSeconds: channel.attackSeconds,
+        decaySeconds: channel.decaySeconds,
+        delaySend: channel.delaySend,
+        reverbSend: channel.reverbSend,
+        muted: channel.muted,
+        soloed: channel.soloed,
+        lfo: { ...channel.lfo },
+      },
+    ]),
+  );
+}
+
+/**
+ * Writes the snapshot back over the channels, leaving everything it doesn't
+ * cover exactly as it is. A channel the snapshot doesn't mention is returned
+ * untouched, so recalling can never blank one out.
+ */
+export function applyChannelSnapshots(
+  channels: Channel[],
+  snapshots: Record<string, ChannelSnapshot>,
+): Channel[] {
+  return channels.map((channel) => {
+    const saved = snapshots[channel.id];
+    // Copied on the way out too, so recalling twice can't hand two channels the
+    // same LFO object.
+    return saved ? { ...channel, ...saved, lfo: { ...saved.lfo } } : channel;
+  });
+}
+
+/**
  * The per-hit audio settings a channel plays with. Shared by the scheduler and
  * by one-off previews so an audition sounds exactly like the sequenced hit.
  */
