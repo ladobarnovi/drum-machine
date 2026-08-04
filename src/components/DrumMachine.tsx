@@ -39,6 +39,7 @@ import {
   createInitialChannels,
   hasSoloedChannel,
   isChannelAudible,
+  nudgeSteps,
   triggerOptionsForChannel,
   type Channel,
   type ChannelLfo,
@@ -199,6 +200,19 @@ export default function DrumMachine() {
     },
     [],
   );
+
+  const handleNudgeSteps = useCallback((channelId: string, offset: number) => {
+    setChannels((prev) =>
+      prev.map((channel) =>
+        channel.id === channelId
+          ? {
+              ...channel,
+              steps: nudgeSteps(channel.steps, channel.length, offset),
+            }
+          : channel,
+      ),
+    );
+  }, []);
 
   const handleClearSteps = useCallback((channelId: string) => {
     setChannels((prev) =>
@@ -572,6 +586,9 @@ export default function DrumMachine() {
             }
             onApplyStepFill={(fill) =>
               handleApplyStepFill(selectedChannel.id, fill)
+            }
+            onNudgeSteps={(offset) =>
+              handleNudgeSteps(selectedChannel.id, offset)
             }
             onClearSteps={() => handleClearSteps(selectedChannel.id)}
             onUpload={(file) => void handleUpload(selectedChannel.id, file)}

@@ -647,6 +647,28 @@ export function clearSteps(steps: boolean[], length: number): boolean[] {
   return steps.map((active, index) => (index < playing ? false : active));
 }
 
+/**
+ * Slides the whole pattern along by `offset` steps — positive later, negative
+ * earlier.
+ *
+ * It rotates rather than shifts: a hit pushed off the end comes back at the
+ * start, so nudging is always reversible and repeatedly nudging walks the
+ * pattern around its cycle instead of gradually emptying it.
+ */
+export function nudgeSteps(
+  steps: boolean[],
+  length: number,
+  offset: number,
+): boolean[] {
+  const playing = clampLength(length);
+  return steps.map((active, index) => {
+    if (index >= playing) return active;
+    // Wrapped twice, since a backward nudge would otherwise index off the
+    // front: JavaScript's % keeps the sign of the left operand.
+    return steps[(((index - offset) % playing) + playing) % playing];
+  });
+}
+
 /** True when the played steps are exactly what `fill` would write. */
 export function matchesStepFill(
   steps: boolean[],

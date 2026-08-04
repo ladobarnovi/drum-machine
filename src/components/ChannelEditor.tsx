@@ -3,10 +3,9 @@
 import ChannelControls from "./ChannelControls";
 import ChannelLfoControls from "./ChannelLfoControls";
 import ChannelNameInput from "./ChannelNameInput";
-import LengthControl from "./LengthControl";
 import SampleSlot from "./SampleSlot";
-import StepFillControls from "./StepFillControls";
 import StepGrid from "./StepGrid";
+import StepPatternControls from "./StepPatternControls";
 import Waveform from "./Waveform";
 import {
   channelDisplayName,
@@ -20,6 +19,7 @@ type ChannelEditorProps = {
   currentStep: number | null;
   onToggleStep: (stepIndex: number) => void;
   onApplyStepFill: (fill: StepFill) => void;
+  onNudgeSteps: (offset: number) => void;
   onClearSteps: () => void;
   onUpload: (file: File) => void;
   onRemove: () => void;
@@ -42,6 +42,7 @@ export default function ChannelEditor({
   currentStep,
   onToggleStep,
   onApplyStepFill,
+  onNudgeSteps,
   onClearSteps,
   onUpload,
   onRemove,
@@ -74,11 +75,6 @@ export default function ChannelEditor({
           onUpload={onUpload}
           onRemove={onRemove}
         />
-
-        <LengthControl
-          length={channel.length}
-          onLengthChange={onLengthChange}
-        />
       </div>
 
       <Waveform sample={channel.sample} />
@@ -106,11 +102,13 @@ export default function ChannelEditor({
 
       {/* Sits directly above the grid it writes, so the effect of a press is
           the next thing read. */}
-      <StepFillControls
+      <StepPatternControls
         steps={channel.steps}
         length={channel.length}
         onApplyFill={onApplyStepFill}
+        onNudge={onNudgeSteps}
         onClear={onClearSteps}
+        onLengthChange={onLengthChange}
       />
 
       <StepGrid
