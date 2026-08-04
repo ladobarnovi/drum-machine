@@ -1,22 +1,34 @@
 "use client";
 
-import { MAX_BPM, MIN_BPM, clampBpm } from "@/lib/sequencer";
+import {
+  MAX_BPM,
+  MAX_SWING,
+  MIN_BPM,
+  MIN_SWING,
+  clampBpm,
+  clampSwing,
+  formatSwing,
+} from "@/lib/sequencer";
 
 type TransportProps = {
   isPlaying: boolean;
   bpm: number;
+  swing: number;
   /** False when no channel has a sample loaded yet. */
   canPlay: boolean;
   onTogglePlay: () => void;
   onBpmChange: (bpm: number) => void;
+  onSwingChange: (swing: number) => void;
 };
 
 export default function Transport({
   isPlaying,
   bpm,
+  swing,
   canPlay,
   onTogglePlay,
   onBpmChange,
+  onSwingChange,
 }: TransportProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -47,6 +59,27 @@ export default function Transport({
             onBpmChange(clampBpm(Number(event.target.value)))
           }
           aria-label="BPM"
+          className="w-full accent-orange-500"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-xs">
+        <span className="flex items-baseline justify-between">
+          <span>Swing</span>
+          <span className="text-neutral-500 tabular-nums dark:text-neutral-400">
+            {formatSwing(swing)}
+          </span>
+        </span>
+        <input
+          type="range"
+          min={MIN_SWING}
+          max={MAX_SWING}
+          step={0.01}
+          value={swing}
+          onChange={(event) =>
+            onSwingChange(clampSwing(Number(event.target.value)))
+          }
+          aria-label="Swing"
           className="w-full accent-orange-500"
         />
       </label>

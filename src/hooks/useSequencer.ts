@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { secondsPerStep } from "@/lib/sequencer";
+import { secondsToNextStep } from "@/lib/sequencer";
 
 /** How often the scheduler wakes up to look for notes to queue. */
 const SCHEDULER_INTERVAL_MS = 25;
@@ -13,6 +13,8 @@ const START_DELAY_S = 0.05;
 
 type UseSequencerOptions = {
   bpm: number;
+  /** 0..MAX_SWING; how far off-grid 16th notes are delayed. */
+  swing: number;
   ensureContext: () => AudioContext;
   /** Called for each tick as it is queued, with its exact audio-clock time. */
   onStep: (tick: number, time: number) => void;
@@ -31,6 +33,7 @@ type UseSequencerOptions = {
  */
 export function useSequencer({
   bpm,
+  swing,
   ensureContext,
   onStep,
 }: UseSequencerOptions) {
@@ -38,6 +41,7 @@ export function useSequencer({
   const [currentTick, setCurrentTick] = useState<number | null>(null);
 
   const bpmRef = useRef(bpm);
+  const swingRef = useRef(swing);
   const onStepRef = useRef(onStep);
   const nextTickRef = useRef(0);
   const nextNoteTimeRef = useRef(0);
@@ -47,6 +51,10 @@ export function useSequencer({
   useEffect(() => {
     bpmRef.current = bpm;
   }, [bpm]);
+
+  useEffect(() => {
+    swingRef.current = swing;
+  }, [swing]);
 
   useEffect(() => {
     onStepRef.current = onStep;
@@ -99,7 +107,11 @@ export function useSequencer({
         }, delayMs);
         visualTimeoutsRef.current.add(timeoutId);
 
-        nextNoteTimeRef.current += secondsPerStep(bpmRef.current);
+        nextNoteTimeRef.current += secondsToNextStep(
+          tick,
+          bpmRef.current,
+          swingRef.current,
+        );
         nextTickRef.current = tick + 1;
       }
 

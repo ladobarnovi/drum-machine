@@ -24,6 +24,7 @@ import {
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
   DEFAULT_MASTER_REVERB,
+  DEFAULT_SWING,
   channelIdForIndex,
   clampAttack,
   clampChannelName,
@@ -50,6 +51,7 @@ import { computePeaks } from "@/lib/waveform";
 export default function DrumMachine() {
   const [channels, setChannels] = useState<Channel[]>(createInitialChannels);
   const [bpm, setBpm] = useState(DEFAULT_BPM);
+  const [swing, setSwing] = useState(DEFAULT_SWING);
   const [selectedChannelId, setSelectedChannelId] = useState(
     channelIdForIndex(0),
   );
@@ -138,6 +140,7 @@ export default function DrumMachine() {
 
   const { isPlaying, currentTick, play, stop } = useSequencer({
     bpm,
+    swing,
     ensureContext,
     onStep: handleStep,
   });
@@ -449,9 +452,11 @@ export default function DrumMachine() {
         <Transport
           isPlaying={isPlaying}
           bpm={bpm}
+          swing={swing}
           canPlay={canPlay}
           onTogglePlay={handleTogglePlay}
           onBpmChange={setBpm}
+          onSwingChange={setSwing}
         />
 
         {/*

@@ -9,6 +9,17 @@ export const DEFAULT_BPM = 120;
 export const MIN_BPM = 40;
 export const MAX_BPM = 200;
 
+/**
+ * How far the off-grid 16th notes (the "e" and "a" of each beat) are pushed
+ * late, as a fraction of a step's duration. At 0 every step falls on a
+ * straight grid; the ceiling stops well short of 1, where a delayed step
+ * would land on top of the next one.
+ */
+export const MIN_SWING = 0;
+export const MAX_SWING = 0.75;
+/** Straight timing, so swing only shuffles the beat once asked to. */
+export const DEFAULT_SWING = 0;
+
 export const MIN_VOLUME = 0;
 export const MAX_VOLUME = 1.5;
 export const DEFAULT_VOLUME = 1;
@@ -826,11 +837,40 @@ export function secondsPerBeat(bpm: number): number {
   return 60 / clampBpm(bpm);
 }
 
-/** Length of a single 16th-note step. */
+/** Length of a single 16th-note step, on the straight grid (no swing). */
 export function secondsPerStep(bpm: number): number {
   return secondsPerBeat(bpm) / STEPS_PER_BEAT;
 }
 
 export function isDownbeat(stepIndex: number): boolean {
   return stepIndex % STEPS_PER_BEAT === 0;
+}
+
+export function clampSwing(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_SWING;
+  return Math.min(Math.max(value, MIN_SWING), MAX_SWING);
+}
+
+export function formatSwing(value: number): string {
+  return `${Math.round(clampSwing(value) * 100)}%`;
+}
+
+/**
+ * How long to wait after `tick` before the next one fires. Swing keeps each
+ * on-grid pair (the beat and the "&") exactly `2 * secondsPerStep` apart, so
+ * lengthening the gap into an off-grid step ("e" or "a") and shortening the
+ * gap back out of it by the same amount shuffles the off-grid note without
+ * dragging the rest of the pattern off tempo.
+ */
+export function secondsToNextStep(
+  tick: number,
+  bpm: number,
+  swing: number,
+): number {
+  const step = secondsPerStep(bpm);
+  const amount = clampSwing(swing);
+  if (amount <= MIN_SWING) return step;
+
+  const nextStepIsOffGrid = (tick + 1) % 2 === 1;
+  return step * (nextStepIsOffGrid ? 1 + amount : 1 - amount);
 }
