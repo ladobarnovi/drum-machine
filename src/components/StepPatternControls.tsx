@@ -3,6 +3,7 @@
 import LengthControl from "./LengthControl";
 import {
   STEP_FILLS,
+  STEP_LENGTH_PRESETS,
   hasActiveSteps,
   matchesStepFill,
   type StepFill,
@@ -20,12 +21,14 @@ type StepPatternControlsProps = {
 };
 
 /**
- * Writes the grid below without clicking through it, in two rows: the fills
- * put a rhythm there, and the nudges move whatever is there against the beat.
+ * Writes the grid below without clicking through it, in three rows: the lengths
+ * decide how much grid there is, the fills put a rhythm on it, and the nudges
+ * move whatever is there against the beat.
  *
  * The step count sits in the header rather than up with the sample, because
  * it is the one control every button here answers to: it decides how far a
- * fill is written and how far a nudge wraps.
+ * fill is written and how far a nudge wraps. The lengths are first for the same
+ * reason — they are the thing the rest of the section is measured against.
  *
  * A fill button stays lit while the pattern is still exactly what it wrote, so
  * the row doubles as a readout of what is programmed — and nudging a fill off
@@ -50,6 +53,15 @@ export default function StepPatternControls({
   const actionClass =
     "rounded border border-neutral-300 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800";
 
+  // Shared by the lengths and the fills: both are buttons that stay lit while
+  // the pattern is still what they set, so they read as one kind of control.
+  const toggleClass = (isActive: boolean) =>
+    `rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+      isActive
+        ? "border-orange-500 bg-orange-500 text-white"
+        : "border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+    }`;
+
   return (
     <section className="flex flex-col gap-3 rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -69,6 +81,26 @@ export default function StepPatternControls({
         </button>
       </div>
 
+      {/*
+        Directly under the step field, whose value they set. Sized to the widest
+        of them so the row is even, and labelled in full for screen readers,
+        where a bare "32" alongside the fills would say nothing.
+      */}
+      <div className="flex flex-wrap gap-2">
+        {STEP_LENGTH_PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => onLengthChange(preset)}
+            aria-pressed={length === preset}
+            aria-label={`${preset} steps`}
+            className={`w-10 ${toggleClass(length === preset)}`}
+          >
+            {preset}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap gap-2">
         {STEP_FILLS.map((fill) => {
           const isActive = hasHits && matchesStepFill(steps, length, fill);
@@ -79,11 +111,7 @@ export default function StepPatternControls({
               type="button"
               onClick={() => onApplyFill(fill)}
               aria-pressed={isActive}
-              className={`rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
-                isActive
-                  ? "border-orange-500 bg-orange-500 text-white"
-                  : "border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-              }`}
+              className={toggleClass(isActive)}
             >
               {fill.label}
             </button>

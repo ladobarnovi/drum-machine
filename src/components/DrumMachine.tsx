@@ -12,6 +12,7 @@ import MasterVolumeControls from "./MasterVolumeControls";
 import PresetPicker from "./PresetPicker";
 import RailGroup from "./RailGroup";
 import Sidebar, { CONTROLS_SIDEBAR_ID, FX_SIDEBAR_ID } from "./Sidebar";
+import SidebarTab from "./SidebarTab";
 import SnapshotControls from "./SnapshotControls";
 import Transport from "./Transport";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
@@ -559,7 +560,9 @@ export default function DrumMachine() {
       : currentTick % clampLength(selectedChannel.length);
 
   return (
-    <div className="min-h-screen text-neutral-900 dark:text-neutral-100">
+    // The page carries the surface colour now that the cards are unfilled —
+    // the header and the rails already assume this pairing.
+    <div className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100">
       {/*
         Everything that acts on the machine as a whole rather than on one
         channel: what it plays with, how it plays, and how loud it comes out.
@@ -595,6 +598,14 @@ export default function DrumMachine() {
           onChange={setMasterVolume}
         />
       </Sidebar>
+
+      <SidebarTab
+        side="left"
+        label="Show controls"
+        controls={CONTROLS_SIDEBAR_ID}
+        isOpen={openDrawer === "controls"}
+        onToggle={() => toggleDrawer("controls")}
+      />
 
       <Sidebar
         id={FX_SIDEBAR_ID}
@@ -632,38 +643,23 @@ export default function DrumMachine() {
         </RailGroup>
       </Sidebar>
 
+      <SidebarTab
+        side="right"
+        label="Show effects"
+        controls={FX_SIDEBAR_ID}
+        isOpen={openDrawer === "fx"}
+        onToggle={() => toggleDrawer("fx")}
+      />
+
       {/* Padding clears the fixed rails so the content centres between them. */}
       <div className="lg:px-64">
         {/*
-          Sticky, so the transport stays on screen and playback can be stopped
+          Sticky, so the snapshot buttons stay on screen and a mix can be saved
           from anywhere in a long page. It sits below the drawer's backdrop, so
           on mobile the header goes behind the overlay with everything else.
         */}
         <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-6 py-3">
-            {/* Each chevron points at the rail it opens. */}
-            <button
-              type="button"
-              onClick={() => toggleDrawer("controls")}
-              aria-label="Show controls"
-              aria-expanded={openDrawer === "controls"}
-              aria-controls={CONTROLS_SIDEBAR_ID}
-              className="rounded-md border border-neutral-300 p-1.5 lg:hidden dark:border-neutral-700"
-            >
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.75}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                className="size-4"
-              >
-                <path d="M7 4l6 6-6 6" />
-              </svg>
-            </button>
-
             <h1 className="text-lg font-semibold">Drum Machine</h1>
 
             <SnapshotControls
@@ -671,28 +667,6 @@ export default function DrumMachine() {
               onSave={handleSaveSnapshot}
               onRecall={handleRecallSnapshot}
             />
-
-            <button
-              type="button"
-              onClick={() => toggleDrawer("fx")}
-              aria-label="Show effects"
-              aria-expanded={openDrawer === "fx"}
-              aria-controls={FX_SIDEBAR_ID}
-              className="ml-auto rounded-md border border-neutral-300 p-1.5 lg:hidden dark:border-neutral-700"
-            >
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.75}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                className="size-4"
-              >
-                <path d="M13 4l-6 6 6 6" />
-              </svg>
-            </button>
           </div>
         </header>
 

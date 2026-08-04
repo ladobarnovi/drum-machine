@@ -67,7 +67,9 @@ export default function ChannelEditor({
   const displayName = channelDisplayName(channel);
 
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800">
+    // No fill: the border alone is enough to group a card, and a tint behind
+    // the step grid and the sliders competed with the controls sitting on it.
+    <div className="flex flex-col gap-4 rounded-md border border-neutral-200 p-4 dark:border-neutral-800">
       {showSampleOnly ? (
         <>
           <div className="flex flex-wrap items-center gap-3">

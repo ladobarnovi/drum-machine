@@ -5,6 +5,18 @@ export const MIN_STEPS = 1;
 export const MAX_STEPS = 64;
 export const DEFAULT_STEP_COUNT = 16;
 
+/**
+ * The lengths one click away, each twice the one before it: a beat, two beats,
+ * a bar of 4/4, then two bars and four. Doublings because that is what a
+ * channel is nearly always set to — the lengths that stay in phase with the
+ * rest of the machine.
+ *
+ * Deliberately not the whole range. Everything between them is still typed
+ * into the step field, which is what keeps a deliberately odd length like 7 or
+ * 13 — the reason channels wrap independently at all — reachable.
+ */
+export const STEP_LENGTH_PRESETS = [4, 8, 16, 32, 64] as const;
+
 export const DEFAULT_BPM = 120;
 export const MIN_BPM = 40;
 export const MAX_BPM = 200;

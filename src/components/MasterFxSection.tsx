@@ -30,7 +30,7 @@ export default function MasterFxSection({
   return (
     <section className="flex flex-col gap-3 rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
       <div className="flex items-center justify-between">
-        {/* Nested under the group heading `FxGroup` puts above these boxes. */}
+        {/* Nested under the group heading `RailGroup` puts above these boxes. */}
         <h3 className="text-xs font-semibold">{title}</h3>
 
         <button
