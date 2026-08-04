@@ -58,6 +58,79 @@ export const MAX_DELAY_SECONDS = 2;
 export const DEFAULT_DELAY_SECONDS = 0.375;
 
 /**
+ * Note values the delay can lock to, ordered shortest first. Straight, dotted
+ * (`d`, one and a half times as long) and triplet (`t`, two thirds as long)
+ * forms are interleaved, so the list reads as a straight run from shortest to
+ * longest rather than as three separate families.
+ */
+export const DELAY_DIVISIONS = [
+  "1/32",
+  "1/16t",
+  "1/16",
+  "1/8t",
+  "1/16d",
+  "1/8",
+  "1/4t",
+  "1/8d",
+  "1/4",
+  "1/4d",
+  "1/2",
+  "1/1",
+] as const;
+
+export type DelayDivision = (typeof DELAY_DIVISIONS)[number];
+
+/** A dotted eighth, matching DEFAULT_DELAY_SECONDS at the default tempo. */
+export const DEFAULT_DELAY_DIVISION: DelayDivision = "1/8d";
+
+/**
+ * How long each division lasts, in beats — meaning quarter notes, which is what
+ * BPM counts. Everything else about tempo sync falls out of this table.
+ */
+export const DELAY_DIVISION_BEATS: Record<DelayDivision, number> = {
+  "1/32": 0.125,
+  "1/16t": 1 / 6,
+  "1/16": 0.25,
+  "1/8t": 1 / 3,
+  "1/16d": 0.375,
+  "1/8": 0.5,
+  "1/4t": 2 / 3,
+  "1/8d": 0.75,
+  "1/4": 1,
+  "1/4d": 1.5,
+  "1/2": 2,
+  "1/1": 4,
+};
+
+/** Rail labels. Kept short: the sidebar select is only so wide. */
+export const DELAY_DIVISION_LABELS: Record<DelayDivision, string> = {
+  "1/32": "1/32",
+  "1/16t": "1/16 T",
+  "1/16": "1/16",
+  "1/8t": "1/8 T",
+  "1/16d": "1/16 D",
+  "1/8": "1/8",
+  "1/4t": "1/4 T",
+  "1/8d": "1/8 D",
+  "1/4": "1/4",
+  "1/4d": "1/4 D",
+  "1/2": "1/2",
+  "1/1": "1/1",
+};
+
+/**
+ * How much the delay line has to be able to hold, which is fixed when the node
+ * is built. Sized to the longest division at the slowest tempo — a whole note
+ * at MIN_BPM — because a synced time is deliberately not capped at
+ * MAX_DELAY_SECONDS: capping it would silently put the delay out of time,
+ * which is the one thing sync exists to prevent.
+ */
+export const MAX_DELAY_LINE_SECONDS = Math.max(
+  MAX_DELAY_SECONDS,
+  Math.max(...Object.values(DELAY_DIVISION_BEATS)) * (60 / MIN_BPM),
+);
+
+/**
  * How much of the delay's output is fed back in. Strictly below 1: at unity the
  * loop would sustain forever and past it the repeats would grow without bound
  * until the output clipped.
@@ -160,7 +233,11 @@ export const DEFAULT_MASTER_FILTER: MasterFilter = {
  */
 export type MasterDelay = {
   enabled: boolean;
-  /** Time between repeats. */
+  /** When set, `division` decides the time and `timeSeconds` is left alone. */
+  synced: boolean;
+  /** The note value the delay locks to while synced. */
+  division: DelayDivision;
+  /** Time between repeats while running free. */
   timeSeconds: number;
   /** How much of each repeat feeds the next one. */
   feedback: number;
@@ -171,9 +248,15 @@ export type MasterDelay = {
 /**
  * Starts silent but already dialled in, so raising a channel's send after
  * switching the bus on is enough to hear something.
+ *
+ * Synced by default: a delay that drifts against the pattern is almost never
+ * what is wanted on a drum machine, and the free time is kept alongside so
+ * switching to it lands somewhere sensible.
  */
 export const DEFAULT_MASTER_DELAY: MasterDelay = {
   enabled: false,
+  synced: true,
+  division: DEFAULT_DELAY_DIVISION,
   timeSeconds: DEFAULT_DELAY_SECONDS,
   feedback: DEFAULT_FEEDBACK,
   level: DEFAULT_VOLUME,
@@ -374,6 +457,26 @@ export function clampFeedback(value: number): number {
   return Math.min(Math.max(value, MIN_FEEDBACK), MAX_FEEDBACK);
 }
 
+/** Narrows the raw string a `<select>` hands back to a known shape. */
+export function clampDelayDivision(value: string): DelayDivision {
+  return DELAY_DIVISIONS.includes(value as DelayDivision)
+    ? (value as DelayDivision)
+    : DEFAULT_DELAY_DIVISION;
+}
+
+/**
+ * What the delay line is actually set to. A synced time is not clamped to
+ * MAX_DELAY_SECONDS — the line is built long enough for the worst case
+ * instead — because shortening it to fit would put the repeats out of time.
+ */
+export function delayTimeSeconds(delay: MasterDelay, bpm: number): number {
+  if (!delay.synced) return clampDelaySeconds(delay.timeSeconds);
+  return (
+    DELAY_DIVISION_BEATS[clampDelayDivision(delay.division)] *
+    secondsPerBeat(bpm)
+  );
+}
+
 export function clampReverbDecay(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_REVERB_DECAY_SECONDS;
   return Math.min(
@@ -502,11 +605,17 @@ export function clampBpm(value: number): number {
 }
 
 /**
- * Length of a single 16th-note step. BPM is clamped so a stray input value
- * (0, empty, or absurdly large) can never produce a broken step duration.
+ * Length of one beat — a quarter note, which is what BPM counts. BPM is clamped
+ * so a stray input value (0, empty, or absurdly large) can never produce a
+ * broken duration here or in anything derived from it.
  */
+export function secondsPerBeat(bpm: number): number {
+  return 60 / clampBpm(bpm);
+}
+
+/** Length of a single 16th-note step. */
 export function secondsPerStep(bpm: number): number {
-  return 60 / clampBpm(bpm) / STEPS_PER_BEAT;
+  return secondsPerBeat(bpm) / STEPS_PER_BEAT;
 }
 
 export function isDownbeat(stepIndex: number): boolean {

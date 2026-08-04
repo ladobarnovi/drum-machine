@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import {
+  DEFAULT_BPM,
   DEFAULT_HIGH_CUT_HZ,
   DEFAULT_LOW_CUT_HZ,
   DEFAULT_MASTER_DELAY,
@@ -10,14 +11,14 @@ import {
   DEFAULT_MASTER_FILTER,
   DEFAULT_MASTER_REVERB,
   DEFAULT_REVERB_TONE_HZ,
-  MAX_DELAY_SECONDS,
-  clampDelaySeconds,
+  MAX_DELAY_LINE_SECONDS,
   clampDrive,
   clampFeedback,
   clampFrequency,
   clampReverbDecay,
   clampSend,
   clampVolume,
+  delayTimeSeconds,
   type DriveType,
   type MasterDelay,
   type MasterDrive,
@@ -168,12 +169,6 @@ const DC_BLOCKER_HZ = 10;
  * runs down to -80 dB — inaudible — and is snapped to silence from there.
  */
 const DECAY_FLOOR = 0.0001;
-
-/**
- * How long the delay line can hold. Fixed when the node is built and not
- * changeable afterwards, so it is sized to the top of the Time slider's range.
- */
-const MAX_DELAY_LINE_SECONDS = MAX_DELAY_SECONDS;
 
 /**
  * Delay time slides over this long rather than the usual ramp. Moving the read
@@ -463,17 +458,21 @@ function applyFilter(
  * Time and feedback keep tracking while the bus is switched off, so a delay can
  * be dialled in silently and then brought up. Silencing the return is the whole
  * of the bypass: the dry mix never passed through here to begin with.
+ *
+ * `bpm` is only read when the delay is synced, but it is taken always so that a
+ * tempo change re-applies the stage and the repeats follow the transport.
  */
 function applyDelay(
   context: AudioContext,
   chain: MasterChain,
   delay: MasterDelay,
+  bpm: number,
 ) {
   const now = context.currentTime;
 
   rampTo(
     chain.delayLine.delayTime,
-    clampDelaySeconds(delay.timeSeconds),
+    delayTimeSeconds(delay, bpm),
     now,
     DELAY_TIME_RAMP_SECONDS,
   );
@@ -526,6 +525,9 @@ export function useSampleBank() {
   const driveRef = useRef<MasterDrive>(DEFAULT_MASTER_DRIVE);
   const filterRef = useRef<MasterFilter>(DEFAULT_MASTER_FILTER);
   const delayRef = useRef<MasterDelay>(DEFAULT_MASTER_DELAY);
+  // Held alongside the delay so a synced time can still be resolved when the
+  // chain is built, which happens long after the tempo was last set.
+  const delayBpmRef = useRef(DEFAULT_BPM);
   const reverbRef = useRef<MasterReverb>(DEFAULT_MASTER_REVERB);
 
   useEffect(() => {
@@ -550,7 +552,7 @@ export function useSampleBank() {
       masterRef.current = chain;
       applyDrive(context, chain, driveRef.current);
       applyFilter(context, chain, filterRef.current);
-      applyDelay(context, chain, delayRef.current);
+      applyDelay(context, chain, delayRef.current, delayBpmRef.current);
       applyReverb(context, chain, reverbRef.current);
     }
 
@@ -581,14 +583,15 @@ export function useSampleBank() {
   }, []);
 
   /** Points the delay bus at `delay`, creating no context of its own. */
-  const applyMasterDelay = useCallback((delay: MasterDelay) => {
+  const applyMasterDelay = useCallback((delay: MasterDelay, bpm: number) => {
     delayRef.current = delay;
+    delayBpmRef.current = bpm;
 
     const context = contextRef.current;
     const chain = masterRef.current;
     if (!context || !chain) return;
 
-    applyDelay(context, chain, delay);
+    applyDelay(context, chain, delay, bpm);
   }, []);
 
   /** Points the reverb bus at `reverb`, creating no context of its own. */

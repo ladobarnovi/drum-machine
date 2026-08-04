@@ -90,9 +90,11 @@ export default function DrumMachine() {
 
   // The send buses are persistent too. Only the per-channel send amounts are
   // read at trigger time, since those ride the voice rather than the bus.
+  // The delay depends on the tempo as well, so a BPM change re-applies it and
+  // a synced delay tracks the transport.
   useEffect(() => {
-    applyMasterDelay(masterDelay);
-  }, [applyMasterDelay, masterDelay]);
+    applyMasterDelay(masterDelay, bpm);
+  }, [applyMasterDelay, bpm, masterDelay]);
 
   useEffect(() => {
     applyMasterReverb(masterReverb);
@@ -425,7 +427,11 @@ export default function DrumMachine() {
           the cuts below them are working on the repeats and the tail as well
           as on the dry channels.
         */}
-        <MasterDelayControls delay={masterDelay} onChange={setMasterDelay} />
+        <MasterDelayControls
+          delay={masterDelay}
+          bpm={bpm}
+          onChange={setMasterDelay}
+        />
 
         <MasterReverbControls
           reverb={masterReverb}
