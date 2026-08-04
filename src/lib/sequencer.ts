@@ -565,6 +565,106 @@ export function clampLength(value: number): number {
   return Math.min(Math.max(Math.round(value), MIN_STEPS), MAX_STEPS);
 }
 
+/**
+ * One of the ready-made rhythms the fill buttons write.
+ *
+ * A fill is a repeating cycle rather than a fixed list of steps: `offsets` are
+ * the hits inside one `period`, and the cycle simply keeps going for as long as
+ * the channel is. That way a fill means the same thing at any length instead of
+ * being tied to the 16 steps a channel happens to start with.
+ */
+export type StepFill = {
+  id: string;
+  label: string;
+  /** Length of the repeating cycle, in steps. */
+  period: number;
+  /** Which steps within the cycle are hit, counted from 0. */
+  offsets: number[];
+};
+
+/**
+ * The fills on offer, ordered from sparsest to busiest. Periods are written in
+ * terms of STEPS_PER_BEAT so they stay correct if the grid's resolution ever
+ * changes: what each one means is a rhythm, not a number of steps.
+ */
+export const STEP_FILLS: StepFill[] = [
+  /** Every beat — the pulse you would count out loud. */
+  { id: "downbeat", label: "Downbeat", period: STEPS_PER_BEAT, offsets: [0] },
+  /** Beats 2 and 4 of the bar, where the snare lands. */
+  {
+    id: "backbeat",
+    label: "Backbeat",
+    period: STEPS_PER_BEAT * 2,
+    offsets: [STEPS_PER_BEAT],
+  },
+  /** The "&" halfway between beats — the downbeat's opposite half. */
+  {
+    id: "offbeat",
+    label: "Offbeat",
+    period: STEPS_PER_BEAT,
+    offsets: [STEPS_PER_BEAT / 2],
+  },
+  /**
+   * The tresillo: eight steps split 3 + 3 + 2 instead of evenly, so the hits
+   * pull against the beat rather than sitting on it.
+   */
+  {
+    id: "tresillo",
+    label: "3 + 3 + 2",
+    period: STEPS_PER_BEAT * 2,
+    offsets: [0, 3, 6],
+  },
+  { id: "eighth", label: "8th", period: STEPS_PER_BEAT / 2, offsets: [0] },
+  { id: "sixteenth", label: "16th", period: 1, offsets: [0] },
+];
+
+/** Whether a fill puts a hit on a given step of the pattern. */
+function fillHitsStep(fill: StepFill, stepIndex: number): boolean {
+  return fill.offsets.includes(stepIndex % fill.period);
+}
+
+/**
+ * Writes a fill over the steps a channel actually plays.
+ *
+ * Steps past `length` are left exactly as they were, so a fill never reaches
+ * the pattern a shortened channel is holding on to past its end — the same
+ * promise editing a single step makes.
+ */
+export function applyStepFill(
+  steps: boolean[],
+  length: number,
+  fill: StepFill,
+): boolean[] {
+  const playing = clampLength(length);
+  return steps.map((active, index) =>
+    index < playing ? fillHitsStep(fill, index) : active,
+  );
+}
+
+/** Empties the steps a channel plays, leaving anything past `length` alone. */
+export function clearSteps(steps: boolean[], length: number): boolean[] {
+  const playing = clampLength(length);
+  return steps.map((active, index) => (index < playing ? false : active));
+}
+
+/** True when the played steps are exactly what `fill` would write. */
+export function matchesStepFill(
+  steps: boolean[],
+  length: number,
+  fill: StepFill,
+): boolean {
+  const playing = clampLength(length);
+  return steps.every(
+    (active, index) => index >= playing || active === fillHitsStep(fill, index),
+  );
+}
+
+/** True while the channel has at least one hit inside the steps it plays. */
+export function hasActiveSteps(steps: boolean[], length: number): boolean {
+  const playing = clampLength(length);
+  return steps.some((active, index) => active && index < playing);
+}
+
 /** What to show for a channel: its name, falling back to the channel number. */
 export function channelDisplayName(channel: Channel): string {
   return channel.name.trim() || channel.label;

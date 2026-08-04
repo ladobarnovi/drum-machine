@@ -25,6 +25,7 @@ import {
   DEFAULT_MASTER_FILTER,
   DEFAULT_MASTER_REVERB,
   DEFAULT_SWING,
+  applyStepFill,
   channelIdForIndex,
   clampAttack,
   clampChannelName,
@@ -34,6 +35,7 @@ import {
   clampPitch,
   clampSend,
   clampVolume,
+  clearSteps,
   createInitialChannels,
   hasSoloedChannel,
   isChannelAudible,
@@ -44,6 +46,7 @@ import {
   type MasterDrive,
   type MasterFilter,
   type MasterReverb,
+  type StepFill,
 } from "@/lib/sequencer";
 import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
 import { computePeaks } from "@/lib/waveform";
@@ -174,6 +177,38 @@ export default function DrumMachine() {
     },
     [],
   );
+
+  /**
+   * Writes one of the ready-made rhythms over a channel's pattern, replacing
+   * whatever was there. Overwriting rather than adding to what is programmed
+   * keeps each button meaning one thing: press it and the channel plays that
+   * rhythm, whatever it was playing before.
+   */
+  const handleApplyStepFill = useCallback(
+    (channelId: string, fill: StepFill) => {
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === channelId
+            ? {
+                ...channel,
+                steps: applyStepFill(channel.steps, channel.length, fill),
+              }
+            : channel,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleClearSteps = useCallback((channelId: string) => {
+    setChannels((prev) =>
+      prev.map((channel) =>
+        channel.id === channelId
+          ? { ...channel, steps: clearSteps(channel.steps, channel.length) }
+          : channel,
+      ),
+    );
+  }, []);
 
   const handleUpload = useCallback(
     async (channelId: string, file: File) => {
@@ -535,6 +570,10 @@ export default function DrumMachine() {
             onToggleStep={(stepIndex) =>
               handleToggleStep(selectedChannel.id, stepIndex)
             }
+            onApplyStepFill={(fill) =>
+              handleApplyStepFill(selectedChannel.id, fill)
+            }
+            onClearSteps={() => handleClearSteps(selectedChannel.id)}
             onUpload={(file) => void handleUpload(selectedChannel.id, file)}
             onRemove={() => handleRemove(selectedChannel.id)}
             onLengthChange={(length) =>

@@ -5,18 +5,22 @@ import ChannelLfoControls from "./ChannelLfoControls";
 import ChannelNameInput from "./ChannelNameInput";
 import LengthControl from "./LengthControl";
 import SampleSlot from "./SampleSlot";
+import StepFillControls from "./StepFillControls";
 import StepGrid from "./StepGrid";
 import Waveform from "./Waveform";
 import {
   channelDisplayName,
   type Channel,
   type ChannelLfo,
+  type StepFill,
 } from "@/lib/sequencer";
 
 type ChannelEditorProps = {
   channel: Channel;
   currentStep: number | null;
   onToggleStep: (stepIndex: number) => void;
+  onApplyStepFill: (fill: StepFill) => void;
+  onClearSteps: () => void;
   onUpload: (file: File) => void;
   onRemove: () => void;
   onLengthChange: (length: number) => void;
@@ -37,6 +41,8 @@ export default function ChannelEditor({
   channel,
   currentStep,
   onToggleStep,
+  onApplyStepFill,
+  onClearSteps,
   onUpload,
   onRemove,
   onLengthChange,
@@ -97,6 +103,15 @@ export default function ChannelEditor({
       />
 
       <ChannelLfoControls lfo={channel.lfo} onChange={onLfoChange} />
+
+      {/* Sits directly above the grid it writes, so the effect of a press is
+          the next thing read. */}
+      <StepFillControls
+        steps={channel.steps}
+        length={channel.length}
+        onApplyFill={onApplyStepFill}
+        onClear={onClearSteps}
+      />
 
       <StepGrid
         channelLabel={displayName}
