@@ -72,7 +72,11 @@ export default function Sidebar({
         // `invisible` keeps the off-screen drawer out of the tab order; it is
         // in the transition so it only takes effect once the slide-out ends.
         // `lg:visible` overrides it from `lg` up, where the rail is permanent.
-        className={`quiet-scrollbar fixed inset-y-0 z-40 flex w-64 flex-col gap-6 overflow-y-auto border-neutral-200 bg-white p-6 transition-[transform,visibility] duration-200 ease-out lg:visible lg:translate-x-0 dark:border-neutral-800 dark:bg-neutral-900 ${edge} ${
+        // Wider as a drawer than as a rail: nothing shares the screen with it
+        // on a phone, so the controls get the extra room. It stops short of the
+        // full width to leave a strip of backdrop to tap back out through.
+        // From `lg` it narrows to the width the page's own padding clears.
+        className={`quiet-scrollbar fixed inset-y-0 z-40 flex w-80 max-w-[85%] flex-col gap-6 overflow-y-auto border-neutral-200 bg-white p-6 transition-[transform,visibility] duration-200 ease-out lg:visible lg:w-64 lg:translate-x-0 dark:border-neutral-800 dark:bg-neutral-900 ${edge} ${
           isOpen ? "translate-x-0" : `invisible ${offscreen}`
         }`}
       >
