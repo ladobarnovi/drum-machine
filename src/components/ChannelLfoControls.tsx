@@ -56,7 +56,7 @@ export default function ChannelLfoControls({
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-x-6 gap-y-2">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
         {/* The three choices first: between them they decide what the two
             sliders after them are dialling in. */}
         <label className="flex items-center gap-2 text-xs">

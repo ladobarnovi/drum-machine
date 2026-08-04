@@ -31,7 +31,7 @@ export default function ControlSlider({
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
         aria-label={label}
-        className="w-32 accent-orange-500"
+        className="flex-1 sm:w-32 sm:flex-none"
       />
       <span className="w-16 shrink-0 text-right text-neutral-500 tabular-nums dark:text-neutral-400">
         {readout}

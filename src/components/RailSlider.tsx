@@ -46,7 +46,7 @@ export default function RailSlider({
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
         aria-label={ariaLabel}
-        className="w-full accent-orange-500"
+        className="w-full"
       />
     </label>
   );
