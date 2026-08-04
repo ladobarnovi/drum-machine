@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 export const FX_SIDEBAR_ID = "fx-sidebar";
-export const TRANSPORT_SIDEBAR_ID = "transport-sidebar";
+export const CONTROLS_SIDEBAR_ID = "controls-sidebar";
 
 /**
  * Which edge the rail is pinned to, and which way it leaves the screen. Written
@@ -29,8 +29,9 @@ type SidebarProps = {
 /**
  * Rail pinned to one edge of the viewport. From `lg` up it is always on screen;
  * below that it slides in over the content as a drawer. Two of them flank the
- * page — the transport on the left, the effects on the right — and `lg` is where
- * both fit beside the pattern rather than on top of it.
+ * page — what drives the machine on the left, what it is put through on the
+ * right — and `lg` is where both fit beside the pattern rather than on top of
+ * it.
  */
 export default function Sidebar({
   id,

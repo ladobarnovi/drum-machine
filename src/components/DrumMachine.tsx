@@ -8,9 +8,10 @@ import MasterDelayControls from "./MasterDelayControls";
 import MasterDriveControls from "./MasterDriveControls";
 import MasterFilterControls from "./MasterFilterControls";
 import MasterReverbControls from "./MasterReverbControls";
+import MasterVolumeControls from "./MasterVolumeControls";
 import PresetPicker from "./PresetPicker";
 import RailGroup from "./RailGroup";
-import Sidebar, { FX_SIDEBAR_ID, TRANSPORT_SIDEBAR_ID } from "./Sidebar";
+import Sidebar, { CONTROLS_SIDEBAR_ID, FX_SIDEBAR_ID } from "./Sidebar";
 import SnapshotControls from "./SnapshotControls";
 import Transport from "./Transport";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
@@ -26,6 +27,7 @@ import {
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
   DEFAULT_MASTER_REVERB,
+  DEFAULT_MASTER_VOLUME,
   DEFAULT_SWING,
   applyChannelSnapshots,
   applyStepFill,
@@ -69,9 +71,9 @@ export default function DrumMachine() {
    * rails are overlays. One field rather than two flags, so opening one drawer
    * closes the other instead of stacking them on top of each other.
    */
-  const [openDrawer, setOpenDrawer] = useState<"fx" | "transport" | null>(null);
+  const [openDrawer, setOpenDrawer] = useState<"fx" | "controls" | null>(null);
 
-  const toggleDrawer = useCallback((drawer: "fx" | "transport") => {
+  const toggleDrawer = useCallback((drawer: "fx" | "controls") => {
     setOpenDrawer((open) => (open === drawer ? null : drawer));
   }, []);
 
@@ -89,6 +91,7 @@ export default function DrumMachine() {
   const [masterReverb, setMasterReverb] = useState<MasterReverb>(
     DEFAULT_MASTER_REVERB,
   );
+  const [masterVolume, setMasterVolume] = useState(DEFAULT_MASTER_VOLUME);
 
   /** The last saved parameter snapshot, or null until one has been taken. */
   const [snapshot, setSnapshot] = useState<ParameterSnapshot | null>(null);
@@ -99,6 +102,7 @@ export default function DrumMachine() {
     applyMasterFilter,
     applyMasterDelay,
     applyMasterReverb,
+    applyMasterVolume,
     loadSample,
     loadSampleFromUrl,
     removeSample,
@@ -126,6 +130,10 @@ export default function DrumMachine() {
   useEffect(() => {
     applyMasterReverb(masterReverb);
   }, [applyMasterReverb, masterReverb]);
+
+  useEffect(() => {
+    applyMasterVolume(masterVolume);
+  }, [applyMasterVolume, masterVolume]);
 
   // The scheduler runs outside React's render cycle, so it reads the current
   // pattern through a ref rather than through a captured prop.
@@ -427,9 +435,10 @@ export default function DrumMachine() {
   );
 
   /**
-   * Freezes the current sound: every channel's parameters and all four master
-   * stages, in one go. Patterns, samples and the transport are deliberately not
-   * part of it, so a snapshot is a mix to come back to rather than a whole song.
+   * Freezes the current sound: every channel's parameters, all four master
+   * stages and the output fader, in one go. Patterns, samples and the transport
+   * are deliberately not part of it, so a snapshot is a mix to come back to
+   * rather than a whole song.
    *
    * The channels are read through the ref rather than taken as a dependency, so
    * this doesn't have to be rebuilt every time a step is toggled.
@@ -441,14 +450,15 @@ export default function DrumMachine() {
       filter: masterFilter,
       delay: masterDelay,
       reverb: masterReverb,
+      volume: masterVolume,
     });
-  }, [masterDelay, masterDrive, masterFilter, masterReverb]);
+  }, [masterDelay, masterDrive, masterFilter, masterReverb, masterVolume]);
 
   /**
-   * Puts every parameter back to the last save. The master stages reach the
-   * audio graph through the effects above, so setting the state here is the
-   * whole of it — including the reverb, whose impulse is rebuilt on the way if
-   * the decay has moved since.
+   * Puts every parameter back to the last save. The master stages and the
+   * output fader reach the audio graph through the effects above, so setting
+   * the state here is the whole of it — including the reverb, whose impulse is
+   * rebuilt on the way if the decay has moved since.
    */
   const handleRecallSnapshot = useCallback(() => {
     if (!snapshot) return;
@@ -458,6 +468,7 @@ export default function DrumMachine() {
     setMasterFilter(snapshot.filter);
     setMasterDelay(snapshot.delay);
     setMasterReverb(snapshot.reverb);
+    setMasterVolume(snapshot.volume);
   }, [snapshot]);
 
   /**
@@ -550,15 +561,16 @@ export default function DrumMachine() {
   return (
     <div className="min-h-screen text-neutral-900 dark:text-neutral-100">
       {/*
-        The transport gets a rail of its own: it acts on the whole pattern
-        rather than on one channel, and keeping it off the page means it stays
-        put however far the channel list is scrolled.
+        Everything that acts on the machine as a whole rather than on one
+        channel: what it plays with, how it plays, and how loud it comes out.
+        Keeping them off the page means they stay put however far the channel
+        list is scrolled.
       */}
       <Sidebar
-        id={TRANSPORT_SIDEBAR_ID}
+        id={CONTROLS_SIDEBAR_ID}
         side="left"
-        label="transport"
-        isOpen={openDrawer === "transport"}
+        label="controls"
+        isOpen={openDrawer === "controls"}
         onClose={closeDrawer}
       >
         <Transport
@@ -569,6 +581,18 @@ export default function DrumMachine() {
           onTogglePlay={handleTogglePlay}
           onBpmChange={setBpm}
           onSwingChange={setSwing}
+        />
+
+        <PresetPicker
+          presets={PRESETS}
+          loadingPresetId={loadingPresetId}
+          onLoadPreset={(preset) => void handleLoadPreset(preset)}
+        />
+
+        {/* Last, because it is last in the signal too. */}
+        <MasterVolumeControls
+          volume={masterVolume}
+          onChange={setMasterVolume}
         />
       </Sidebar>
 
@@ -620,10 +644,10 @@ export default function DrumMachine() {
             {/* Each chevron points at the rail it opens. */}
             <button
               type="button"
-              onClick={() => toggleDrawer("transport")}
-              aria-label="Show transport"
-              aria-expanded={openDrawer === "transport"}
-              aria-controls={TRANSPORT_SIDEBAR_ID}
+              onClick={() => toggleDrawer("controls")}
+              aria-label="Show controls"
+              aria-expanded={openDrawer === "controls"}
+              aria-controls={CONTROLS_SIDEBAR_ID}
               className="rounded-md border border-neutral-300 p-1.5 lg:hidden dark:border-neutral-700"
             >
               <svg
@@ -673,12 +697,6 @@ export default function DrumMachine() {
         </header>
 
         <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
-          <PresetPicker
-            presets={PRESETS}
-            loadingPresetId={loadingPresetId}
-            onLoadPreset={(preset) => void handleLoadPreset(preset)}
-          />
-
           <ChannelEditor
             channel={selectedChannel}
             showSampleOnly={true}

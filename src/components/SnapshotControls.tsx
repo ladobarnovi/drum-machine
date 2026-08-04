@@ -60,7 +60,7 @@ export default function SnapshotControls({
       <button
         type="button"
         onClick={handleSave}
-        title="Save every channel's parameters and the master FX. Patterns and samples aren't part of it."
+        title="Save every channel's parameters, the master FX and the output level. Patterns and samples aren't part of it."
         className={buttonClass}
       >
         {justSaved ? "Saved" : "Save"}
@@ -72,7 +72,7 @@ export default function SnapshotControls({
         disabled={!hasSnapshot}
         title={
           hasSnapshot
-            ? "Put every channel parameter and the master FX back to the last save."
+            ? "Put every channel parameter, the master FX and the output level back to the last save."
             : "Save a snapshot first."
         }
         className={buttonClass}

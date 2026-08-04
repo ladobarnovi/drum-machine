@@ -24,9 +24,9 @@ type TransportProps = {
 };
 
 /**
- * Play, tempo, and feel, stacked for the left-hand rail. These are the controls
- * that act on the whole pattern rather than on one channel, so they sit off to
- * the side rather than in among the steps.
+ * Play, tempo, and feel, stacked for the left-hand rail alongside the kit
+ * picker and the output fader. These act on the whole pattern rather than on
+ * one channel, so they sit off to the side rather than in among the steps.
  */
 export default function Transport({
   isPlaying,

@@ -11,6 +11,7 @@ import {
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
   DEFAULT_MASTER_REVERB,
+  DEFAULT_MASTER_VOLUME,
   DEFAULT_REVERB_TONE_HZ,
   LFO_FILTER_RANGE_OCTAVES,
   LFO_PITCH_RANGE_SEMITONES,
@@ -402,6 +403,12 @@ type MasterChain = {
   lowpass: BiquadFilterNode;
   filtered: GainNode;
   unfiltered: GainNode;
+  /**
+   * The output fader, last before the destination. It sits downstream of where
+   * the send returns rejoin, so it scales the whole mix — repeats and tail
+   * included — without touching the delay's feedback loop gain.
+   */
+  output: GainNode;
 
   /** Where channel delay sends land. */
   delayBus: GainNode;
@@ -502,6 +509,7 @@ function createMasterChain(context: AudioContext): MasterChain {
   const lowpass = createCutFilter(context, "lowpass", DEFAULT_HIGH_CUT_HZ);
   const filtered = context.createGain();
   const unfiltered = context.createGain();
+  const output = context.createGain();
   const delayBus = context.createGain();
   const delayLine = context.createDelay(MAX_DELAY_LINE_SECONDS);
   const feedback = context.createGain();
@@ -537,10 +545,14 @@ function createMasterChain(context: AudioContext): MasterChain {
   driveOut.connect(highpass);
   highpass.connect(lowpass);
   lowpass.connect(filtered);
-  filtered.connect(context.destination);
+  filtered.connect(output);
 
   driveOut.connect(unfiltered);
-  unfiltered.connect(context.destination);
+  unfiltered.connect(output);
+
+  // Both bypass paths land on the fader rather than on the destination, so the
+  // master level is the one thing everything passes through on the way out.
+  output.connect(context.destination);
 
   // The delay's own output is what feeds the loop, so the return level sets how
   // loud the repeats are without changing how many of them there are. A cycle
@@ -606,6 +618,7 @@ function createMasterChain(context: AudioContext): MasterChain {
     lowpass,
     filtered,
     unfiltered,
+    output,
     delayBus,
     delayLine,
     feedback,
@@ -729,6 +742,18 @@ function applyReverb(
 }
 
 /**
+ * Ramped like every other gain here, so dragging the fader is a fade rather
+ * than a staircase of steps, each of which would click.
+ */
+function applyVolume(
+  context: AudioContext,
+  chain: MasterChain,
+  volume: number,
+) {
+  rampTo(chain.output.gain, clampVolume(volume), context.currentTime);
+}
+
+/**
  * Owns the AudioContext and the decoded AudioBuffer for each channel.
  *
  * Buffers live in a ref rather than state: they are large binary objects that
@@ -748,6 +773,7 @@ export function useSampleBank() {
   // chain is built, which happens long after the tempo was last set.
   const delayBpmRef = useRef(DEFAULT_BPM);
   const reverbRef = useRef<MasterReverb>(DEFAULT_MASTER_REVERB);
+  const volumeRef = useRef(DEFAULT_MASTER_VOLUME);
   // The sample-and-hold table, built on first use and then shared by every
   // voice: it runs to a few hundred kilobytes, and a fresh one per hit would
   // allocate that on every step of every channel using a random LFO.
@@ -779,6 +805,7 @@ export function useSampleBank() {
       applyFilter(context, chain, filterRef.current);
       applyDelay(context, chain, delayRef.current, delayBpmRef.current);
       applyReverb(context, chain, reverbRef.current);
+      applyVolume(context, chain, volumeRef.current);
     }
 
     return context;
@@ -828,6 +855,17 @@ export function useSampleBank() {
     if (!context || !chain) return;
 
     applyReverb(context, chain, reverb);
+  }, []);
+
+  /** Points the output fader at `volume`, creating no context of its own. */
+  const applyMasterVolume = useCallback((volume: number) => {
+    volumeRef.current = volume;
+
+    const context = contextRef.current;
+    const chain = masterRef.current;
+    if (!context || !chain) return;
+
+    applyVolume(context, chain, volume);
   }, []);
 
   /**
@@ -1072,6 +1110,7 @@ export function useSampleBank() {
     applyMasterFilter,
     applyMasterDelay,
     applyMasterReverb,
+    applyMasterVolume,
     loadSample,
     loadSampleFromUrl,
     removeSample,

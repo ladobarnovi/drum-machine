@@ -314,6 +314,16 @@ export const DEFAULT_MASTER_REVERB: MasterReverb = {
 };
 
 /**
+ * The output fader, last in the chain and the only master control with no
+ * bypass — switching a volume off is what pulling it to zero already does.
+ *
+ * It is a bare number rather than an object like the stages above, because
+ * there is nothing to keep alongside it: one linear gain, on the same scale as
+ * a channel's volume, so unity sits at 100% and there is headroom above it.
+ */
+export const DEFAULT_MASTER_VOLUME = DEFAULT_VOLUME;
+
+/**
  * The modulation shapes on offer. The four periodic ones are named after the
  * oscillator types that produce them; random is sample-and-hold — a fresh
  * random value each cycle, held flat until the next one — which no oscillator
@@ -530,12 +540,17 @@ export type ChannelSnapshot = Pick<
 >;
 
 /**
- * Every channel's parameters and all four master stages, taken at one moment.
+ * Every channel's parameters, all four master stages, and the output fader,
+ * taken at one moment.
  *
  * Channels are keyed by id rather than held in order, so a snapshot lands on the
  * channel it was taken from however the list is read back. The master stages are
  * held as they are: each one is replaced wholesale on every change, so keeping
  * the object is keeping its values.
+ *
+ * The output fader is in here because a snapshot is a mix to come back to and
+ * the master level is part of a mix — a recall that put every other level back
+ * but left the last one where it was would not reproduce what was saved.
  */
 export type ParameterSnapshot = {
   channels: Record<string, ChannelSnapshot>;
@@ -543,6 +558,7 @@ export type ParameterSnapshot = {
   filter: MasterFilter;
   delay: MasterDelay;
   reverb: MasterReverb;
+  volume: number;
 };
 
 /**
