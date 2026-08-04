@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import {
   DEFAULT_BPM,
+  DEFAULT_DELAY_TONE_HZ,
   DEFAULT_HIGH_CUT_HZ,
   DEFAULT_LOW_CUT_HZ,
   DEFAULT_MASTER_DELAY,
@@ -11,15 +12,21 @@ import {
   DEFAULT_MASTER_FILTER,
   DEFAULT_MASTER_REVERB,
   DEFAULT_REVERB_TONE_HZ,
+  LFO_FILTER_RANGE_OCTAVES,
+  LFO_PITCH_RANGE_SEMITONES,
   MAX_DELAY_LINE_SECONDS,
   clampDrive,
   clampFeedback,
   clampFrequency,
+  clampLfoAmount,
+  clampLfoRate,
   clampReverbDecay,
   clampSend,
   clampVolume,
   delayTimeSeconds,
+  type ChannelLfo,
   type DriveType,
+  type LfoShape,
   type MasterDelay,
   type MasterDrive,
   type MasterFilter,
@@ -43,6 +50,8 @@ type TriggerOptions = {
   delaySend?: number;
   /** How much of this hit is tapped to the reverb bus. Omit to send nothing. */
   reverbSend?: number;
+  /** Modulation running for the length of this hit. Omit for none. */
+  lfo?: ChannelLfo;
 };
 
 /**
@@ -192,6 +201,187 @@ const REVERB_IMPULSE_CHANNELS = 2;
  */
 const REVERB_DECAY_CURVE = 2.5;
 
+/**
+ * Cents in the units the LFO's depths are expressed in. Pitch and cutoff are
+ * both modulated through a `detune` param, which is measured in cents, so a
+ * swing is the same musical interval up as it is down however high or low the
+ * parameter it is riding happens to sit.
+ */
+const CENTS_PER_SEMITONE = 100;
+const CENTS_PER_OCTAVE = 1200;
+
+/**
+ * Steps in the sample-and-hold table. Long enough that looping it doesn't read
+ * as a repeating figure, short enough that the table stays a few hundred
+ * kilobytes.
+ */
+const RANDOM_LFO_STEPS = 32;
+
+/**
+ * How long one step of that table lasts at playback rate 1. A voice sets its
+ * LFO rate by playing the table faster or slower, so this only fixes where that
+ * ratio sits — chosen so the usable rates land within a couple of octaves of
+ * 1x, where resampling can't smear the steps into ramps.
+ */
+const RANDOM_LFO_HOLD_SECONDS = 0.1;
+
+/**
+ * One random value per step, held flat across it. Playing this back as a buffer
+ * is what lets a random shape be an LFO like any other — a signal that can be
+ * connected to an AudioParam — where there is no oscillator type for it.
+ */
+function createRandomLfoTable(context: AudioContext): AudioBuffer {
+  const rate = context.sampleRate;
+  const holdFrames = Math.max(1, Math.round(rate * RANDOM_LFO_HOLD_SECONDS));
+  const table = context.createBuffer(1, RANDOM_LFO_STEPS * holdFrames, rate);
+  const samples = table.getChannelData(0);
+
+  for (let step = 0; step < RANDOM_LFO_STEPS; step += 1) {
+    samples.fill(
+      Math.random() * 2 - 1,
+      step * holdFrames,
+      (step + 1) * holdFrames,
+    );
+  }
+
+  return table;
+}
+
+type LfoSource = OscillatorNode | AudioBufferSourceNode;
+
+/**
+ * A voice's modulation source, swinging ±1 at its output whatever the shape.
+ * The table is taken as a getter so the periodic shapes never build one.
+ */
+function createLfoSource(
+  context: AudioContext,
+  { shape, rateHz }: ChannelLfo,
+  randomTable: () => AudioBuffer,
+): LfoSource {
+  const rate = clampLfoRate(rateHz);
+
+  if (shape === "random") {
+    const source = context.createBufferSource();
+    source.buffer = randomTable();
+    source.loop = true;
+    // One held value per cycle: a step lasts RANDOM_LFO_HOLD_SECONDS at rate 1,
+    // so the rate that makes it last 1/`rate` instead is the product of the two.
+    source.playbackRate.value = rate * RANDOM_LFO_HOLD_SECONDS;
+    return source;
+  }
+
+  const oscillator = context.createOscillator();
+  // The periodic shapes are named after the oscillator types that produce them.
+  oscillator.type = shape;
+  oscillator.frequency.value = rate;
+  return oscillator;
+}
+
+/**
+ * Starts an LFO. The periodic shapes start from phase zero, which is what makes
+ * every retriggered hit sweep identically; sample-and-hold enters its table at
+ * a random point instead, so repeated hits don't all walk the same sequence of
+ * values and a random shape stays random across the bar.
+ */
+function startLfoSource(source: LfoSource, time: number) {
+  if ("buffer" in source) {
+    source.start(time, Math.random() * (source.buffer?.duration ?? 0));
+  } else {
+    source.start(time);
+  }
+}
+
+/**
+ * A channel's free-running LFO: one source per channel, left running once it is
+ * built. Carrying its phase across hits is the whole point of the mode, so it
+ * deliberately outlives every voice that taps it.
+ */
+type ChannelLfoNodes = {
+  source: LfoSource;
+  /** The shape `source` was built for. A change to it means a new node. */
+  shape: LfoShape;
+  /**
+   * Where voices tap the LFO. Kept across a source swap so a shape change can
+   * be made underneath voices that are already holding on to it.
+   */
+  output: GainNode;
+};
+
+/**
+ * The channel's continuous LFO, built on the first hit that asks for one.
+ *
+ * Settings are pushed in from here rather than from an effect, because a hit is
+ * the only moment the channel's own LFO settings reach the audio layer: a rate
+ * moved mid-pattern therefore lands on the next hit, which at any usable tempo
+ * is a step away.
+ */
+function ensureChannelLfo(
+  context: AudioContext,
+  lfos: Map<string, ChannelLfoNodes>,
+  channelId: string,
+  lfo: ChannelLfo,
+  randomTable: () => AudioBuffer,
+): ChannelLfoNodes {
+  const now = context.currentTime;
+  const existing = lfos.get(channelId);
+
+  if (!existing) {
+    const output = context.createGain();
+    const source = createLfoSource(context, lfo, randomTable);
+    source.connect(output);
+    startLfoSource(source, now);
+
+    const nodes: ChannelLfoNodes = { source, shape: lfo.shape, output };
+    lfos.set(channelId, nodes);
+    return nodes;
+  }
+
+  // A running oscillator would take a new type on its own, but crossing to or
+  // from sample-and-hold is a different kind of node entirely — so rather than
+  // split the two cases, any shape change simply swaps the source out behind
+  // the output the voices are already tapping. Resetting the phase on a change
+  // the user just made is not something anyone is listening for.
+  if (existing.shape !== lfo.shape) {
+    existing.source.stop();
+    existing.source.disconnect();
+    existing.source = createLfoSource(context, lfo, randomTable);
+    existing.source.connect(existing.output);
+    startLfoSource(existing.source, now);
+    existing.shape = lfo.shape;
+    return existing;
+  }
+
+  // Ramped rather than set: a rate step on a sounding LFO is audible as a click
+  // on the destination it is riding.
+  const rate = clampLfoRate(lfo.rateHz);
+  if ("buffer" in existing.source) {
+    rampTo(existing.source.playbackRate, rate * RANDOM_LFO_HOLD_SECONDS, now);
+  } else {
+    rampTo(existing.source.frequency, rate, now);
+  }
+
+  return existing;
+}
+
+/**
+ * Drops a channel's continuous LFO once nothing is asking for one.
+ *
+ * Only the source is torn down. The output node is left connected, because
+ * voices that are still tapping it remove their own connection when they end,
+ * and pulling it out from under them here would make that cleanup throw.
+ */
+function releaseChannelLfo(
+  lfos: Map<string, ChannelLfoNodes>,
+  channelId: string,
+) {
+  const nodes = lfos.get(channelId);
+  if (!nodes) return;
+
+  nodes.source.stop();
+  nodes.source.disconnect();
+  lfos.delete(channelId);
+}
+
 /** The always-connected nodes every voice is summed through. */
 type MasterChain = {
   /** Where voices connect. Feeds the driven and the clean path in parallel. */
@@ -217,8 +407,12 @@ type MasterChain = {
   delayBus: GainNode;
   delayLine: DelayNode;
   feedback: GainNode;
+  /** Damping inside the feedback loop, so each repeat is darker than the last. */
+  delayTone: BiquadFilterNode;
   /** The delay's return level, and its whole bypass. */
   delayLevel: GainNode;
+  /** How much of the delay's return is passed on to the reverb bus. */
+  delayToReverb: GainNode;
 
   /** Where channel reverb sends land. */
   reverbBus: GainNode;
@@ -254,8 +448,7 @@ function createReverbImpulse(
     const samples = impulse.getChannelData(channel);
     for (let i = 0; i < length; i += 1) {
       samples[i] =
-        (Math.random() * 2 - 1) *
-        Math.pow(1 - i / length, REVERB_DECAY_CURVE);
+        (Math.random() * 2 - 1) * Math.pow(1 - i / length, REVERB_DECAY_CURVE);
     }
   }
 
@@ -312,7 +505,9 @@ function createMasterChain(context: AudioContext): MasterChain {
   const delayBus = context.createGain();
   const delayLine = context.createDelay(MAX_DELAY_LINE_SECONDS);
   const feedback = context.createGain();
+  const delayTone = createCutFilter(context, "lowpass", DEFAULT_DELAY_TONE_HZ);
   const delayLevel = context.createGain();
+  const delayToReverb = context.createGain();
   const reverbBus = context.createGain();
   const convolver = context.createConvolver();
   const damping = createCutFilter(context, "lowpass", DEFAULT_REVERB_TONE_HZ);
@@ -352,16 +547,33 @@ function createMasterChain(context: AudioContext): MasterChain {
   // is legal here only because a DelayNode sits in it — the spec mutes any
   // other feedback loop outright — and `feedback` is held below unity so the
   // repeats always die away.
+  //
+  // The tone filter sits inside that loop, with both the return and the
+  // feedback taken after it, so every trip round darkens the repeat once more
+  // and the echoes recede instead of ringing on as bright as they arrived. It
+  // is a Butterworth, so it has no resonant peak and no frequency ever sees a
+  // loop gain above `feedback` — a filter that peaked could push the loop past
+  // unity at its resonance while the slider still read well under it.
   delayBus.connect(delayLine);
-  delayLine.connect(feedback);
+  delayLine.connect(delayTone);
+  delayTone.connect(feedback);
   feedback.connect(delayLine);
-  delayLine.connect(delayLevel);
+  delayTone.connect(delayLevel);
 
   // Damping sits after the convolver rather than before it, so it darkens the
   // tail itself instead of just the signal being fed into the room.
   reverbBus.connect(convolver);
   convolver.connect(damping);
   damping.connect(reverbLevel);
+
+  // The delay's own send into the reverb, so the repeats can be given a space
+  // rather than sitting flat against the dry mix. Tapped after the return level
+  // for the same reason the channel sends are post-fader: pulling the repeats
+  // down takes their share of the tail with them, and switching the delay off
+  // takes both. Nothing downstream of the reverb reaches the delay bus, so this
+  // adds no second feedback path.
+  delayLevel.connect(delayToReverb);
+  delayToReverb.connect(reverbBus);
 
   // Both returns land on the master input, so the sends are summed with the dry
   // channels and the whole mix — repeats and tail included — is what the drive
@@ -378,6 +590,8 @@ function createMasterChain(context: AudioContext): MasterChain {
   // Sends are parallel, so silencing the return *is* the bypass.
   delayLevel.gain.value = 0;
   reverbLevel.gain.value = 0;
+  // Matches the closed default, so the first ramp doesn't start from unity.
+  delayToReverb.gain.value = 0;
 
   return {
     input,
@@ -395,7 +609,9 @@ function createMasterChain(context: AudioContext): MasterChain {
     delayBus,
     delayLine,
     feedback,
+    delayTone,
     delayLevel,
+    delayToReverb,
     reverbBus,
     convolver,
     damping,
@@ -455,9 +671,10 @@ function applyFilter(
 }
 
 /**
- * Time and feedback keep tracking while the bus is switched off, so a delay can
- * be dialled in silently and then brought up. Silencing the return is the whole
- * of the bypass: the dry mix never passed through here to begin with.
+ * Time, feedback and tone keep tracking while the bus is switched off, so a
+ * delay can be dialled in silently and then brought up. Silencing the return is
+ * the whole of the bypass: the dry mix never passed through here to begin with,
+ * and the send on into the reverb hangs off the return, so it goes quiet too.
  *
  * `bpm` is only read when the delay is synced, but it is taken always so that a
  * tempo change re-applies the stage and the repeats follow the transport.
@@ -477,11 +694,13 @@ function applyDelay(
     DELAY_TIME_RAMP_SECONDS,
   );
   rampTo(chain.feedback.gain, clampFeedback(delay.feedback), now);
+  rampTo(chain.delayTone.frequency, clampFrequency(delay.toneHz), now);
   rampTo(
     chain.delayLevel.gain,
     delay.enabled ? clampVolume(delay.level) : 0,
     now,
   );
+  rampTo(chain.delayToReverb.gain, clampSend(delay.reverbSend), now);
 }
 
 function applyReverb(
@@ -529,6 +748,12 @@ export function useSampleBank() {
   // chain is built, which happens long after the tempo was last set.
   const delayBpmRef = useRef(DEFAULT_BPM);
   const reverbRef = useRef<MasterReverb>(DEFAULT_MASTER_REVERB);
+  // The sample-and-hold table, built on first use and then shared by every
+  // voice: it runs to a few hundred kilobytes, and a fresh one per hit would
+  // allocate that on every step of every channel using a random LFO.
+  const randomLfoRef = useRef<AudioBuffer | null>(null);
+  // The continuous LFO of every channel currently running one, by channel id.
+  const channelLfosRef = useRef(new Map<string, ChannelLfoNodes>());
 
   useEffect(() => {
     return () => {
@@ -656,6 +881,7 @@ export function useSampleBank() {
         decaySeconds,
         delaySend,
         reverbSend,
+        lfo,
       }: TriggerOptions = {},
     ) => {
       const context = contextRef.current;
@@ -670,14 +896,19 @@ export function useSampleBank() {
       // Fresh nodes per hit, so a knob move never retunes an already-playing note.
       let tail: AudioNode = source;
 
+      // Held rather than folded into `tail`, since an LFO aimed at a cut needs
+      // that particular filter back to modulate it.
+      let highpass: BiquadFilterNode | null = null;
+      let lowpass: BiquadFilterNode | null = null;
+
       if (lowCutHz !== undefined) {
-        const highpass = createCutFilter(context, "highpass", lowCutHz);
+        highpass = createCutFilter(context, "highpass", lowCutHz);
         tail.connect(highpass);
         tail = highpass;
       }
 
       if (highCutHz !== undefined) {
-        const lowpass = createCutFilter(context, "lowpass", highCutHz);
+        lowpass = createCutFilter(context, "lowpass", highCutHz);
         tail.connect(lowpass);
         tail = lowpass;
       }
@@ -712,8 +943,16 @@ export function useSampleBank() {
         tail = envelope;
       }
 
+      // A volume LFO is written into the voice's own gain rather than given a
+      // node of its own: an AudioParam sums its base value with whatever is
+      // connected to it, so offsetting the base down by half the depth here is
+      // what lets the swing come back up to the channel's level at its peak
+      // instead of pushing past it, and down to silence at full depth.
+      const tremolo =
+        lfo?.destination === "volume" ? clampLfoAmount(lfo.amount) / 2 : 0;
+
       const gainNode = context.createGain();
-      gainNode.gain.value = gain;
+      gainNode.gain.value = gain * (1 - tremolo);
 
       tail.connect(gainNode);
       // Into the master bus rather than the destination, so every voice is
@@ -735,6 +974,85 @@ export function useSampleBank() {
         send.gain.value = clampSend(reverbSend);
         gainNode.connect(send);
         send.connect(master.reverbBus);
+      }
+
+      // A channel keeps a continuous LFO only while something is tapping it, so
+      // switching the section off — or back to retriggering — releases it, and
+      // the phase starts fresh whenever free mode is next asked for.
+      if (!lfo || lfo.retrigger) {
+        releaseChannelLfo(channelLfosRef.current, channelId);
+      }
+
+      if (lfo) {
+        const amount = clampLfoAmount(lfo.amount);
+        const randomTable = () =>
+          (randomLfoRef.current ??= createRandomLfoTable(context));
+
+        // The LFO swings ±1; this scales that into the destination's own unit.
+        const depth = context.createGain();
+
+        if (lfo.retrigger) {
+          // An LFO of this voice's own, started with it, so every hit sweeps
+          // the same way rather than catching a continuous one wherever it had
+          // drifted to by the time the step came round.
+          const modulator = createLfoSource(context, lfo, randomTable);
+          modulator.connect(depth);
+          startLfoSource(modulator, time);
+
+          // Nothing stops an oscillator on its own, and one left running holds
+          // every node it feeds alive with it. The voice's own end — the decay
+          // below, or the buffer simply running out — is the moment there is no
+          // longer anything to modulate.
+          source.onended = () => modulator.stop();
+        } else {
+          const channelLfo = ensureChannelLfo(
+            context,
+            channelLfosRef.current,
+            channelId,
+            lfo,
+            randomTable,
+          );
+          channelLfo.output.connect(depth);
+
+          // The tap has to come back out when the voice ends. The LFO outlives
+          // the voice, so a connection left in place would keep that voice —
+          // and everything downstream of it — alive and processing for good.
+          source.onended = () => {
+            channelLfo.output.disconnect(depth);
+            depth.disconnect();
+          };
+        }
+
+        switch (lfo.destination) {
+          case "pitch":
+            // Into `detune` rather than `playbackRate`, which is a ratio: an
+            // equal swing in cents is an equal interval either way, where an
+            // equal swing in rate would bend further up than down.
+            depth.gain.value =
+              amount * LFO_PITCH_RANGE_SEMITONES * CENTS_PER_SEMITONE;
+            depth.connect(source.detune);
+            break;
+
+          case "volume":
+            depth.gain.value = gain * tremolo;
+            depth.connect(gainNode.gain);
+            break;
+
+          // The filter this rides always exists: `triggerOptionsForChannel`
+          // builds the cut an LFO is pointed at even where it would otherwise
+          // be bypassed. The check is for callers that pass their own options.
+          case "lowCut":
+            depth.gain.value =
+              amount * LFO_FILTER_RANGE_OCTAVES * CENTS_PER_OCTAVE;
+            if (highpass) depth.connect(highpass.detune);
+            break;
+
+          case "highCut":
+            depth.gain.value =
+              amount * LFO_FILTER_RANGE_OCTAVES * CENTS_PER_OCTAVE;
+            if (lowpass) depth.connect(lowpass.detune);
+            break;
+        }
       }
 
       source.start(time);

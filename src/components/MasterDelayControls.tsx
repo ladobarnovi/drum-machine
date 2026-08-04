@@ -7,16 +7,23 @@ import {
   DELAY_DIVISION_LABELS,
   MAX_DELAY_SECONDS,
   MAX_FEEDBACK,
+  MAX_SEND,
   MAX_VOLUME,
   MIN_DELAY_SECONDS,
   MIN_FEEDBACK,
+  MIN_SEND,
   MIN_VOLUME,
   clampDelayDivision,
   clampDelaySeconds,
   clampFeedback,
+  clampSend,
   clampVolume,
   delayTimeSeconds,
+  formatFrequency,
   formatSeconds,
+  frequencyToSlider,
+  isHighCutBypassed,
+  sliderToFrequency,
   type MasterDelay,
 } from "@/lib/sequencer";
 
@@ -43,6 +50,10 @@ type MasterDelayControlsProps = {
  *
  * Time is set either by locking to a note value or by dialling a free time in
  * milliseconds. Both are kept, so switching between them is non-destructive.
+ *
+ * The bus is also a sender in its own right: "To reverb" passes the return on
+ * into the reverb bus, so the repeats can be given the same space the channels
+ * are sitting in instead of arriving dry on top of it.
  */
 export default function MasterDelayControls({
   delay,
@@ -127,6 +138,29 @@ export default function MasterDelayControls({
         }
       />
 
+      {/*
+        Sits below Feedback because that is where it sits in the signal too: the
+        filter is inside the loop, so this is the tone of the *repeats* rather
+        than of the return, and each one comes back darker than the last. Shares
+        the cutoff scale the filters use, so the readout is a real Hz.
+      */}
+      <RailSlider
+        label="Tone"
+        ariaLabel="Master delay tone"
+        min={0}
+        max={1}
+        step={0.001}
+        value={frequencyToSlider(delay.toneHz)}
+        readout={
+          isHighCutBypassed(delay.toneHz)
+            ? "Open"
+            : formatFrequency(delay.toneHz)
+        }
+        onChange={(position) =>
+          onChange({ ...delay, toneHz: sliderToFrequency(position) })
+        }
+      />
+
       <RailSlider
         label="Level"
         ariaLabel="Master delay level"
@@ -136,6 +170,24 @@ export default function MasterDelayControls({
         value={delay.level}
         readout={`${Math.round(delay.level * 100)}%`}
         onChange={(value) => onChange({ ...delay, level: clampVolume(value) })}
+      />
+
+      {/*
+        Last, because the send is taken after the level: it feeds the reverb bus
+        whatever the return is putting out, so it reads as the end of this
+        stage rather than as a second output alongside it.
+      */}
+      <RailSlider
+        label="To reverb"
+        ariaLabel="Master delay reverb send"
+        min={MIN_SEND}
+        max={MAX_SEND}
+        step={0.01}
+        value={delay.reverbSend}
+        readout={`${Math.round(delay.reverbSend * 100)}%`}
+        onChange={(value) =>
+          onChange({ ...delay, reverbSend: clampSend(value) })
+        }
       />
     </MasterFxSection>
   );

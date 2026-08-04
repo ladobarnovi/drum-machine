@@ -1,12 +1,17 @@
 "use client";
 
 import ChannelControls from "./ChannelControls";
+import ChannelLfoControls from "./ChannelLfoControls";
 import ChannelNameInput from "./ChannelNameInput";
 import LengthControl from "./LengthControl";
 import SampleSlot from "./SampleSlot";
 import StepGrid from "./StepGrid";
 import Waveform from "./Waveform";
-import { channelDisplayName, type Channel } from "@/lib/sequencer";
+import {
+  channelDisplayName,
+  type Channel,
+  type ChannelLfo,
+} from "@/lib/sequencer";
 
 type ChannelEditorProps = {
   channel: Channel;
@@ -24,6 +29,7 @@ type ChannelEditorProps = {
   onDecayChange: (seconds: number) => void;
   onDelaySendChange: (amount: number) => void;
   onReverbSendChange: (amount: number) => void;
+  onLfoChange: (lfo: ChannelLfo) => void;
 };
 
 /** Sample controls, length, and step grid for the currently selected channel. */
@@ -43,6 +49,7 @@ export default function ChannelEditor({
   onDecayChange,
   onDelaySendChange,
   onReverbSendChange,
+  onLfoChange,
 }: ChannelEditorProps) {
   const displayName = channelDisplayName(channel);
 
@@ -88,6 +95,8 @@ export default function ChannelEditor({
         onDelaySendChange={onDelaySendChange}
         onReverbSendChange={onReverbSendChange}
       />
+
+      <ChannelLfoControls lfo={channel.lfo} onChange={onLfoChange} />
 
       <StepGrid
         channelLabel={displayName}

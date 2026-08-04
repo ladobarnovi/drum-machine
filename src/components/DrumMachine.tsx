@@ -11,6 +11,7 @@ import MasterReverbControls from "./MasterReverbControls";
 import PresetPicker from "./PresetPicker";
 import Sidebar, { SIDEBAR_ID } from "./Sidebar";
 import Transport from "./Transport";
+import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
 import { useSampleBank } from "@/hooks/useSampleBank";
@@ -37,6 +38,7 @@ import {
   isChannelAudible,
   triggerOptionsForChannel,
   type Channel,
+  type ChannelLfo,
   type MasterDelay,
   type MasterDrive,
   type MasterFilter,
@@ -108,19 +110,30 @@ export default function DrumMachine() {
     channelsRef.current = channels;
   }, [channels]);
 
+  const { flashedChannelIds, flashChannels, clearFlashes } = useChannelFlash({
+    ensureContext,
+  });
+
   // Each channel wraps the absolute tick by its own length, so channels with
   // different lengths drift against each other instead of restarting together.
   const handleStep = useCallback(
     (tick: number, time: number) => {
       const soloActive = hasSoloedChannel(channelsRef.current);
+      const firedChannelIds: string[] = [];
+
       for (const channel of channelsRef.current) {
         if (!isChannelAudible(channel, soloActive)) continue;
         if (channel.steps[tick % clampLength(channel.length)]) {
           trigger(channel.id, time, triggerOptionsForChannel(channel));
+          firedChannelIds.push(channel.id);
         }
       }
+
+      // One call for the whole step, so a busy tick lights every pad it hit in
+      // a single update.
+      flashChannels(firedChannelIds, time);
     },
-    [trigger],
+    [flashChannels, trigger],
   );
 
   const { isPlaying, currentTick, play, stop } = useSequencer({
@@ -272,8 +285,9 @@ export default function DrumMachine() {
         context.currentTime,
         triggerOptionsForChannel(channel),
       );
+      flashChannels([channelId], context.currentTime);
     },
-    [ensureContext, trigger],
+    [ensureContext, flashChannels, trigger],
   );
 
   const handleSelectChannelIndex = useCallback((index: number) => {
@@ -329,6 +343,15 @@ export default function DrumMachine() {
   const handleReverbSendChange = useCallback(
     (channelId: string, amount: number) => {
       updateChannel(channelId, { reverbSend: clampSend(amount) });
+    },
+    [updateChannel],
+  );
+
+  // Arrives already clamped field by field, like the master stages: the section
+  // hands back a whole settings object rather than one loose number.
+  const handleLfoChange = useCallback(
+    (channelId: string, lfo: ChannelLfo) => {
+      updateChannel(channelId, { lfo });
     },
     [updateChannel],
   );
@@ -401,10 +424,13 @@ export default function DrumMachine() {
   const handleTogglePlay = useCallback(() => {
     if (isPlaying) {
       stop();
+      // Drop queued flashes with the playhead, so nothing lights up after the
+      // transport has already stopped.
+      clearFlashes();
     } else if (canPlay) {
       play();
     }
-  }, [canPlay, isPlaying, play, stop]);
+  }, [canPlay, clearFlashes, isPlaying, play, stop]);
 
   useTransportShortcuts({ onTogglePlay: handleTogglePlay });
 
@@ -491,6 +517,7 @@ export default function DrumMachine() {
           <ChannelGrid
             channels={channels}
             selectedChannelId={selectedChannel.id}
+            flashedChannelIds={flashedChannelIds}
             onSelectChannel={setSelectedChannelId}
             onPreviewChannel={handlePreviewChannel}
             onToggleMute={handleToggleMute}
@@ -531,6 +558,7 @@ export default function DrumMachine() {
             onReverbSendChange={(amount) =>
               handleReverbSendChange(selectedChannel.id, amount)
             }
+            onLfoChange={(lfo) => handleLfoChange(selectedChannel.id, lfo)}
           />
         </div>
       </div>

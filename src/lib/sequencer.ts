@@ -139,6 +139,17 @@ export const MIN_FEEDBACK = 0;
 export const MAX_FEEDBACK = 0.9;
 export const DEFAULT_FEEDBACK = 0.35;
 
+/**
+ * Lowpass on the delay's repeats. It sits inside the feedback loop, so each
+ * repeat passes it once more than the one before and the echoes darken as they
+ * recede — the tape-delay sound, and the reason a delay can be busy without
+ * crowding the top end of the mix.
+ *
+ * That compounding is why it defaults higher than the reverb's tone: by the
+ * fourth repeat this cutoff has been applied four times over.
+ */
+export const DEFAULT_DELAY_TONE_HZ = 8000;
+
 /** How long the reverb tail takes to fall away, in seconds. */
 export const MIN_REVERB_DECAY_SECONDS = 0.2;
 export const MAX_REVERB_DECAY_SECONDS = 8;
@@ -241,8 +252,16 @@ export type MasterDelay = {
   timeSeconds: number;
   /** How much of each repeat feeds the next one. */
   feedback: number;
+  /** Lowpass cutoff on the repeats; at MAX_FILTER_HZ they are undamped. */
+  toneHz: number;
   /** Return level, on the same scale as a channel's volume. */
   level: number;
+  /**
+   * How much of the return is tapped on into the reverb bus, so the repeats can
+   * be given a space of their own. Taken after `level`, exactly as the channel
+   * sends are taken after a channel's volume.
+   */
+  reverbSend: number;
 };
 
 /**
@@ -259,7 +278,10 @@ export const DEFAULT_MASTER_DELAY: MasterDelay = {
   division: DEFAULT_DELAY_DIVISION,
   timeSeconds: DEFAULT_DELAY_SECONDS,
   feedback: DEFAULT_FEEDBACK,
+  toneHz: DEFAULT_DELAY_TONE_HZ,
   level: DEFAULT_VOLUME,
+  // Closed, like a channel's sends: the delay is dry until it is asked not to be.
+  reverbSend: DEFAULT_SEND,
 };
 
 /** The reverb bus, sent to and returned exactly like the delay. */
@@ -278,6 +300,116 @@ export const DEFAULT_MASTER_REVERB: MasterReverb = {
   decaySeconds: DEFAULT_REVERB_DECAY_SECONDS,
   toneHz: DEFAULT_REVERB_TONE_HZ,
   level: DEFAULT_VOLUME,
+};
+
+/**
+ * The modulation shapes on offer. The four periodic ones are named after the
+ * oscillator types that produce them; random is sample-and-hold — a fresh
+ * random value each cycle, held flat until the next one — which no oscillator
+ * type produces and which is built from a table of values instead.
+ */
+export const LFO_SHAPES = [
+  "sine",
+  "triangle",
+  "sawtooth",
+  "square",
+  "random",
+] as const;
+
+export type LfoShape = (typeof LFO_SHAPES)[number];
+
+export const DEFAULT_LFO_SHAPE: LfoShape = "sine";
+
+export const LFO_SHAPE_LABELS: Record<LfoShape, string> = {
+  sine: "Sine",
+  triangle: "Triangle",
+  sawtooth: "Saw",
+  square: "Square",
+  random: "Random",
+};
+
+/**
+ * What the LFO is pointed at. Every destination is something the channel
+ * already has a slider for, so the LFO moves a control that is on screen rather
+ * than introducing a parameter that exists only while it is switched on.
+ */
+export const LFO_DESTINATIONS = [
+  "pitch",
+  "volume",
+  "lowCut",
+  "highCut",
+] as const;
+
+export type LfoDestination = (typeof LFO_DESTINATIONS)[number];
+
+export const DEFAULT_LFO_DESTINATION: LfoDestination = "pitch";
+
+export const LFO_DESTINATION_LABELS: Record<LfoDestination, string> = {
+  pitch: "Pitch",
+  volume: "Volume",
+  lowCut: "Low cut",
+  highCut: "High cut",
+};
+
+/**
+ * Modulation rates, in Hz. The floor is slow enough that a hit only ever sees
+ * part of a cycle, which reads as a sweep rather than as a wobble; the ceiling
+ * is at the bottom of hearing, where the modulation stops being movement and
+ * starts adding sidebands of its own.
+ */
+export const MIN_LFO_HZ = 0.1;
+export const MAX_LFO_HZ = 20;
+export const DEFAULT_LFO_HZ = 5;
+
+/** How far the LFO swings its destination, as a fraction of the full range. */
+export const MIN_LFO_AMOUNT = 0;
+export const MAX_LFO_AMOUNT = 1;
+export const DEFAULT_LFO_AMOUNT = 0.35;
+
+/**
+ * Peak deviation at full amount for the destinations measured in intervals. An
+ * octave either way matches the pitch slider's own range; four is enough for a
+ * cutoff sweep to read as one, since a filter has to move much further than a
+ * pitch before the ear calls it a big move.
+ */
+export const LFO_PITCH_RANGE_SEMITONES = 12;
+export const LFO_FILTER_RANGE_OCTAVES = 4;
+
+/**
+ * A channel's modulation source. One LFO with one destination: a channel here
+ * is a single voice, and keeping the routing to a single choice is what lets
+ * the section be read at a glance instead of traced.
+ */
+export type ChannelLfo = {
+  enabled: boolean;
+  shape: LfoShape;
+  /** Cycles per second. */
+  rateHz: number;
+  /** 0..1, scaled into whatever unit the destination is measured in. */
+  amount: number;
+  destination: LfoDestination;
+  /**
+   * When set, every hit restarts the LFO from the top, so each one sweeps
+   * identically. Cleared, the channel runs a single continuous LFO that hits
+   * tap wherever it happens to have got to, so a slow shape drifts across the
+   * pattern instead of resetting under each note.
+   */
+  retrigger: boolean;
+};
+
+/**
+ * Starts bypassed, already dialled in so switching it on does something.
+ *
+ * Retriggered by default: a hit that sweeps the same way every time is the
+ * predictable case, and hearing that first makes what free mode does obvious.
+ */
+export const DEFAULT_CHANNEL_LFO: ChannelLfo = {
+  enabled: false,
+  shape: DEFAULT_LFO_SHAPE,
+  rateHz: DEFAULT_LFO_HZ,
+  amount: DEFAULT_LFO_AMOUNT,
+  destination: DEFAULT_LFO_DESTINATION,
+  retrigger: true,
 };
 
 /** Per-channel sample loading state. */
@@ -331,6 +463,8 @@ export type Channel = {
   muted: boolean;
   /** While any channel is soloed, every channel that isn't goes silent. */
   soloed: boolean;
+  /** Modulation applied to every hit on this channel. */
+  lfo: ChannelLfo;
   sample: SampleState;
 };
 
@@ -355,6 +489,7 @@ export function createInitialChannels(): Channel[] {
     reverbSend: DEFAULT_SEND,
     muted: false,
     soloed: false,
+    lfo: DEFAULT_CHANNEL_LFO,
     sample: { status: "empty" },
   }));
 }
@@ -364,16 +499,23 @@ export function createInitialChannels(): Channel[] {
  * by one-off previews so an audition sounds exactly like the sequenced hit.
  */
 export function triggerOptionsForChannel(channel: Channel) {
+  // Dropped when it would move nothing, so a switched-off LFO costs no nodes.
+  const lfo = isLfoBypassed(channel.lfo) ? undefined : channel.lfo;
+
   return {
     gain: clampVolume(channel.volume),
     playbackRate: playbackRateForPitch(channel.pitch),
-    // Undefined skips the filter node entirely when it would be inaudible.
-    lowCutHz: isLowCutBypassed(channel.lowCutHz)
-      ? undefined
-      : clampFrequency(channel.lowCutHz),
-    highCutHz: isHighCutBypassed(channel.highCutHz)
-      ? undefined
-      : clampFrequency(channel.highCutHz),
+    // Undefined skips the filter node entirely when it would be inaudible —
+    // unless the LFO is pointed at that cut, since modulation needs a node to
+    // land on and a cut parked at its bypass extreme still has room to sweep.
+    lowCutHz:
+      isLowCutBypassed(channel.lowCutHz) && lfo?.destination !== "lowCut"
+        ? undefined
+        : clampFrequency(channel.lowCutHz),
+    highCutHz:
+      isHighCutBypassed(channel.highCutHz) && lfo?.destination !== "highCut"
+        ? undefined
+        : clampFrequency(channel.highCutHz),
     attackSeconds: isAttackBypassed(channel.attackSeconds)
       ? undefined
       : clampAttack(channel.attackSeconds),
@@ -387,6 +529,7 @@ export function triggerOptionsForChannel(channel: Channel) {
     reverbSend: isSendClosed(channel.reverbSend)
       ? undefined
       : clampSend(channel.reverbSend),
+    lfo,
   };
 }
 
@@ -597,6 +740,76 @@ export function formatSeconds(seconds: number): string {
   return seconds >= 1
     ? `${seconds.toFixed(2)} s`
     : `${Math.round(seconds * 1000)} ms`;
+}
+
+/** Narrows the raw string a `<select>` hands back to a known shape. */
+export function clampLfoShape(value: string): LfoShape {
+  return LFO_SHAPES.includes(value as LfoShape)
+    ? (value as LfoShape)
+    : DEFAULT_LFO_SHAPE;
+}
+
+/** Narrows the raw string a `<select>` hands back to a known destination. */
+export function clampLfoDestination(value: string): LfoDestination {
+  return LFO_DESTINATIONS.includes(value as LfoDestination)
+    ? (value as LfoDestination)
+    : DEFAULT_LFO_DESTINATION;
+}
+
+export function clampLfoRate(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_LFO_HZ;
+  return Math.min(Math.max(value, MIN_LFO_HZ), MAX_LFO_HZ);
+}
+
+export function clampLfoAmount(value: number): number {
+  if (!Number.isFinite(value)) return MIN_LFO_AMOUNT;
+  return Math.min(Math.max(value, MIN_LFO_AMOUNT), MAX_LFO_AMOUNT);
+}
+
+const LFO_HZ_RATIO = MAX_LFO_HZ / MIN_LFO_HZ;
+
+/**
+ * Rates map to a 0..1 slider position logarithmically, for the same reason
+ * cutoffs do: everything below 1 Hz is a two-hundredth of this range, and a
+ * linear slider would leave the whole slow half of the LFO unreachable.
+ */
+export function lfoRateToSlider(hz: number): number {
+  return Math.log(clampLfoRate(hz) / MIN_LFO_HZ) / Math.log(LFO_HZ_RATIO);
+}
+
+export function sliderToLfoRate(position: number): number {
+  const clamped = Math.min(Math.max(position, 0), 1);
+  return clampLfoRate(MIN_LFO_HZ * Math.pow(LFO_HZ_RATIO, clamped));
+}
+
+/** Two decimals below 10 Hz, where a hundredth is still a change worth seeing. */
+export function formatLfoRate(hz: number): string {
+  const clamped = clampLfoRate(hz);
+  return `${clamped < 10 ? clamped.toFixed(2) : clamped.toFixed(1)} Hz`;
+}
+
+/**
+ * What the amount comes to, which depends on where the LFO is pointed: an
+ * interval either side of the pitch or the cutoff, or a tremolo depth, so the
+ * one slider reads in the unit of whatever it is currently moving.
+ */
+export function formatLfoAmount(lfo: ChannelLfo): string {
+  const amount = clampLfoAmount(lfo.amount);
+
+  switch (lfo.destination) {
+    case "pitch":
+      return `±${(amount * LFO_PITCH_RANGE_SEMITONES).toFixed(1)} st`;
+    case "volume":
+      return `${Math.round(amount * 100)}%`;
+    case "lowCut":
+    case "highCut":
+      return `±${(amount * LFO_FILTER_RANGE_OCTAVES).toFixed(1)} oct`;
+  }
+}
+
+/** Switched off, or swinging nothing, so the modulation is skipped entirely. */
+export function isLfoBypassed(lfo: ChannelLfo): boolean {
+  return !lfo.enabled || clampLfoAmount(lfo.amount) <= MIN_LFO_AMOUNT;
 }
 
 export function clampBpm(value: number): number {

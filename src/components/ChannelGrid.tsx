@@ -10,6 +10,8 @@ import {
 type ChannelGridProps = {
   channels: Channel[];
   selectedChannelId: string;
+  /** Channels heard within the last instant, lit while they ring. */
+  flashedChannelIds: ReadonlySet<string>;
   onSelectChannel: (channelId: string) => void;
   onPreviewChannel: (channelId: string) => void;
   onToggleMute: (channelId: string) => void;
@@ -19,6 +21,7 @@ type ChannelGridProps = {
 export default function ChannelGrid({
   channels,
   selectedChannelId,
+  flashedChannelIds,
   onSelectChannel,
   onPreviewChannel,
   onToggleMute,
@@ -39,6 +42,7 @@ export default function ChannelGrid({
           index={index}
           isSelected={channel.id === selectedChannelId}
           isSilenced={!isChannelAudible(channel, soloActive)}
+          isTriggered={flashedChannelIds.has(channel.id)}
           onSelect={() => onSelectChannel(channel.id)}
           onPreview={() => onPreviewChannel(channel.id)}
           onToggleMute={() => onToggleMute(channel.id)}
