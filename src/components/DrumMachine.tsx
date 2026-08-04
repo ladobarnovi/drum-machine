@@ -12,6 +12,7 @@ import PresetPicker from "./PresetPicker";
 import Sidebar, { SIDEBAR_ID } from "./Sidebar";
 import Transport from "./Transport";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
+import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSequencer } from "@/hooks/useSequencer";
 import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
@@ -283,6 +284,12 @@ export default function DrumMachine() {
     channelCount: channels.length,
     onSelectChannelIndex: handleSelectChannelIndex,
   });
+
+  const handleToggleMasterFilter = useCallback(() => {
+    setMasterFilter((prev) => ({ ...prev, enabled: !prev.enabled }));
+  }, []);
+
+  useMasterFilterShortcuts({ onToggle: handleToggleMasterFilter });
 
   const handleLowCutChange = useCallback(
     (channelId: string, hz: number) => {

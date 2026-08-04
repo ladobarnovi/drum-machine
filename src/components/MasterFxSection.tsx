@@ -4,6 +4,8 @@ type MasterFxSectionProps = {
   title: string;
   /** Names the bypass button on its own, e.g. "Master drive". */
   toggleLabel: string;
+  /** Keyboard shortcut for the bypass button, e.g. "Ctrl+F", shown as a tooltip. */
+  shortcut?: string;
   enabled: boolean;
   onToggle: () => void;
   children: React.ReactNode;
@@ -20,6 +22,7 @@ type MasterFxSectionProps = {
 export default function MasterFxSection({
   title,
   toggleLabel,
+  shortcut,
   enabled,
   onToggle,
   children,
@@ -34,6 +37,7 @@ export default function MasterFxSection({
           onClick={onToggle}
           aria-pressed={enabled}
           aria-label={toggleLabel}
+          title={shortcut ? `${toggleLabel} (${shortcut})` : toggleLabel}
           className={`rounded border px-2 py-0.5 text-[10px] leading-4 font-semibold transition-colors ${
             enabled
               ? "border-orange-500 bg-orange-500 text-white"

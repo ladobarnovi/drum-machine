@@ -31,6 +31,7 @@ export default function MasterFilterControls({
     <MasterFxSection
       title="Filter"
       toggleLabel="Master filter"
+      shortcut="Ctrl+F"
       enabled={filter.enabled}
       onToggle={() => onChange({ ...filter, enabled: !filter.enabled })}
     >
