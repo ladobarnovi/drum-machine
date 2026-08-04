@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelEditor from "./ChannelEditor";
 import ChannelGrid from "./ChannelGrid";
+import FxGroup from "./FxGroup";
 import MasterDelayControls from "./MasterDelayControls";
 import MasterDriveControls from "./MasterDriveControls";
 import MasterFilterControls from "./MasterFilterControls";
@@ -498,49 +499,48 @@ export default function DrumMachine() {
   return (
     <div className="min-h-screen text-neutral-900 dark:text-neutral-100">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)}>
-        <Transport
-          isPlaying={isPlaying}
-          bpm={bpm}
-          swing={swing}
-          canPlay={canPlay}
-          onTogglePlay={handleTogglePlay}
-          onBpmChange={setBpm}
-          onSwingChange={setSwing}
-        />
-
         {/*
-          Master FX in signal-chain order. The two send buses come first
-          because their returns rejoin at the master input, so the drive and
-          the cuts below them are working on the repeats and the tail as well
-          as on the dry channels.
+          Both groups run in signal-chain order, and the sends come first
+          because their returns rejoin at the master input — so the drive and
+          the cuts in the group below are working on the repeats and the tail
+          as well as on the dry channels.
         */}
-        <MasterDelayControls
-          delay={masterDelay}
-          bpm={bpm}
-          onChange={setMasterDelay}
-        />
+        <FxGroup title="Send FX">
+          <MasterDelayControls
+            delay={masterDelay}
+            bpm={bpm}
+            onChange={setMasterDelay}
+          />
 
-        <MasterReverbControls
-          reverb={masterReverb}
-          onChange={setMasterReverb}
-        />
+          <MasterReverbControls
+            reverb={masterReverb}
+            onChange={setMasterReverb}
+          />
+        </FxGroup>
 
-        <MasterDriveControls drive={masterDrive} onChange={setMasterDrive} />
+        <FxGroup title="Master FX">
+          <MasterDriveControls drive={masterDrive} onChange={setMasterDrive} />
 
-        <MasterFilterControls
-          filter={masterFilter}
-          onChange={setMasterFilter}
-        />
+          <MasterFilterControls
+            filter={masterFilter}
+            onChange={setMasterFilter}
+          />
+        </FxGroup>
       </Sidebar>
 
       {/* Padding clears the fixed sidebar so the content centres beside it. */}
-      <div className="md:pl-56">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
-          <header className="flex items-center gap-3">
+      <div className="md:pl-64">
+        {/*
+          Sticky, so the transport stays on screen and playback can be stopped
+          from anywhere in a long page. It sits below the drawer's backdrop, so
+          on mobile the header goes behind the overlay with everything else.
+        */}
+        <header className="sticky top-0 z-20 border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-6 py-3">
             <button
               type="button"
               onClick={() => setSidebarOpen((open) => !open)}
-              aria-label="Show controls"
+              aria-label="Show effects"
               aria-expanded={isSidebarOpen}
               aria-controls={SIDEBAR_ID}
               className="rounded-md border border-neutral-300 p-1.5 md:hidden dark:border-neutral-700"
@@ -560,8 +560,20 @@ export default function DrumMachine() {
             </button>
 
             <h1 className="text-lg font-semibold">Drum Machine</h1>
-          </header>
 
+            <Transport
+              isPlaying={isPlaying}
+              bpm={bpm}
+              swing={swing}
+              canPlay={canPlay}
+              onTogglePlay={handleTogglePlay}
+              onBpmChange={setBpm}
+              onSwingChange={setSwing}
+            />
+          </div>
+        </header>
+
+        <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
           <PresetPicker
             presets={PRESETS}
             loadingPresetId={loadingPresetId}

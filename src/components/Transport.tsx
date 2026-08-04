@@ -1,5 +1,6 @@
 "use client";
 
+import TransportSlider from "./TransportSlider";
 import {
   MAX_BPM,
   MAX_SWING,
@@ -21,6 +22,11 @@ type TransportProps = {
   onSwingChange: (swing: number) => void;
 };
 
+/**
+ * Play, tempo, and feel, laid out as a row for the header. These are the
+ * controls reached for while a pattern is being written, so they live on screen
+ * next to the title rather than in the rail with the effects.
+ */
 export default function Transport({
   isPlaying,
   bpm,
@@ -31,64 +37,42 @@ export default function Transport({
   onSwingChange,
 }: TransportProps) {
   return (
-    <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={onTogglePlay}
-        // Stay enabled while playing so the transport can always be stopped.
-        disabled={!isPlaying && !canPlay}
-        className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
-      >
-        {isPlaying ? "Stop" : "Play"}
-      </button>
-
-      <label className="flex flex-col gap-1 text-xs">
-        <span className="flex items-baseline justify-between">
-          <span>BPM</span>
-          <span className="text-neutral-500 tabular-nums dark:text-neutral-400">
-            {bpm}
-          </span>
-        </span>
-        <input
-          type="range"
-          min={MIN_BPM}
-          max={MAX_BPM}
-          step={1}
-          value={bpm}
-          onChange={(event) =>
-            onBpmChange(clampBpm(Number(event.target.value)))
-          }
-          aria-label="BPM"
-          className="w-full accent-orange-500"
-        />
-      </label>
-
-      <label className="flex flex-col gap-1 text-xs">
-        <span className="flex items-baseline justify-between">
-          <span>Swing</span>
-          <span className="text-neutral-500 tabular-nums dark:text-neutral-400">
-            {formatSwing(swing)}
-          </span>
-        </span>
-        <input
-          type="range"
-          min={MIN_SWING}
-          max={MAX_SWING}
-          step={0.01}
-          value={swing}
-          onChange={(event) =>
-            onSwingChange(clampSwing(Number(event.target.value)))
-          }
-          aria-label="Swing"
-          className="w-full accent-orange-500"
-        />
-      </label>
-
+    <div className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
       {!canPlay && (
         <span className="text-xs text-neutral-500 dark:text-neutral-400">
           Load a sample on any channel to start.
         </span>
       )}
+
+      <button
+        type="button"
+        onClick={onTogglePlay}
+        // Stay enabled while playing so the transport can always be stopped.
+        disabled={!isPlaying && !canPlay}
+        className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+      >
+        {isPlaying ? "Stop" : "Play"}
+      </button>
+
+      <TransportSlider
+        label="BPM"
+        min={MIN_BPM}
+        max={MAX_BPM}
+        step={1}
+        value={bpm}
+        readout={String(bpm)}
+        onChange={(value) => onBpmChange(clampBpm(value))}
+      />
+
+      <TransportSlider
+        label="Swing"
+        min={MIN_SWING}
+        max={MAX_SWING}
+        step={0.01}
+        value={swing}
+        readout={formatSwing(swing)}
+        onChange={(value) => onSwingChange(clampSwing(value))}
+      />
     </div>
   );
 }

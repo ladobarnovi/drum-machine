@@ -1,5 +1,56 @@
 @import "tailwindcss";
 
+/* The default scrollbar is a bright OS-coloured slab against the muted panel
+   greys, so scrollable panels opt into a thin neutral one that only firms up
+   on hover. Browsers that support the standard properties use those and
+   ignore the `-webkit-` pseudo-elements; the pseudo-elements are the fallback
+   for older Chrome/Safari. `transparent` on the track lets the panel
+   background show through either way. */
+.quiet-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-300) transparent;
+}
+
+.quiet-scrollbar::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+.quiet-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.quiet-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: var(--color-neutral-300);
+}
+
+.quiet-scrollbar:hover {
+  scrollbar-color: var(--color-neutral-400) transparent;
+}
+
+.quiet-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
+}
+
+@media (prefers-color-scheme: dark) {
+  .quiet-scrollbar {
+    scrollbar-color: var(--color-neutral-700) transparent;
+  }
+
+  .quiet-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--color-neutral-700);
+  }
+
+  .quiet-scrollbar:hover {
+    scrollbar-color: var(--color-neutral-600) transparent;
+  }
+
+  .quiet-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-neutral-600);
+  }
+}
+
 /* Range sliders are rendered fully custom (rather than just resizing the
    native track/thumb) because browsers only auto-center a native thumb on
    its track at the native thickness — overriding just one of the two throws
