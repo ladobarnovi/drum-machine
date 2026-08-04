@@ -13,9 +13,9 @@ export const MIN_VOLUME = 0;
 export const MAX_VOLUME = 1.5;
 export const DEFAULT_VOLUME = 1;
 
-/** Pitch offset in semitones; ±24 is two octaves either way. */
-export const MIN_PITCH = -24;
-export const MAX_PITCH = 24;
+/** Pitch offset in semitones; ±12 is one octave either way. */
+export const MIN_PITCH = -12;
+export const MAX_PITCH = 12;
 export const DEFAULT_PITCH = 0;
 
 /** Filter cutoffs span the audible range. */
