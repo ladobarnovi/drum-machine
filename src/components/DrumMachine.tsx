@@ -760,7 +760,6 @@ export default function DrumMachine() {
 
           <ChannelEditor
             channel={selectedChannel}
-            currentStep={currentStep}
             showControlsOnly={true}
             onVolumeChange={(volume) =>
               handleVolumeChange(selectedChannel.id, volume)
