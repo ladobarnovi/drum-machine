@@ -1162,7 +1162,11 @@ export default function DrumMachine() {
   return (
     // The page carries the surface colour now that the cards are unfilled —
     // the header and the rails already assume this pairing.
-    <div className="bg-surface text-fg min-h-screen">
+    //
+    // Filling the viewport exactly, rather than growing past it, is what moves
+    // the scrolling inside: nothing here can push the window taller, so the
+    // only thing that scrolls is the content pane further down.
+    <div className="bg-surface text-fg h-full overflow-hidden">
       {/*
         Everything that acts on the machine as a whole rather than on one
         channel: what it plays with, how it plays, and how loud it comes out.
@@ -1301,14 +1305,17 @@ export default function DrumMachine() {
         onToggle={() => toggleDrawer("fx")}
       />
 
-      {/* Padding clears the fixed rails so the content centres between them. */}
-      <div className="lg:px-64">
+      {/* Padding clears the fixed rails so the content centres between them.
+          A column the height of the viewport: the header takes what it needs
+          and the pane below it takes the rest. */}
+      <div className="flex h-full flex-col lg:px-64">
         {/*
-          Sticky, so the snapshot buttons stay on screen and a mix can be saved
-          from anywhere in a long page. It sits below the drawer's backdrop, so
-          on mobile the header goes behind the overlay with everything else.
+          Outside the scrolling pane rather than sticky within it, so the
+          snapshot buttons stay on screen and a mix can be saved however far
+          the channel list is scrolled. The drawer's backdrop is fixed, so on
+          mobile the header still goes behind the overlay with everything else.
         */}
-        <header className="border-line bg-surface sticky top-0 z-20 border-b">
+        <header className="border-line bg-surface shrink-0 border-b">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-6 py-3">
             <Oscilloscope
               getWaveform={getWaveform}
@@ -1340,107 +1347,122 @@ export default function DrumMachine() {
           </div>
         </header>
 
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
-          {/* First thing in the column, directly above the sample slot that
+        {/*
+          The one scrolling box on the page. `min-h-0` is what lets it shrink
+          below its content's height — without it a flex item refuses to, and
+          the overflow would push the column past the viewport instead of
+          scrolling here.
+        */}
+        <div className="quiet-scrollbar overflow-y-auto flex-1 min-h-0 flex">
+          <div
+            id="drum-main-content"
+            className="mx-auto flex w-full max-w-5xl flex-col gap-6  p-6"
+          >
+            {/* First thing in the column, directly above the sample slot that
               answers it. Only while the kit is empty: once anything is loaded
               the greyed-out transport is no longer a mystery worth explaining.
               And not while a kit is on its way in, since asking for samples at
               the moment samples are arriving would answer itself. */}
-          {!canPlay && loadingPresetId === null && <LoadSamplesNotice />}
+            {!canPlay && loadingPresetId === null && <LoadSamplesNotice />}
 
-          <ChannelEditor
-            channel={selectedChannel}
-            showSampleOnly={true}
-            onUpload={(file) => void handleUpload(selectedChannel.id, file)}
-            onRemove={() => handleRemove(selectedChannel.id)}
-            onNameChange={(name) => handleNameChange(selectedChannel.id, name)}
-            onSampleStartChange={(start) =>
-              handleSampleStartChange(selectedChannel.id, start)
-            }
-            onSampleEndChange={(end) =>
-              handleSampleEndChange(selectedChannel.id, end)
-            }
-            onSampleReversedChange={(reversed) =>
-              handleSampleReversedChange(selectedChannel.id, reversed)
-            }
-            onSampleTrimReset={() => handleSampleTrimReset(selectedChannel.id)}
-          />
+            <ChannelEditor
+              channel={selectedChannel}
+              showSampleOnly={true}
+              onUpload={(file) => void handleUpload(selectedChannel.id, file)}
+              onRemove={() => handleRemove(selectedChannel.id)}
+              onNameChange={(name) =>
+                handleNameChange(selectedChannel.id, name)
+              }
+              onSampleStartChange={(start) =>
+                handleSampleStartChange(selectedChannel.id, start)
+              }
+              onSampleEndChange={(end) =>
+                handleSampleEndChange(selectedChannel.id, end)
+              }
+              onSampleReversedChange={(reversed) =>
+                handleSampleReversedChange(selectedChannel.id, reversed)
+              }
+              onSampleTrimReset={() =>
+                handleSampleTrimReset(selectedChannel.id)
+              }
+            />
 
-          <ChannelGrid
-            channels={channels}
-            selectedChannelId={selectedChannel.id}
-            flashedChannelIds={flashedChannelIds}
-            onSelectChannel={handleSelectChannel}
-            onPreviewChannel={handlePreviewChannel}
-            onToggleMute={handleToggleMute}
-            onToggleSolo={handleToggleSolo}
-            onChannelContextMenu={handleChannelContextMenu}
-          />
+            <ChannelGrid
+              channels={channels}
+              selectedChannelId={selectedChannel.id}
+              flashedChannelIds={flashedChannelIds}
+              onSelectChannel={handleSelectChannel}
+              onPreviewChannel={handlePreviewChannel}
+              onToggleMute={handleToggleMute}
+              onToggleSolo={handleToggleSolo}
+              onChannelContextMenu={handleChannelContextMenu}
+            />
 
-          <ChannelEditor
-            channel={selectedChannel}
-            currentStep={currentStep}
-            editingStep={editingStepIndex}
-            swipeTarget={swipeTarget}
-            showSequencerOnly={true}
-            onStepClick={handleStepClick}
-            onStepHold={handleStepHold}
-            onStepVelocityChange={handleStepVelocityChange}
-            onStepPitchChange={handleStepPitchChange}
-            onStepContextMenu={handleStepContextMenu}
-            onSwipeTargetChange={setSwipeTarget}
-            onApplyStepFill={handleApplyStepFill}
-            onNudgeSteps={handleNudgeSteps}
-            onClearSteps={handleClearSteps}
-            onInvertSteps={handleInvertSteps}
-            onHumanizeSteps={handleHumanizeSteps}
-            onLengthChange={(length) =>
-              handleLengthChange(selectedChannel.id, length)
-            }
-          />
+            <ChannelEditor
+              channel={selectedChannel}
+              currentStep={currentStep}
+              editingStep={editingStepIndex}
+              swipeTarget={swipeTarget}
+              showSequencerOnly={true}
+              onStepClick={handleStepClick}
+              onStepHold={handleStepHold}
+              onStepVelocityChange={handleStepVelocityChange}
+              onStepPitchChange={handleStepPitchChange}
+              onStepContextMenu={handleStepContextMenu}
+              onSwipeTargetChange={setSwipeTarget}
+              onApplyStepFill={handleApplyStepFill}
+              onNudgeSteps={handleNudgeSteps}
+              onClearSteps={handleClearSteps}
+              onInvertSteps={handleInvertSteps}
+              onHumanizeSteps={handleHumanizeSteps}
+              onLengthChange={(length) =>
+                handleLengthChange(selectedChannel.id, length)
+              }
+            />
 
-          <ChannelEditor
-            channel={selectedChannel}
-            settings={channelSettingsForStep(selectedChannel, editingStep)}
-            showControlsOnly={true}
-            chokeOptions={chokeOptions}
-            stepEdit={
-              editingStepIndex === null || editingStep === null
-                ? undefined
-                : {
-                    index: editingStepIndex,
-                    velocity: editingStep.velocity,
-                    probability: editingStep.probability,
-                    repeatCount: editingStep.repeatCount,
-                    locks: editingStep.locks ?? {},
-                    onVelocityChange: (velocity) =>
-                      handleStepVelocityChange(editingStepIndex, velocity),
-                    onProbabilityChange: (probability) =>
-                      handleStepProbabilityChange(
-                        editingStepIndex,
-                        probability,
-                      ),
-                    onRepeatChange: (repeatCount) =>
-                      handleStepRepeatChange(editingStepIndex, repeatCount),
-                    onClearLock: handleClearStepLock,
-                    onClearLocks: handleClearStepLocks,
-                  }
-            }
-            onVolumeChange={handleVolumeChange}
-            onPanChange={handlePanChange}
-            onPitchChange={handlePitchChange}
-            onLowCutChange={handleLowCutChange}
-            onHighCutChange={handleHighCutChange}
-            onAttackChange={handleAttackChange}
-            onDecayChange={handleDecayChange}
-            onDelaySendChange={handleDelaySendChange}
-            onReverbSendChange={handleReverbSendChange}
-            onPhaserSendChange={handlePhaserSendChange}
-            onChokedByChange={(sourceId) =>
-              handleChokedByChange(selectedChannel.id, sourceId)
-            }
-            onLfoChange={(lfo) => handleLfoChange(selectedChannel.id, lfo)}
-          />
+            <ChannelEditor
+              channel={selectedChannel}
+              settings={channelSettingsForStep(selectedChannel, editingStep)}
+              showControlsOnly={true}
+              chokeOptions={chokeOptions}
+              stepEdit={
+                editingStepIndex === null || editingStep === null
+                  ? undefined
+                  : {
+                      index: editingStepIndex,
+                      velocity: editingStep.velocity,
+                      probability: editingStep.probability,
+                      repeatCount: editingStep.repeatCount,
+                      locks: editingStep.locks ?? {},
+                      onVelocityChange: (velocity) =>
+                        handleStepVelocityChange(editingStepIndex, velocity),
+                      onProbabilityChange: (probability) =>
+                        handleStepProbabilityChange(
+                          editingStepIndex,
+                          probability,
+                        ),
+                      onRepeatChange: (repeatCount) =>
+                        handleStepRepeatChange(editingStepIndex, repeatCount),
+                      onClearLock: handleClearStepLock,
+                      onClearLocks: handleClearStepLocks,
+                    }
+              }
+              onVolumeChange={handleVolumeChange}
+              onPanChange={handlePanChange}
+              onPitchChange={handlePitchChange}
+              onLowCutChange={handleLowCutChange}
+              onHighCutChange={handleHighCutChange}
+              onAttackChange={handleAttackChange}
+              onDecayChange={handleDecayChange}
+              onDelaySendChange={handleDelaySendChange}
+              onReverbSendChange={handleReverbSendChange}
+              onPhaserSendChange={handlePhaserSendChange}
+              onChokedByChange={(sourceId) =>
+                handleChokedByChange(selectedChannel.id, sourceId)
+              }
+              onLfoChange={(lfo) => handleLfoChange(selectedChannel.id, lfo)}
+            />
+          </div>
         </div>
       </div>
 

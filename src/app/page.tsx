@@ -43,7 +43,12 @@ const jsonLd = {
 
 export default function Home() {
   return (
-    <main className="bg-surface min-h-screen">
+    // A fixed viewport height rather than a minimum: the machine scrolls its
+    // own content pane instead of the window, so this is the box that pane
+    // measures itself against. `dvh` rather than `vh` so a phone's collapsing
+    // address bar shrinks it with the visible area instead of leaving a strip
+    // of page that only the window could reach.
+    <main className="bg-surface h-dvh">
       {/*
         `JSON.stringify` does not escape HTML, so a `<` reaching the page inside
         a string would close this script early. Nothing here is user-supplied

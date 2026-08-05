@@ -420,3 +420,7 @@ input[type="range"]:focus-visible {
     width: 1.25rem;
   }
 }
+
+body {
+  overflow: hidden;
+}
