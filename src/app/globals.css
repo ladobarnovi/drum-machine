@@ -422,5 +422,5 @@ input[type="range"]:focus-visible {
 }
 
 body {
-  overflow: hidden;
+  overflow: hidden !important;
 }
