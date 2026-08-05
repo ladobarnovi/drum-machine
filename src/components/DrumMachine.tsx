@@ -1030,12 +1030,6 @@ export default function DrumMachine() {
             getGainReduction={getGainReduction}
             onChange={setMasterCompressor}
           />
-
-          {/* Below the stages rather than among them, because it is the only
-              thing in the rail that does nothing to the sound: it is where the
-              whole chain above comes out, so it reads as the end of the column
-              rather than as another link in it. */}
-          <Oscilloscope getWaveform={getWaveform} />
         </RailGroup>
       </Sidebar>
 
@@ -1056,12 +1050,10 @@ export default function DrumMachine() {
         */}
         <header className="border-line bg-surface sticky top-0 z-20 border-b">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-6 py-3">
-            {/* Below `lg` the rail holding Play is a closed drawer, so the
-                transport gets a stand-in here — first in the row, since it is
-                the control reached for most. */}
-            <PlayButton
+            <Oscilloscope
+              getWaveform={getWaveform}
+              compact={true}
               isPlaying={isPlaying}
-              canPlay={canPlay}
               onTogglePlay={handleTogglePlay}
             />
 
@@ -1078,7 +1070,7 @@ export default function DrumMachine() {
             {/* Pushed to the far edge below `lg`, away from the play button, so
                 a snapshot is never saved by a thumb aiming for the transport.
                 From `lg` up it stays beside the title, as before. */}
-            <div className="ml-auto lg:ml-0">
+            <div className="ml-auto">
               <SnapshotControls
                 hasSnapshot={snapshot !== null}
                 onSave={handleSaveSnapshot}

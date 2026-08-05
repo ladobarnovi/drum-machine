@@ -7,6 +7,9 @@ import { subscribeToTheme } from "@/lib/themes";
 /** How tall the screen is drawn, in CSS pixels. */
 const SCOPE_HEIGHT_PX = 64;
 
+/** Compact size for header display (square). */
+const SCOPE_COMPACT_SIZE_PX = 48;
+
 /** Thickness of the trace, in CSS pixels. */
 const TRACE_WIDTH_PX = 1.5;
 
@@ -25,6 +28,12 @@ const SILENCE_BYTE = 128;
 type OscilloscopeProps = {
   /** Reads the last window of samples leaving the machine, or null if silent. */
   getWaveform: () => Uint8Array | null;
+  /** Whether to show the title and border (for sidebar display). */
+  compact?: boolean;
+  /** Whether playback is active. */
+  isPlaying?: boolean;
+  /** Callback when clicked (for play/pause). */
+  onTogglePlay?: () => void;
 };
 
 /**
@@ -39,8 +48,12 @@ type OscilloscopeProps = {
  * system flips between light and dark — `classic` follows the system, so the
  * theme id alone does not say what colour anything is.
  */
-export default function Oscilloscope({ getWaveform }: OscilloscopeProps) {
+export default function Oscilloscope({ getWaveform, compact = false, isPlaying = false, onTogglePlay }: OscilloscopeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const handleClick = () => {
+    onTogglePlay?.();
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -88,43 +101,111 @@ export default function Oscilloscope({ getWaveform }: OscilloscopeProps) {
 
     let frame = 0;
 
+    const drawPlayIcon = (ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number) => {
+      ctx.fillStyle = trace;
+      ctx.beginPath();
+      // Triangle pointing right
+      ctx.moveTo(centerX - size / 3, centerY - size / 2);
+      ctx.lineTo(centerX - size / 3, centerY + size / 2);
+      ctx.lineTo(centerX + size / 2, centerY);
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    const drawPauseIcon = (ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number) => {
+      ctx.fillStyle = trace;
+      const barWidth = size / 4;
+      const barHeight = size;
+      // Left bar
+      ctx.fillRect(centerX - size / 3 - barWidth / 2, centerY - barHeight / 2, barWidth, barHeight);
+      // Right bar
+      ctx.fillRect(centerX + size / 3 - barWidth / 2, centerY - barHeight / 2, barWidth, barHeight);
+    };
+
     const draw = () => {
       frame = requestAnimationFrame(draw);
       if (width === 0 || height === 0) return;
 
       context.clearRect(0, 0, width, height);
 
-      const middle = height / 2;
+      if (compact) {
+        // Circular display for header
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = Math.min(centerX, centerY) * 0.85;
 
-      // Drawn first and always, so a machine that has never made a sound still
-      // shows a screen with a line on it rather than an empty box.
-      context.strokeStyle = centre;
-      context.lineWidth = 1;
-      context.beginPath();
-      context.moveTo(0, middle);
-      context.lineTo(width, middle);
-      context.stroke();
+        // Draw center circle outline
+        context.strokeStyle = centre;
+        context.lineWidth = 1;
+        context.beginPath();
+        context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        context.stroke();
 
-      const samples = getWaveform();
-      if (!samples || samples.length === 0) return;
+        const samples = getWaveform();
+        if (samples && samples.length > 0) {
+          context.strokeStyle = trace;
+          context.lineWidth = TRACE_WIDTH_PX;
+          context.lineJoin = "round";
+          context.beginPath();
 
-      context.strokeStyle = trace;
-      context.lineWidth = TRACE_WIDTH_PX;
-      context.lineJoin = "round";
-      context.beginPath();
+          // Plot samples radially around the circle
+          for (let i = 0; i < samples.length; i++) {
+            const angle = (i / samples.length) * Math.PI * 2;
+            const sample = samples[i];
+            const offset = (sample - SILENCE_BYTE) / SILENCE_BYTE;
+            const distance = radius * (1 + offset * TRACE_HEADROOM * 0.3);
 
-      // More samples than pixels, so each column takes the reading that lands
-      // on it rather than every sample getting a point of its own.
-      const step = samples.length / width;
-      for (let x = 0; x < width; x += 1) {
-        const sample = samples[Math.floor(x * step)];
-        const offset = (sample - SILENCE_BYTE) / SILENCE_BYTE;
-        const y = middle - offset * middle * TRACE_HEADROOM;
-        if (x === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
+            const x = centerX + Math.cos(angle) * distance;
+            const y = centerY + Math.sin(angle) * distance;
+
+            if (i === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+          }
+
+          context.closePath();
+          context.stroke();
+        }
+
+        // Draw play/pause icon in the center
+        if (isPlaying) {
+          drawPauseIcon(context, centerX, centerY, Math.min(centerX, centerY) * 0.4);
+        } else {
+          drawPlayIcon(context, centerX, centerY, Math.min(centerX, centerY) * 0.4);
+        }
+      } else {
+        // Linear waveform display for sidebar
+        const middle = height / 2;
+
+        // Drawn first and always, so a machine that has never made a sound still
+        // shows a screen with a line on it rather than an empty box.
+        context.strokeStyle = centre;
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(0, middle);
+        context.lineTo(width, middle);
+        context.stroke();
+
+        const samples = getWaveform();
+        if (!samples || samples.length === 0) return;
+
+        context.strokeStyle = trace;
+        context.lineWidth = TRACE_WIDTH_PX;
+        context.lineJoin = "round";
+        context.beginPath();
+
+        // More samples than pixels, so each column takes the reading that lands
+        // on it rather than every sample getting a point of its own.
+        const step = samples.length / width;
+        for (let x = 0; x < width; x += 1) {
+          const sample = samples[Math.floor(x * step)];
+          const offset = (sample - SILENCE_BYTE) / SILENCE_BYTE;
+          const y = middle - offset * middle * TRACE_HEADROOM;
+          if (x === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        }
+
+        context.stroke();
       }
-
-      context.stroke();
     };
 
     frame = requestAnimationFrame(draw);
@@ -135,7 +216,19 @@ export default function Oscilloscope({ getWaveform }: OscilloscopeProps) {
       scheme.removeEventListener("change", readColours);
       unsubscribe();
     };
-  }, [getWaveform]);
+  }, [getWaveform, isPlaying]);
+
+  if (compact) {
+    return (
+      <canvas
+        ref={canvasRef}
+        aria-hidden
+        onClick={handleClick}
+        className="block cursor-pointer"
+        style={{ width: `${SCOPE_COMPACT_SIZE_PX}px`, height: `${SCOPE_COMPACT_SIZE_PX}px` }}
+      />
+    );
+  }
 
   return (
     <section className="border-line flex flex-col gap-3 rounded-md border p-3">
