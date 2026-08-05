@@ -36,6 +36,7 @@ import {
   DEFAULT_MASTER_REVERB,
   DEFAULT_MASTER_VOLUME,
   DEFAULT_SWING,
+  DEFAULT_SWIPE_TARGET,
   applyChannelSnapshots,
   applyStepFill,
   captureChannelSnapshots,
@@ -74,6 +75,7 @@ import {
   type ParameterSnapshot,
   type Step,
   type StepFill,
+  type SwipeTarget,
 } from "@/lib/sequencer";
 import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
 import { computePeaks } from "@/lib/waveform";
@@ -110,6 +112,18 @@ export default function DrumMachine() {
   const [rawEditingStepIndex, setRawEditingStepIndex] = useState<number | null>(
     null,
   );
+
+  /**
+   * What a vertical swipe across the step grid writes.
+   *
+   * Kept on the machine rather than on the channel, because it is a choice about
+   * what you are doing right now — knocking out a rhythm, or writing a line —
+   * rather than a fact about the channel. Tuning a kick by swiping down its row
+   * is the same gesture as writing a bassline, and neither is a property the
+   * channel should have to carry around afterwards.
+   */
+  const [swipeTarget, setSwipeTarget] =
+    useState<SwipeTarget>(DEFAULT_SWIPE_TARGET);
 
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
 
@@ -311,6 +325,20 @@ export default function DrumMachine() {
     (stepIndex: number, velocity: number) => {
       updateSelectedSteps((steps) =>
         setStepVelocityAt(steps, stepIndex, velocity),
+      );
+    },
+    [updateSelectedSteps],
+  );
+
+  /**
+   * Tunes one step, which — unlike its velocity — means writing a lock: pitch
+   * belongs to the channel until a step says otherwise. Clamped on the way in,
+   * so a swipe lands on whole semitones rather than between them.
+   */
+  const handleStepPitchChange = useCallback(
+    (stepIndex: number, semitones: number) => {
+      updateSelectedSteps((steps) =>
+        setStepLockAt(steps, stepIndex, "pitch", clampPitch(semitones)),
       );
     },
     [updateSelectedSteps],
@@ -897,10 +925,13 @@ export default function DrumMachine() {
             channel={selectedChannel}
             currentStep={currentStep}
             editingStep={editingStepIndex}
+            swipeTarget={swipeTarget}
             showSequencerOnly={true}
             onStepClick={handleStepClick}
             onStepHold={handleStepHold}
             onStepVelocityChange={handleStepVelocityChange}
+            onStepPitchChange={handleStepPitchChange}
+            onSwipeTargetChange={setSwipeTarget}
             onApplyStepFill={handleApplyStepFill}
             onNudgeSteps={handleNudgeSteps}
             onClearSteps={handleClearSteps}

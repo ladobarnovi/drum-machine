@@ -4,16 +4,21 @@ import LengthControl from "./LengthControl";
 import {
   STEP_FILLS,
   STEP_LENGTH_PRESETS,
+  SWIPE_TARGETS,
+  SWIPE_TARGET_LABELS,
   hasActiveSteps,
   matchesStepFill,
   type Step,
   type StepFill,
+  type SwipeTarget,
 } from "@/lib/sequencer";
 
 type StepPatternControlsProps = {
   /** Full MAX_STEPS-long pattern; only the first `length` steps are written. */
   steps: Step[];
   length: number;
+  /** Which parameter a vertical swipe on the grid above is currently writing. */
+  swipeTarget: SwipeTarget;
   onApplyFill: (fill: StepFill) => void;
   /** Steps to slide the pattern by: positive later, negative earlier. */
   onNudge: (offset: number) => void;
@@ -21,6 +26,7 @@ type StepPatternControlsProps = {
   /** Flips the played steps: hits off, silences on. */
   onInvert: () => void;
   onLengthChange: (length: number) => void;
+  onSwipeTargetChange: (target: SwipeTarget) => void;
 };
 
 /**
@@ -40,15 +46,22 @@ type StepPatternControlsProps = {
  * busy one would mean switching off every step by hand. It sits with the
  * nudges rather than with the fills, as the other thing you do to a pattern
  * once one is written.
+ *
+ * The swipe target is the odd group out and comes last because of it: the three
+ * above write the pattern, where that one only decides what a gesture on the
+ * grid means. It lives here anyway rather than anywhere else, because it is
+ * still a thing you set about the grid directly above it.
  */
 export default function StepPatternControls({
   steps,
   length,
+  swipeTarget,
   onApplyFill,
   onNudge,
   onClear,
   onInvert,
   onLengthChange,
+  onSwipeTargetChange,
 }: StepPatternControlsProps) {
   // An empty pattern is deliberately never a match: on a channel too short to
   // reach a fill's first hit, writing it changes nothing, and lighting the
@@ -175,6 +188,32 @@ export default function StepPatternControls({
           >
             Clear
           </button>
+        </div>
+      </div>
+
+      <div className={groupClass}>
+        <h2 className={headingClass}>Swipe</h2>
+
+        {/* Spelt out under the heading, because a swipe is the one thing on
+            this page that cannot be discovered by looking at it — there is
+            nothing on a step button that says it can be dragged. */}
+        <p className="text-muted text-xs">
+          Hold a step to open it, and drag up or down to set its{" "}
+          {SWIPE_TARGET_LABELS[swipeTarget].toLowerCase()}.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {SWIPE_TARGETS.map((target) => (
+            <button
+              key={target}
+              type="button"
+              onClick={() => onSwipeTargetChange(target)}
+              aria-pressed={swipeTarget === target}
+              className={toggleClass(swipeTarget === target)}
+            >
+              {SWIPE_TARGET_LABELS[target]}
+            </button>
+          ))}
         </div>
       </div>
     </section>

@@ -552,6 +552,41 @@ export function formatVelocity(value: number): string {
   return `${Math.round(clampStepVelocity(value) * 100)}%`;
 }
 
+/**
+ * What a vertical swipe across a step writes.
+ *
+ * One target at a time rather than one per axis: a step button is a small thing
+ * to aim at, and a gesture that meant two different things depending on which
+ * way it drifted would land on the wrong one constantly. Which also makes the
+ * switch itself the honest place to say what the grid is currently for —
+ * knocking out a rhythm, or writing a line.
+ */
+export const SWIPE_TARGETS = ["velocity", "pitch"] as const;
+
+export type SwipeTarget = (typeof SWIPE_TARGETS)[number];
+
+/** Velocity, because a drum machine is what this is before it is anything else. */
+export const DEFAULT_SWIPE_TARGET: SwipeTarget = "velocity";
+
+export const SWIPE_TARGET_LABELS: Record<SwipeTarget, string> = {
+  velocity: "Velocity",
+  pitch: "Pitch",
+};
+
+/**
+ * What pitch a step actually plays at: its own lock, or the channel's pitch
+ * where it has none.
+ *
+ * The asymmetry with velocity is the point. Velocity belongs to the step and
+ * always has a value; pitch belongs to the channel, and a step only has one of
+ * its own once something has been written there — so swiping pitch starts from
+ * wherever the channel is tuned and leaves a lock behind, where swiping velocity
+ * simply moves a number the step was already carrying.
+ */
+export function stepPitch(step: Step, channelPitch: number): number {
+  return step.locks?.pitch ?? channelPitch;
+}
+
 export type Channel = {
   id: string;
   /** Immutable channel number, used as the fallback when `name` is blank. */
@@ -1163,6 +1198,12 @@ export function clampReverbDecay(value: number): number {
 export function clampPitch(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_PITCH;
   return Math.min(Math.max(Math.round(value), MIN_PITCH), MAX_PITCH);
+}
+
+/** Signed, because an offset of 0 and an offset up read the same without it. */
+export function formatPitch(semitones: number): string {
+  const clamped = clampPitch(semitones);
+  return `${clamped > 0 ? `+${clamped}` : clamped} st`;
 }
 
 /** Semitone offset as a playback-rate multiplier (12 semitones = 2x). */

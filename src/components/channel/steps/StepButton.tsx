@@ -9,9 +9,12 @@ import {
 
 import {
   clampStepVelocity,
+  formatPitch,
   formatVelocity,
   hasStepLocks,
+  stepPitch,
   type Step,
+  type SwipeTarget,
 } from "@/lib/sequencer";
 
 /** How long a press has to be held still before it opens the step for editing. */
@@ -21,20 +24,34 @@ const HOLD_MS = 350;
 const DRAG_SLOP_PX = 6;
 
 /**
- * Vertical travel that covers the whole velocity range. Roughly a thumb's
- * comfortable reach, and well over the button's own height, so the swing is
- * fine enough to land on a particular accent rather than snapping between ends.
+ * How far the pointer travels for one unit of each target.
+ *
+ * Velocity is a 0..1 range, so its number is the whole sweep: roughly a thumb's
+ * comfortable reach, and well over the button's own height, so the swing is fine
+ * enough to land on a particular accent rather than snapping between the ends.
+ *
+ * Pitch is counted in semitones instead, so its number is per step of the scale.
+ * Ten pixels apiece puts the full two octaves at a long, deliberate drag while
+ * leaving a single semitone easy to stop on — which is what melodic writing
+ * spends nearly all its time doing.
  */
-const VELOCITY_TRAVEL_PX = 120;
+const SWIPE_TRAVEL_PX: Record<SwipeTarget, number> = {
+  velocity: 120,
+  pitch: 10,
+};
 
-/** How far one press of an arrow key moves the velocity. */
-const VELOCITY_KEY_STEP = 1 / 8;
+/** How far one press of an arrow key moves each target. */
+const SWIPE_KEY_STEP: Record<SwipeTarget, number> = {
+  velocity: 1 / 8,
+  pitch: 1,
+};
 
 /** A press in progress, from `pointerdown` until the pointer is let go. */
 type Gesture = {
   pointerId: number;
   startY: number;
-  startVelocity: number;
+  /** Where the swiped parameter stood when the press began. */
+  startValue: number;
   /** Set once the press has become a hold or a swipe rather than a click. */
   engaged: boolean;
   holdTimeout: number | null;
@@ -42,6 +59,10 @@ type Gesture = {
 
 type StepButtonProps = {
   step: Step;
+  /** The channel's own pitch, which a step plays at unless it locks its own. */
+  channelPitch: number;
+  /** Which parameter a vertical swipe on this grid is currently writing. */
+  swipeTarget: SwipeTarget;
   isCurrent: boolean;
   isDownbeat: boolean;
   /** Whether this is the step the controls panel is currently editing. */
@@ -52,20 +73,23 @@ type StepButtonProps = {
   /** A held press or a swipe: opens this step for editing. */
   onHold: () => void;
   onVelocityChange: (velocity: number) => void;
+  onPitchChange: (semitones: number) => void;
 };
 
 /**
  * One step of the grid.
  *
  * Three gestures share the button. A click toggles it, as it always has; a
- * press held still opens it for editing; and a vertical swipe sets how hard it
- * is hit. The swipe engages on its own rather than waiting the hold out, since
- * reaching for a velocity is already a deliberate move and making it wait would
- * put a third of a second in front of every accent — the hold is what is left
- * for a press that goes nowhere.
+ * press held still opens it for editing; and a vertical swipe writes whichever
+ * parameter the grid is currently pointed at. The swipe engages on its own
+ * rather than waiting the hold out, since reaching for a value is already a
+ * deliberate move and making it wait would put a third of a second in front of
+ * every accent — the hold is what is left for a press that goes nowhere.
  */
 export default function StepButton({
   step,
+  channelPitch,
+  swipeTarget,
   isCurrent,
   isDownbeat,
   isEditing,
@@ -73,6 +97,7 @@ export default function StepButton({
   onClick,
   onHold,
   onVelocityChange,
+  onPitchChange,
 }: StepButtonProps) {
   const gestureRef = useRef<Gesture | null>(null);
 
@@ -82,6 +107,15 @@ export default function StepButton({
    * not also read as the click that closes the editor it just opened.
    */
   const suppressClickRef = useRef(false);
+
+  const pitch = stepPitch(step, channelPitch);
+
+  // What the swipe is currently holding. Read fresh on every render rather than
+  // captured, so flipping the switch mid-session changes what the next gesture
+  // writes without anything having to be torn down.
+  const swipeValue = swipeTarget === "pitch" ? pitch : step.velocity;
+  const onSwipeChange =
+    swipeTarget === "pitch" ? onPitchChange : onVelocityChange;
 
   const engage = useCallback(() => {
     const gesture = gestureRef.current;
@@ -111,7 +145,7 @@ export default function StepButton({
     const gesture: Gesture = {
       pointerId: event.pointerId,
       startY: event.clientY,
-      startVelocity: step.velocity,
+      startValue: swipeValue,
       engaged: false,
       holdTimeout: null,
     };
@@ -137,9 +171,9 @@ export default function StepButton({
     engage();
 
     // Measured from where the press started rather than accumulated step by
-    // step, so the velocity tracks the finger exactly and swiping back up
-    // returns it to where it was rather than to somewhere near it.
-    onVelocityChange(gesture.startVelocity + travel / VELOCITY_TRAVEL_PX);
+    // step, so the value tracks the finger exactly and swiping back up returns
+    // it to where it was rather than to somewhere near it.
+    onSwipeChange(gesture.startValue + travel / SWIPE_TRAVEL_PX[swipeTarget]);
   };
 
   const endGesture = (event: PointerEvent<HTMLButtonElement>) => {
@@ -163,9 +197,10 @@ export default function StepButton({
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
-      onVelocityChange(
-        step.velocity +
-          (event.key === "ArrowUp" ? VELOCITY_KEY_STEP : -VELOCITY_KEY_STEP),
+
+      const distance = SWIPE_KEY_STEP[swipeTarget];
+      onSwipeChange(
+        swipeValue + (event.key === "ArrowUp" ? distance : -distance),
       );
       return;
     }
@@ -180,6 +215,11 @@ export default function StepButton({
 
   const velocity = clampStepVelocity(step.velocity);
   const locked = hasStepLocks(step);
+
+  // Shown only while the grid is writing pitch, and only where there is a pitch
+  // to read: in velocity mode the fill already says everything about a step, and
+  // a number on all sixteen of them would be noise over the top of it.
+  const showPitch = swipeTarget === "pitch" && step.on && pitch !== 0;
 
   const surface = isDownbeat
     ? "bg-step-beat hover:bg-step-beat-hover"
@@ -205,8 +245,8 @@ export default function StepButton({
     <button
       type="button"
       aria-label={`${label}, ${step.on ? formatVelocity(velocity) : "off"}${
-        locked ? ", locked" : ""
-      }`}
+        step.locks?.pitch === undefined ? "" : `, ${formatPitch(pitch)}`
+      }${locked ? ", locked" : ""}`}
       aria-pressed={step.on}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -231,6 +271,18 @@ export default function StepButton({
           // dragging finger exactly rather than chase it.
           style={{ height: `${velocity * 100}%` }}
         />
+      )}
+
+      {showPitch && (
+        // On its own opaque chip rather than straight onto the button: the fill
+        // behind it is a different colour at every height and in every theme,
+        // and this is the one way the number is legible over all of them.
+        <span
+          aria-hidden
+          className="bg-surface text-fg absolute inset-x-0 bottom-1 mx-auto w-fit rounded px-1 text-[10px] leading-tight font-semibold tabular-nums"
+        >
+          {pitch > 0 ? `+${pitch}` : pitch}
+        </span>
       )}
 
       {locked && (

@@ -1,12 +1,16 @@
 "use client";
 
 import StepBeat from "./StepBeat";
-import { STEPS_PER_BEAT, type Step } from "@/lib/sequencer";
+import { STEPS_PER_BEAT, type Step, type SwipeTarget } from "@/lib/sequencer";
 
 type StepGridProps = {
   channelLabel: string;
   /** Full MAX_STEPS-long pattern; only the first `length` steps are shown. */
   steps: Step[];
+  /** The channel's own pitch, which a step plays at unless it locks its own. */
+  channelPitch: number;
+  /** Which parameter a vertical swipe on the grid is currently writing. */
+  swipeTarget: SwipeTarget;
   length: number;
   currentStep: number | null;
   /** The step the controls panel is editing, or null while none is open. */
@@ -14,6 +18,7 @@ type StepGridProps = {
   onStepClick: (stepIndex: number) => void;
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
+  onStepPitchChange: (stepIndex: number, semitones: number) => void;
 };
 
 /**
@@ -26,12 +31,15 @@ type StepGridProps = {
 export default function StepGrid({
   channelLabel,
   steps,
+  channelPitch,
+  swipeTarget,
   length,
   currentStep,
   editingStep,
   onStepClick,
   onStepHold,
   onStepVelocityChange,
+  onStepPitchChange,
 }: StepGridProps) {
   const visible = steps.slice(0, length);
   const beatCount = Math.ceil(visible.length / STEPS_PER_BEAT);
@@ -45,12 +53,15 @@ export default function StepGrid({
             key={offset}
             channelLabel={channelLabel}
             steps={visible.slice(offset, offset + STEPS_PER_BEAT)}
+            channelPitch={channelPitch}
+            swipeTarget={swipeTarget}
             offset={offset}
             currentStep={currentStep}
             editingStep={editingStep}
             onStepClick={onStepClick}
             onStepHold={onStepHold}
             onStepVelocityChange={onStepVelocityChange}
+            onStepPitchChange={onStepPitchChange}
           />
         );
       })}

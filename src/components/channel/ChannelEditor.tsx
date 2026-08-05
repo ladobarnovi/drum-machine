@@ -17,6 +17,7 @@ import {
   type Channel,
   type ChannelLfo,
   type StepFill,
+  type SwipeTarget,
 } from "@/lib/sequencer";
 
 /**
@@ -55,9 +56,13 @@ type SequencerSectionProps = {
   currentStep: number | null;
   /** The step the controls panel is editing, or null while none is open. */
   editingStep: number | null;
+  /** Which parameter a vertical swipe on the grid is currently writing. */
+  swipeTarget: SwipeTarget;
   onStepClick: (stepIndex: number) => void;
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
+  onStepPitchChange: (stepIndex: number, semitones: number) => void;
+  onSwipeTargetChange: (target: SwipeTarget) => void;
   onApplyStepFill: (fill: StepFill) => void;
   onNudgeSteps: (offset: number) => void;
   onClearSteps: () => void;
@@ -141,22 +146,27 @@ export default function ChannelEditor(props: ChannelEditorProps) {
         <StepGrid
           channelLabel={displayName}
           steps={channel.steps}
+          channelPitch={channel.pitch}
+          swipeTarget={props.swipeTarget}
           length={channel.length}
           currentStep={props.currentStep}
           editingStep={props.editingStep}
           onStepClick={props.onStepClick}
           onStepHold={props.onStepHold}
           onStepVelocityChange={props.onStepVelocityChange}
+          onStepPitchChange={props.onStepPitchChange}
         />
 
         <StepPatternControls
           steps={channel.steps}
           length={channel.length}
+          swipeTarget={props.swipeTarget}
           onApplyFill={props.onApplyStepFill}
           onNudge={props.onNudgeSteps}
           onClear={props.onClearSteps}
           onInvert={props.onInvertSteps}
           onLengthChange={props.onLengthChange}
+          onSwipeTargetChange={props.onSwipeTargetChange}
         />
       </Card>
     );

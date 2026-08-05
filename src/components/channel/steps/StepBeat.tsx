@@ -1,12 +1,21 @@
 "use client";
 
 import StepButton from "./StepButton";
-import { STEPS_PER_BEAT, isDownbeat, type Step } from "@/lib/sequencer";
+import {
+  STEPS_PER_BEAT,
+  isDownbeat,
+  type Step,
+  type SwipeTarget,
+} from "@/lib/sequencer";
 
 type StepBeatProps = {
   channelLabel: string;
   /** Steps in this beat, at most STEPS_PER_BEAT of them. */
   steps: Step[];
+  /** The channel's own pitch, which a step plays at unless it locks its own. */
+  channelPitch: number;
+  /** Which parameter a vertical swipe on the grid is currently writing. */
+  swipeTarget: SwipeTarget;
   /** Index of this beat's first step within the whole pattern. */
   offset: number;
   currentStep: number | null;
@@ -15,6 +24,7 @@ type StepBeatProps = {
   onStepClick: (stepIndex: number) => void;
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
+  onStepPitchChange: (stepIndex: number, semitones: number) => void;
 };
 
 /**
@@ -25,12 +35,15 @@ type StepBeatProps = {
 export default function StepBeat({
   channelLabel,
   steps,
+  channelPitch,
+  swipeTarget,
   offset,
   currentStep,
   editingStep,
   onStepClick,
   onStepHold,
   onStepVelocityChange,
+  onStepPitchChange,
 }: StepBeatProps) {
   return (
     <div className="flex gap-1">
@@ -44,6 +57,8 @@ export default function StepBeat({
           <StepButton
             key={slot}
             step={steps[slot]}
+            channelPitch={channelPitch}
+            swipeTarget={swipeTarget}
             isCurrent={currentStep === stepIndex}
             isDownbeat={isDownbeat(stepIndex)}
             isEditing={editingStep === stepIndex}
@@ -52,6 +67,9 @@ export default function StepBeat({
             onHold={() => onStepHold(stepIndex)}
             onVelocityChange={(velocity) =>
               onStepVelocityChange(stepIndex, velocity)
+            }
+            onPitchChange={(semitones) =>
+              onStepPitchChange(stepIndex, semitones)
             }
           />
         );

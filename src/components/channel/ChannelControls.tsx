@@ -17,6 +17,7 @@ import {
   clampVolume,
   decayToSlider,
   formatFrequency,
+  formatPitch,
   formatSeconds,
   formatVelocity,
   frequencyToSlider,
@@ -197,7 +198,7 @@ export default function ChannelControls({
           max={MAX_PITCH}
           step={1}
           value={pitch}
-          readout={`${pitch > 0 ? `+${pitch}` : pitch} st`}
+          readout={formatPitch(pitch)}
           onChange={(value) => onPitchChange(clampPitch(value))}
           {...lockProps("pitch")}
         />
