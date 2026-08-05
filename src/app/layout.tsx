@@ -35,6 +35,10 @@ export const metadata: Metadata = {
     locale: "en_US",
     // The image itself is `opengraph-image.tsx`; Next finds it by convention
     // and fills in the URL, dimensions and type from what that file exports.
+    // The convention wins over an explicit `images` entry here even when one
+    // is given, so the extensionless URL it emits — wrong for a static host,
+    // see the comment in `build-service-worker.mjs` — is patched after the
+    // fact in `postbuild` rather than here.
   },
   twitter: {
     // The large card is the difference between a thumbnail beside the text and

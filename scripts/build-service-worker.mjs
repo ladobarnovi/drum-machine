@@ -10,7 +10,13 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, posix, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +25,63 @@ const OUT_DIR = join(ROOT, "out");
 
 /** Must match `basePath` in `next.config.ts`, which reads the same variable. */
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
+/**
+ * `opengraph-image.tsx` is a Route Handler, so Next exports it as an
+ * extensionless `opengraph-image` file rather than as `opengraph-image.png` —
+ * fine for a server that sets `Content-Type` itself, but GitHub Pages types a
+ * response from the file extension alone and would serve this as
+ * `application/octet-stream`. The stricter unfurlers (X, LinkedIn) discard an
+ * image with that type outright, so the file is renamed here, before the
+ * service worker's precache list is built from `out/`. `fixOgImageReferences`
+ * below then repoints the `<meta>` tags at the renamed file, since Next wrote
+ * them against the pre-rename URL and renaming on disk doesn't reach back into
+ * HTML that's already been emitted.
+ */
+const ogImagePath = join(OUT_DIR, "opengraph-image");
+if (existsSync(ogImagePath)) {
+  renameSync(ogImagePath, `${ogImagePath}.png`);
+}
+
+function listFiles(directory) {
+  const files = [];
+
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const full = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listFiles(full));
+    } else if (entry.isFile()) {
+      files.push(full);
+    }
+  }
+
+  return files;
+}
+
+/**
+ * Next still writes every `og:image`/`twitter:image` tag, and the equivalent
+ * RSC payload text, pointing at the pre-rename `opengraph-image?<hash>` URL —
+ * renaming the file on disk doesn't reach back into the HTML it already
+ * emitted. Patched by hand in every exported HTML and prerendered-text file,
+ * since a meta tag naming a URL the host serves as `application/octet-stream`
+ * is worse than not having one: several unfurlers discard it outright rather
+ * than falling back to a plain link.
+ */
+function fixOgImageReferences() {
+  const TEXT_FILE_PATTERN = /\.(html|txt|xml)$/;
+
+  for (const file of listFiles(OUT_DIR)) {
+    if (!TEXT_FILE_PATTERN.test(file)) continue;
+
+    const content = readFileSync(file, "utf8");
+    const fixed = content.replaceAll("opengraph-image?", "opengraph-image.png?");
+    if (fixed !== content) {
+      writeFileSync(file, fixed);
+    }
+  }
+}
+
+fixOgImageReferences();
 
 /**
  * Files in the export that must not be precached.
@@ -36,21 +99,6 @@ function isExcluded(relativePath) {
     relativePath.startsWith("_next/static/development/") ||
     relativePath.split("/").some((segment) => segment.startsWith("."))
   );
-}
-
-function listFiles(directory) {
-  const files = [];
-
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const full = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listFiles(full));
-    } else if (entry.isFile()) {
-      files.push(full);
-    }
-  }
-
-  return files;
 }
 
 /**
