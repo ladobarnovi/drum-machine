@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import {
+  COMPRESSOR_KNEE_DB,
   DEFAULT_BPM,
   DEFAULT_DELAY_TONE_HZ,
   DEFAULT_HIGH_CUT_HZ,
   DEFAULT_LOW_CUT_HZ,
+  DEFAULT_MASTER_COMPRESSOR,
   DEFAULT_MASTER_DELAY,
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
@@ -16,18 +18,23 @@ import {
   LFO_FILTER_RANGE_OCTAVES,
   LFO_PITCH_RANGE_SEMITONES,
   MAX_DELAY_LINE_SECONDS,
+  clampCompressorAttack,
+  clampCompressorRelease,
   clampDrive,
   clampFeedback,
   clampFrequency,
   clampLfoAmount,
   clampLfoRate,
+  clampRatio,
   clampReverbDecay,
   clampSend,
+  clampThresholdDb,
   clampVolume,
   delayTimeSeconds,
   type ChannelLfo,
   type DriveType,
   type LfoShape,
+  type MasterCompressor,
   type MasterDelay,
   type MasterDrive,
   type MasterFilter,
@@ -192,6 +199,15 @@ const RAMP_SECONDS = 0.02;
 
 /** Where the drive stage's DC blocker sits: below hearing, above 0 Hz. */
 const DC_BLOCKER_HZ = 10;
+
+/**
+ * How many samples the scope reads at once — about 46 ms at 44.1 kHz.
+ *
+ * Long enough that the shape of a hit is visible rather than a slice through
+ * its middle, short enough that a kick at any usable tempo is still one event
+ * crossing the screen rather than a smear of several.
+ */
+const SCOPE_FFT_SIZE = 2048;
 
 /**
  * Where a decay ramp lands before the voice is cut. An exponential curve is the
@@ -431,6 +447,20 @@ type MasterChain = {
   lowpass: BiquadFilterNode;
   filtered: GainNode;
   unfiltered: GainNode;
+  /** The filter stage's output, where the compressor picks the signal up. */
+  filterOut: GainNode;
+  compressor: DynamicsCompressorNode;
+  /** Makeup gain, to put back what the compressor took off. */
+  makeup: GainNode;
+  compressed: GainNode;
+  uncompressed: GainNode;
+  /**
+   * Where the scope reads the mix. Tapped off the fader rather than spliced
+   * into the chain, so it observes without being in the way of anything: an
+   * analyser with nothing connected to its output still sees everything sent
+   * to it.
+   */
+  analyser: AnalyserNode;
   /**
    * The output fader, last before the destination. It sits downstream of where
    * the send returns rejoin, so it scales the whole mix — repeats and tail
@@ -537,6 +567,12 @@ function createMasterChain(context: AudioContext): MasterChain {
   const lowpass = createCutFilter(context, "lowpass", DEFAULT_HIGH_CUT_HZ);
   const filtered = context.createGain();
   const unfiltered = context.createGain();
+  const filterOut = context.createGain();
+  const compressor = context.createDynamicsCompressor();
+  const makeup = context.createGain();
+  const compressed = context.createGain();
+  const uncompressed = context.createGain();
+  const analyser = context.createAnalyser();
   const output = context.createGain();
   const delayBus = context.createGain();
   const delayLine = context.createDelay(MAX_DELAY_LINE_SECONDS);
@@ -573,14 +609,41 @@ function createMasterChain(context: AudioContext): MasterChain {
   driveOut.connect(highpass);
   highpass.connect(lowpass);
   lowpass.connect(filtered);
-  filtered.connect(output);
+  filtered.connect(filterOut);
 
   driveOut.connect(unfiltered);
-  unfiltered.connect(output);
+  unfiltered.connect(filterOut);
 
-  // Both bypass paths land on the fader rather than on the destination, so the
-  // master level is the one thing everything passes through on the way out.
+  // The compressor is last of the three, so it is levelling what the drive and
+  // the cuts have already made rather than a mix that is about to change under
+  // it. Crossfaded around like the others, and its makeup gain sits inside that
+  // crossfade so bypassing takes the compression and the level it was made up
+  // with together — the same promise the drive stage's own level makes.
+  filterOut.connect(compressor);
+  compressor.connect(makeup);
+  makeup.connect(compressed);
+  compressed.connect(output);
+
+  filterOut.connect(uncompressed);
+  uncompressed.connect(output);
+
+  // The knee is fixed, so it is set once here rather than pushed across on
+  // every change like the params that have sliders.
+  compressor.knee.value = COMPRESSOR_KNEE_DB;
+
+  // The compressor stays fed even while it is crossfaded out, which is what
+  // lets the meter show what the stage would be doing before it is switched
+  // in — the same promise the rail's other bypassed controls make.
+  //
+  // Every path lands on the fader rather than on the destination, so the master
+  // level is the one thing everything passes through on the way out.
   output.connect(context.destination);
+
+  // And the scope hangs off the far end of it, so what it draws is what is
+  // actually leaving the machine — the fader included, which is what makes
+  // pulling the master down show on the screen rather than beside it.
+  analyser.fftSize = SCOPE_FFT_SIZE;
+  output.connect(analyser);
 
   // The delay's own output is what feeds the loop, so the return level sets how
   // loud the repeats are without changing how many of them there are. A cycle
@@ -627,6 +690,8 @@ function createMasterChain(context: AudioContext): MasterChain {
   clean.gain.value = 1;
   filtered.gain.value = 0;
   unfiltered.gain.value = 1;
+  compressed.gain.value = 0;
+  uncompressed.gain.value = 1;
   // Sends are parallel, so silencing the return *is* the bypass.
   delayLevel.gain.value = 0;
   reverbLevel.gain.value = 0;
@@ -646,6 +711,12 @@ function createMasterChain(context: AudioContext): MasterChain {
     lowpass,
     filtered,
     unfiltered,
+    filterOut,
+    compressor,
+    makeup,
+    compressed,
+    uncompressed,
+    analyser,
     output,
     delayBus,
     delayLine,
@@ -769,6 +840,34 @@ function applyReverb(
   );
 }
 
+function applyCompressor(
+  context: AudioContext,
+  chain: MasterChain,
+  compressor: MasterCompressor,
+) {
+  const now = context.currentTime;
+
+  rampTo(
+    chain.compressor.threshold,
+    clampThresholdDb(compressor.thresholdDb),
+    now,
+  );
+  rampTo(chain.compressor.ratio, clampRatio(compressor.ratio), now);
+  rampTo(
+    chain.compressor.attack,
+    clampCompressorAttack(compressor.attackSeconds),
+    now,
+  );
+  rampTo(
+    chain.compressor.release,
+    clampCompressorRelease(compressor.releaseSeconds),
+    now,
+  );
+  rampTo(chain.makeup.gain, clampVolume(compressor.level), now);
+  rampTo(chain.compressed.gain, compressor.enabled ? 1 : 0, now);
+  rampTo(chain.uncompressed.gain, compressor.enabled ? 0 : 1, now);
+}
+
 /**
  * Ramped like every other gain here, so dragging the fader is a fade rather
  * than a staircase of steps, each of which would click.
@@ -801,6 +900,9 @@ export function useSampleBank() {
   // chain is built, which happens long after the tempo was last set.
   const delayBpmRef = useRef(DEFAULT_BPM);
   const reverbRef = useRef<MasterReverb>(DEFAULT_MASTER_REVERB);
+  const compressorRef = useRef<MasterCompressor>(DEFAULT_MASTER_COMPRESSOR);
+  // The scope's read buffer, built on first use and then reused every frame.
+  const waveformRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const volumeRef = useRef(DEFAULT_MASTER_VOLUME);
   // The sample-and-hold table, built on first use and then shared by every
   // voice: it runs to a few hundred kilobytes, and a fresh one per hit would
@@ -837,6 +939,7 @@ export function useSampleBank() {
       applyFilter(context, chain, filterRef.current);
       applyDelay(context, chain, delayRef.current, delayBpmRef.current);
       applyReverb(context, chain, reverbRef.current);
+      applyCompressor(context, chain, compressorRef.current);
       applyVolume(context, chain, volumeRef.current);
     }
 
@@ -887,6 +990,48 @@ export function useSampleBank() {
     if (!context || !chain) return;
 
     applyReverb(context, chain, reverb);
+  }, []);
+
+  /** Points the compressor at `compressor`, creating no context of its own. */
+  const applyMasterCompressor = useCallback((compressor: MasterCompressor) => {
+    compressorRef.current = compressor;
+
+    const context = contextRef.current;
+    const chain = masterRef.current;
+    if (!context || !chain) return;
+
+    applyCompressor(context, chain, compressor);
+  }, []);
+
+  /**
+   * How much the compressor is pulling the mix down right now, in dB — zero or
+   * negative, and zero before there is a context to ask.
+   *
+   * A getter rather than state: this is read once a frame by the meter, and
+   * putting it through React would re-render the whole rail sixty times a
+   * second to move one bar.
+   */
+  const getGainReduction = useCallback(() => {
+    return masterRef.current?.compressor.reduction ?? 0;
+  }, []);
+
+  /**
+   * The last window of samples leaving the machine, as bytes about a midpoint
+   * of 128, or null before there is a context to ask.
+   *
+   * The buffer is owned here and handed back rather than filled for the caller,
+   * so the scope neither has to know how many samples it is about to be given
+   * nor allocate a couple of kilobytes on every frame it draws.
+   */
+  const getWaveform = useCallback(() => {
+    const chain = masterRef.current;
+    if (!chain) return null;
+
+    const samples = (waveformRef.current ??= new Uint8Array(
+      chain.analyser.fftSize,
+    ));
+    chain.analyser.getByteTimeDomainData(samples);
+    return samples;
   }, []);
 
   /** Points the output fader at `volume`, creating no context of its own. */
@@ -1246,6 +1391,9 @@ export function useSampleBank() {
     applyMasterFilter,
     applyMasterDelay,
     applyMasterReverb,
+    applyMasterCompressor,
+    getGainReduction,
+    getWaveform,
     applyMasterVolume,
     loadSample,
     loadSampleFromUrl,

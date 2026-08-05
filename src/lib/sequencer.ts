@@ -326,6 +326,161 @@ export const DEFAULT_MASTER_REVERB: MasterReverb = {
 };
 
 /**
+ * Compressor threshold, in dB below full scale. Above it the mix is pulled
+ * down, below it nothing happens at all — so this is what decides how much of
+ * the material the stage acts on rather than how hard it acts.
+ */
+export const MIN_THRESHOLD_DB = -60;
+export const MAX_THRESHOLD_DB = 0;
+export const DEFAULT_THRESHOLD_DB = -18;
+
+/** How hard it pulls: at 4, four dB over the threshold come out as one. */
+export const MIN_RATIO = 1;
+export const MAX_RATIO = 20;
+export const DEFAULT_RATIO = 4;
+
+/**
+ * How quickly the compressor reacts. The ceiling is well short of the second
+ * Web Audio allows: past a couple of hundred milliseconds a bus compressor has
+ * stopped catching drum transients altogether, which is the whole of its job
+ * here. The default lets the very front of a hit through before clamping down,
+ * which is what keeps a compressed kit sounding hit rather than squashed.
+ */
+export const MIN_COMPRESSOR_ATTACK_SECONDS = 0;
+export const MAX_COMPRESSOR_ATTACK_SECONDS = 0.2;
+export const DEFAULT_COMPRESSOR_ATTACK_SECONDS = 0.005;
+
+/**
+ * How long it takes to let go. Long enough to ride a bar at slow tempos, and
+ * floored above zero because a release that fast pumps on every waveform cycle
+ * and reads as distortion rather than as compression.
+ */
+export const MIN_COMPRESSOR_RELEASE_SECONDS = 0.01;
+export const MAX_COMPRESSOR_RELEASE_SECONDS = 1;
+export const DEFAULT_COMPRESSOR_RELEASE_SECONDS = 0.15;
+
+/**
+ * Width of the soft knee, in dB — how gradually the ratio comes in around the
+ * threshold rather than all at once.
+ *
+ * Fixed rather than given a slider: it is the control reached for last, the
+ * rail is already the longest thing on the page, and a moderate knee is what
+ * makes a bus compressor sound like glue instead of like a limiter.
+ */
+export const COMPRESSOR_KNEE_DB = 6;
+
+/**
+ * How much reduction fills the meter, in dB.
+ *
+ * Twenty, which is well past where a drum bus is usually worked: three to ten
+ * is the range most of this stage's life is spent in, and a scale that only
+ * just contained the loudest possible reading would leave all of that crammed
+ * into the first third of the bar.
+ */
+export const METER_RANGE_DB = 20;
+
+/**
+ * How fast the meter climbs back towards zero, in dB per second. Slow enough
+ * that a hit stays legible after it has passed, fast enough that the bar is
+ * never reporting compression that finished a moment ago.
+ */
+export const METER_RECOVERY_DB_PER_SECOND = 24;
+
+/**
+ * The compressor on the mix, sitting after the filter and before the fader, so
+ * it works on everything the stages above have already done — the send returns
+ * included, since those rejoin at the master input.
+ */
+export type MasterCompressor = {
+  enabled: boolean;
+  thresholdDb: number;
+  ratio: number;
+  attackSeconds: number;
+  releaseSeconds: number;
+  /** Makeup gain, on the same scale as a channel's volume. */
+  level: number;
+};
+
+/** Starts bypassed, already dialled in so switching it on does something. */
+export const DEFAULT_MASTER_COMPRESSOR: MasterCompressor = {
+  enabled: false,
+  thresholdDb: DEFAULT_THRESHOLD_DB,
+  ratio: DEFAULT_RATIO,
+  attackSeconds: DEFAULT_COMPRESSOR_ATTACK_SECONDS,
+  releaseSeconds: DEFAULT_COMPRESSOR_RELEASE_SECONDS,
+  level: DEFAULT_VOLUME,
+};
+
+export function clampThresholdDb(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_THRESHOLD_DB;
+  return Math.min(Math.max(value, MIN_THRESHOLD_DB), MAX_THRESHOLD_DB);
+}
+
+export function clampRatio(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_RATIO;
+  return Math.min(Math.max(value, MIN_RATIO), MAX_RATIO);
+}
+
+export function clampCompressorAttack(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_COMPRESSOR_ATTACK_SECONDS;
+  return Math.min(
+    Math.max(value, MIN_COMPRESSOR_ATTACK_SECONDS),
+    MAX_COMPRESSOR_ATTACK_SECONDS,
+  );
+}
+
+export function clampCompressorRelease(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_COMPRESSOR_RELEASE_SECONDS;
+  return Math.min(
+    Math.max(value, MIN_COMPRESSOR_RELEASE_SECONDS),
+    MAX_COMPRESSOR_RELEASE_SECONDS,
+  );
+}
+
+/**
+ * How far along the meter a reduction reads, as a fraction of its width.
+ *
+ * Reduction arrives from the compressor as zero or a negative number of dB, and
+ * comes back here as a positive 0..1 — a meter fills, so the further it fills
+ * the more is being taken off, whichever way the number was signed.
+ */
+export function reductionToMeter(db: number): number {
+  if (!Number.isFinite(db)) return 0;
+  return Math.min(1, Math.max(0, -db) / METER_RANGE_DB);
+}
+
+/**
+ * How far the needle has fallen back by now, given where it was.
+ *
+ * A meter driven straight from the compressor is unreadable on drums: reduction
+ * tracks the envelope of each hit, so it snaps back to nothing between them
+ * faster than the eye can follow and the bar reads as a flicker rather than as
+ * a level. Falling instantly and climbing back at a fixed rate is the standard
+ * fix, and it is what makes the depth of a hit legible after the hit has gone.
+ */
+export function decayReduction(
+  displayedDb: number,
+  reductionDb: number,
+  elapsedSeconds: number,
+): number {
+  const recovered = Math.min(
+    0,
+    displayedDb + METER_RECOVERY_DB_PER_SECOND * Math.max(0, elapsedSeconds),
+  );
+  // Whichever is deeper wins, so a new hit takes the needle down at once.
+  return Math.min(recovered, Math.min(0, reductionDb));
+}
+
+export function formatDecibels(db: number): string {
+  return `${Math.round(db)} dB`;
+}
+
+export function formatRatio(ratio: number): string {
+  const clamped = clampRatio(ratio);
+  return `${clamped < 10 ? clamped.toFixed(1) : Math.round(clamped)}:1`;
+}
+
+/**
  * The output fader, last in the chain and the only master control with no
  * bypass — switching a volume off is what pulling it to zero already does.
  *
@@ -709,6 +864,7 @@ export type ParameterSnapshot = {
   filter: MasterFilter;
   delay: MasterDelay;
   reverb: MasterReverb;
+  compressor: MasterCompressor;
   volume: number;
 };
 

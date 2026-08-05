@@ -6,11 +6,13 @@ import ChannelContextMenu from "@/components/channel/ChannelContextMenu";
 import ChannelEditor from "@/components/channel/ChannelEditor";
 import ChannelGrid from "@/components/channel/ChannelGrid";
 import StepContextMenu from "@/components/channel/steps/StepContextMenu";
+import MasterCompressorControls from "@/components/master/MasterCompressorControls";
 import MasterDelayControls from "@/components/master/MasterDelayControls";
 import MasterDriveControls from "@/components/master/MasterDriveControls";
 import MasterFilterControls from "@/components/master/MasterFilterControls";
 import MasterReverbControls from "@/components/master/MasterReverbControls";
 import MasterVolumeControls from "@/components/master/MasterVolumeControls";
+import Oscilloscope from "@/components/master/Oscilloscope";
 import PresetPicker from "@/components/session/PresetPicker";
 import SnapshotControls from "@/components/session/SnapshotControls";
 import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
@@ -32,6 +34,7 @@ import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
 import {
   CHANNEL_COUNT,
   DEFAULT_BPM,
+  DEFAULT_MASTER_COMPRESSOR,
   DEFAULT_MASTER_DELAY,
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
@@ -73,6 +76,7 @@ import {
   type Channel,
   type ChannelLfo,
   type LockableParameter,
+  type MasterCompressor,
   type MasterDelay,
   type MasterDrive,
   type MasterFilter,
@@ -172,6 +176,9 @@ export default function DrumMachine() {
   const [masterReverb, setMasterReverb] = useState<MasterReverb>(
     DEFAULT_MASTER_REVERB,
   );
+  const [masterCompressor, setMasterCompressor] = useState<MasterCompressor>(
+    DEFAULT_MASTER_COMPRESSOR,
+  );
   const [masterVolume, setMasterVolume] = useState(DEFAULT_MASTER_VOLUME);
 
   /** The last saved parameter snapshot, or null until one has been taken. */
@@ -211,6 +218,9 @@ export default function DrumMachine() {
     applyMasterFilter,
     applyMasterDelay,
     applyMasterReverb,
+    applyMasterCompressor,
+    getGainReduction,
+    getWaveform,
     applyMasterVolume,
     loadSample,
     loadSampleFromUrl,
@@ -242,6 +252,10 @@ export default function DrumMachine() {
   useEffect(() => {
     applyMasterReverb(masterReverb);
   }, [applyMasterReverb, masterReverb]);
+
+  useEffect(() => {
+    applyMasterCompressor(masterCompressor);
+  }, [applyMasterCompressor, masterCompressor]);
 
   useEffect(() => {
     applyMasterVolume(masterVolume);
@@ -780,7 +794,7 @@ export default function DrumMachine() {
   );
 
   /**
-   * Freezes the current sound: every channel's parameters, all four master
+   * Freezes the current sound: every channel's parameters, all five master
    * stages and the output fader, in one go. Patterns, samples and the transport
    * are deliberately not part of it, so a snapshot is a mix to come back to
    * rather than a whole song.
@@ -795,9 +809,17 @@ export default function DrumMachine() {
       filter: masterFilter,
       delay: masterDelay,
       reverb: masterReverb,
+      compressor: masterCompressor,
       volume: masterVolume,
     });
-  }, [masterDelay, masterDrive, masterFilter, masterReverb, masterVolume]);
+  }, [
+    masterCompressor,
+    masterDelay,
+    masterDrive,
+    masterFilter,
+    masterReverb,
+    masterVolume,
+  ]);
 
   /**
    * Puts every parameter back to the last save. The master stages and the
@@ -813,6 +835,7 @@ export default function DrumMachine() {
     setMasterFilter(snapshot.filter);
     setMasterDelay(snapshot.delay);
     setMasterReverb(snapshot.reverb);
+    setMasterCompressor(snapshot.compressor);
     setMasterVolume(snapshot.volume);
   }, [snapshot]);
 
@@ -998,6 +1021,21 @@ export default function DrumMachine() {
             filter={masterFilter}
             onChange={setMasterFilter}
           />
+
+          {/* Last of the stages, and last in the signal too: it is levelling
+              what the drive and the cuts have already made rather than a mix
+              still about to change under it. */}
+          <MasterCompressorControls
+            compressor={masterCompressor}
+            getGainReduction={getGainReduction}
+            onChange={setMasterCompressor}
+          />
+
+          {/* Below the stages rather than among them, because it is the only
+              thing in the rail that does nothing to the sound: it is where the
+              whole chain above comes out, so it reads as the end of the column
+              rather than as another link in it. */}
+          <Oscilloscope getWaveform={getWaveform} />
         </RailGroup>
       </Sidebar>
 
