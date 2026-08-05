@@ -33,7 +33,7 @@ const jsonLd = {
     "909 and 808 sample kits included",
     "Per-channel pitch, low cut, high cut, attack and decay",
     "Per-channel LFO modulation",
-    "Master drive, filter, delay and reverb",
+    "Master drive, filter, delay, reverb and phaser",
     "Swing and adjustable tempo",
     "Channel choke groups",
     "Pattern snapshots",

@@ -39,7 +39,7 @@ export default function SampleSlot({
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
-      <label className="border-edge hover:bg-raised shrink-0 cursor-pointer rounded border px-2 py-1 text-xs">
+      <label className="bg-accent text-on-accent hover:bg-accent-soft focus-within:outline-accent shrink-0 cursor-pointer rounded px-2.5 py-1 text-xs font-medium transition-colors focus-within:outline-2 focus-within:outline-offset-2">
         {hasSample ? "Replace" : "Load"}
         <input
           type="file"
