@@ -460,6 +460,98 @@ export type SampleState =
 
 export const MAX_CHANNEL_NAME_LENGTH = 24;
 
+/**
+ * How hard a step is hit, as a fraction of the channel's own volume.
+ *
+ * Velocity only ever attenuates: full is the top of the range rather than its
+ * middle, so a pattern with nothing accented sounds exactly as it did before
+ * there was such a thing as velocity, and the headroom above unity stays where
+ * it already is — on the channel's volume, which reaches MAX_VOLUME.
+ *
+ * The floor sits above silence on purpose. A step that is on but inaudible looks
+ * exactly like one that is playing, and hunting through a pattern for the step
+ * that was swiped down to nothing is a bad afternoon; `on` is what expresses
+ * silence, and this is quiet enough to read as a ghost note without vanishing.
+ */
+export const MIN_STEP_VELOCITY = 0.05;
+export const MAX_STEP_VELOCITY = 1;
+export const DEFAULT_STEP_VELOCITY = MAX_STEP_VELOCITY;
+
+/**
+ * The channel parameters a single step is allowed to override.
+ *
+ * Written as keys of `Channel` rather than as a list of their own, so the two
+ * can never drift: a lock is by definition one of the channel's own settings,
+ * standing in for it on one step. Every one of them is already applied per hit
+ * by `trigger`, so a lock costs the audio layer nothing at all.
+ *
+ * Choke is left out — it is routing between channels rather than part of how a
+ * hit sounds — and so is the LFO, whose free-running mode shares one set of
+ * nodes across every hit on the channel and so has nothing per-step to give.
+ */
+export const LOCKABLE_PARAMETERS = [
+  "volume",
+  "pitch",
+  "lowCutHz",
+  "highCutHz",
+  "attackSeconds",
+  "decaySeconds",
+  "delaySend",
+  "reverbSend",
+] as const;
+
+export type LockableParameter = (typeof LOCKABLE_PARAMETERS)[number];
+
+export type StepLocks = Partial<Pick<Channel, LockableParameter>>;
+
+/**
+ * One step of a pattern.
+ *
+ * An object rather than a bare flag because a step now carries three separate
+ * things, and keeping them in one value is what lets every pattern helper move
+ * a step without knowing what is on it — `nudgeSteps` rotates locks and
+ * velocities along with the rhythm for free, where parallel arrays would each
+ * need their own rotation and the first one that got missed would be a silent
+ * corruption.
+ *
+ * `on` is kept apart from the velocity rather than folded into it as a zero for
+ * the same reason the pattern is always MAX_STEPS long: switching a step off is
+ * not the same as throwing away what was dialled into it. Toggling it back on
+ * returns the accent and the locks it had, and `invertSteps` stays exactly its
+ * own undo.
+ */
+export type Step = {
+  /** Whether the step fires at all. */
+  on: boolean;
+  /** How hard, as a fraction of the channel's volume. */
+  velocity: number;
+  /**
+   * What this step overrides, or undefined for a step that plays the channel as
+   * its sliders show it. Left off rather than held as an empty object, since
+   * most steps lock nothing and 64 of them across 16 channels is a thousand
+   * allocations that would all say the same nothing.
+   */
+  locks?: StepLocks;
+};
+
+export function createStep(): Step {
+  return { on: false, velocity: DEFAULT_STEP_VELOCITY };
+}
+
+/** True once a step overrides at least one of the channel's parameters. */
+export function hasStepLocks(step: Step): boolean {
+  return step.locks !== undefined && Object.keys(step.locks).length > 0;
+}
+
+export function clampStepVelocity(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_STEP_VELOCITY;
+  return Math.min(Math.max(value, MIN_STEP_VELOCITY), MAX_STEP_VELOCITY);
+}
+
+export function formatVelocity(value: number): string {
+  return `${Math.round(clampStepVelocity(value) * 100)}%`;
+}
+
 export type Channel = {
   id: string;
   /** Immutable channel number, used as the fallback when `name` is blank. */
@@ -470,7 +562,7 @@ export type Channel = {
    * Always MAX_STEPS long. Only the first `length` steps play, so shrinking a
    * channel and growing it again preserves whatever was programmed past the end.
    */
-  steps: boolean[];
+  steps: Step[];
   /** Steps in this channel's cycle. Channels wrap independently. */
   length: number;
   /** Linear gain applied to every hit on this channel. */
@@ -516,7 +608,9 @@ export function createInitialChannels(): Channel[] {
     id: channelIdForIndex(index),
     label: `Ch. ${index + 1}`,
     name: `Ch. ${index + 1}`,
-    steps: Array<boolean>(MAX_STEPS).fill(false),
+    // Built one at a time rather than filled: `fill` would hand every step the
+    // same object, and writing a velocity into one would write it into all 64.
+    steps: Array.from({ length: MAX_STEPS }, createStep),
     length: DEFAULT_STEP_COUNT,
     volume: DEFAULT_VOLUME,
     pitch: DEFAULT_PITCH,
@@ -629,43 +723,70 @@ export function applyChannelSnapshots(
 }
 
 /**
+ * What a channel sounds like on one particular step: its own settings, with
+ * that step's locks standing in for the ones it overrides.
+ *
+ * Also what the controls panel reads while a step is open for editing, so the
+ * sliders show the same values the step is about to be played with.
+ */
+export function channelSettingsForStep(
+  channel: Channel,
+  step: Step | null,
+): Channel {
+  // Only spread where the step actually overrides something, so the ordinary
+  // case — a step that locks nothing — costs no allocation on every hit.
+  return step?.locks ? { ...channel, ...step.locks } : channel;
+}
+
+/**
  * The per-hit audio settings a channel plays with. Shared by the scheduler and
  * by one-off previews so an audition sounds exactly like the sequenced hit.
+ *
+ * `step` is the step being played, where there is one: its locks stand in for
+ * the channel's settings and its velocity scales the hit. A preview passes none
+ * and hears the channel exactly as the sliders show it.
  */
-export function triggerOptionsForChannel(channel: Channel) {
+export function triggerOptionsForChannel(channel: Channel, step?: Step) {
+  const settings = channelSettingsForStep(channel, step ?? null);
+  const velocity = step
+    ? clampStepVelocity(step.velocity)
+    : DEFAULT_STEP_VELOCITY;
+
   // Dropped when it would move nothing, so a switched-off LFO costs no nodes.
-  const lfo = isLfoBypassed(channel.lfo) ? undefined : channel.lfo;
+  const lfo = isLfoBypassed(settings.lfo) ? undefined : settings.lfo;
 
   return {
-    gain: clampVolume(channel.volume),
-    playbackRate: playbackRateForPitch(channel.pitch),
+    // Velocity only attenuates, so this keeps the ceiling the channel volume
+    // already had and a pattern with no accents in it is unchanged.
+    gain: clampVolume(settings.volume) * velocity,
+    playbackRate: playbackRateForPitch(settings.pitch),
     // Undefined skips the filter node entirely when it would be inaudible —
     // unless the LFO is pointed at that cut, since modulation needs a node to
     // land on and a cut parked at its bypass extreme still has room to sweep.
     lowCutHz:
-      isLowCutBypassed(channel.lowCutHz) && lfo?.destination !== "lowCut"
+      isLowCutBypassed(settings.lowCutHz) && lfo?.destination !== "lowCut"
         ? undefined
-        : clampFrequency(channel.lowCutHz),
+        : clampFrequency(settings.lowCutHz),
     highCutHz:
-      isHighCutBypassed(channel.highCutHz) && lfo?.destination !== "highCut"
+      isHighCutBypassed(settings.highCutHz) && lfo?.destination !== "highCut"
         ? undefined
-        : clampFrequency(channel.highCutHz),
-    attackSeconds: isAttackBypassed(channel.attackSeconds)
+        : clampFrequency(settings.highCutHz),
+    attackSeconds: isAttackBypassed(settings.attackSeconds)
       ? undefined
-      : clampAttack(channel.attackSeconds),
-    decaySeconds: isDecayBypassed(channel.decaySeconds)
+      : clampAttack(settings.attackSeconds),
+    decaySeconds: isDecayBypassed(settings.decaySeconds)
       ? undefined
-      : clampDecay(channel.decaySeconds),
+      : clampDecay(settings.decaySeconds),
     // A closed send costs nothing to skip, so the tap node is never built.
-    delaySend: isSendClosed(channel.delaySend)
+    delaySend: isSendClosed(settings.delaySend)
       ? undefined
-      : clampSend(channel.delaySend),
-    reverbSend: isSendClosed(channel.reverbSend)
+      : clampSend(settings.delaySend),
+    reverbSend: isSendClosed(settings.reverbSend)
       ? undefined
-      : clampSend(channel.reverbSend),
+      : clampSend(settings.reverbSend),
     // A voice only needs the node a choke fades when something can actually
     // choke it, so an unrouted channel costs nothing.
-    chokeable: channel.chokedBy !== null,
+    chokeable: settings.chokedBy !== null,
     lfo,
   };
 }
@@ -788,22 +909,34 @@ function fillHitsStep(fill: StepFill, stepIndex: number): boolean {
  * Steps past `length` are left exactly as they were, so a fill never reaches
  * the pattern a shortened channel is holding on to past its end — the same
  * promise editing a single step makes.
+ *
+ * Only `on` is written. A fill is a rhythm, and the velocity and the locks
+ * dialled into a step are not part of one — so they stay put underneath it,
+ * exactly as they do when a step is switched off by hand.
  */
 export function applyStepFill(
-  steps: boolean[],
+  steps: Step[],
   length: number,
   fill: StepFill,
-): boolean[] {
+): Step[] {
   const playing = clampLength(length);
-  return steps.map((active, index) =>
-    index < playing ? fillHitsStep(fill, index) : active,
-  );
+  return steps.map((step, index) => {
+    if (index >= playing) return step;
+    const on = fillHitsStep(fill, index);
+    return step.on === on ? step : { ...step, on };
+  });
 }
 
-/** Empties the steps a channel plays, leaving anything past `length` alone. */
-export function clearSteps(steps: boolean[], length: number): boolean[] {
+/**
+ * Empties the steps a channel plays, leaving anything past `length` alone.
+ *
+ * The one action on the pattern meant to throw work away, so it resets those
+ * steps outright — velocities and locks with them — where switching a step off
+ * by hand leaves both sitting underneath it.
+ */
+export function clearSteps(steps: Step[], length: number): Step[] {
   const playing = clampLength(length);
-  return steps.map((active, index) => (index < playing ? false : active));
+  return steps.map((step, index) => (index < playing ? createStep() : step));
 }
 
 /**
@@ -813,10 +946,16 @@ export function clearSteps(steps: boolean[], length: number): boolean[] {
  * pattern a shortened channel is holding on to past its end survives the flip.
  * That also makes inverting its own undo — pressing it twice hands back exactly
  * what you started with, so it is safe to try on a pattern worth keeping.
+ *
+ * Which is why only `on` is flipped: a step silenced here keeps the velocity and
+ * the locks it was carrying, so the second press really does return the pattern
+ * it was given rather than a flattened copy of it.
  */
-export function invertSteps(steps: boolean[], length: number): boolean[] {
+export function invertSteps(steps: Step[], length: number): Step[] {
   const playing = clampLength(length);
-  return steps.map((active, index) => (index < playing ? !active : active));
+  return steps.map((step, index) =>
+    index < playing ? { ...step, on: !step.on } : step,
+  );
 }
 
 /**
@@ -826,37 +965,125 @@ export function invertSteps(steps: boolean[], length: number): boolean[] {
  * It rotates rather than shifts: a hit pushed off the end comes back at the
  * start, so nudging is always reversible and repeatedly nudging walks the
  * pattern around its cycle instead of gradually emptying it.
+ *
+ * Whole steps move, so a nudged pattern carries its accents and its locks round
+ * with it — the reason all three live in one array rather than three.
  */
 export function nudgeSteps(
-  steps: boolean[],
+  steps: Step[],
   length: number,
   offset: number,
-): boolean[] {
+): Step[] {
   const playing = clampLength(length);
-  return steps.map((active, index) => {
-    if (index >= playing) return active;
+  return steps.map((step, index) => {
+    if (index >= playing) return step;
     // Wrapped twice, since a backward nudge would otherwise index off the
     // front: JavaScript's % keeps the sign of the left operand.
     return steps[(((index - offset) % playing) + playing) % playing];
   });
 }
 
-/** True when the played steps are exactly what `fill` would write. */
+/**
+ * True when the played steps are exactly what `fill` would write.
+ *
+ * Only the rhythm is compared. A fill button stays lit as a readout of what is
+ * programmed, and accenting one step of a backbeat has not stopped it being a
+ * backbeat — dropping the light there would be the dishonest answer.
+ */
 export function matchesStepFill(
-  steps: boolean[],
+  steps: Step[],
   length: number,
   fill: StepFill,
 ): boolean {
   const playing = clampLength(length);
   return steps.every(
-    (active, index) => index >= playing || active === fillHitsStep(fill, index),
+    (step, index) => index >= playing || step.on === fillHitsStep(fill, index),
   );
 }
 
 /** True while the channel has at least one hit inside the steps it plays. */
-export function hasActiveSteps(steps: boolean[], length: number): boolean {
+export function hasActiveSteps(steps: Step[], length: number): boolean {
   const playing = clampLength(length);
-  return steps.some((active, index) => active && index < playing);
+  return steps.some((step, index) => step.on && index < playing);
+}
+
+/** Replaces one step, handing back the rest of the pattern untouched. */
+function withStep(
+  steps: Step[],
+  index: number,
+  next: (step: Step) => Step,
+): Step[] {
+  return steps.map((step, i) => (i === index ? next(step) : step));
+}
+
+export function toggleStepAt(steps: Step[], index: number): Step[] {
+  return withStep(steps, index, (step) => ({ ...step, on: !step.on }));
+}
+
+/**
+ * Sets a step's velocity, switching it on if it wasn't.
+ *
+ * Reaching for a velocity is a request to hear that step, so dialling one into
+ * a silent step and leaving it silent would answer the gesture with nothing.
+ */
+export function setStepVelocityAt(
+  steps: Step[],
+  index: number,
+  velocity: number,
+): Step[] {
+  return withStep(steps, index, (step) => ({
+    ...step,
+    on: true,
+    velocity: clampStepVelocity(velocity),
+  }));
+}
+
+/** Overrides one of the channel's parameters on one step. */
+export function setStepLockAt(
+  steps: Step[],
+  index: number,
+  key: LockableParameter,
+  value: number,
+): Step[] {
+  return withStep(steps, index, (step) => ({
+    ...step,
+    locks: { ...step.locks, [key]: value },
+  }));
+}
+
+/**
+ * Drops one override, putting that parameter back on the channel's own setting.
+ * The last one to go takes the whole record with it, so `hasStepLocks` never
+ * reports a step that is holding an empty object.
+ */
+export function clearStepLockAt(
+  steps: Step[],
+  index: number,
+  key: LockableParameter,
+): Step[] {
+  return withStep(steps, index, (step) => {
+    if (step.locks?.[key] === undefined) return step;
+
+    const locks = { ...step.locks };
+    delete locks[key];
+
+    // Annotated, so `locks` is the optional property it is on a Step rather
+    // than the required one this literal would otherwise be inferred to have.
+    const next: Step = { ...step, locks };
+    if (Object.keys(locks).length === 0) delete next.locks;
+    return next;
+  });
+}
+
+/** Drops every override on a step, back to the channel as its sliders show it. */
+export function clearStepLocksAt(steps: Step[], index: number): Step[] {
+  return withStep(steps, index, (step) => {
+    if (!step.locks) return step;
+
+    const next = { ...step };
+    delete next.locks;
+    return next;
+  });
 }
 
 /** What to show for a channel: its name, falling back to the channel number. */

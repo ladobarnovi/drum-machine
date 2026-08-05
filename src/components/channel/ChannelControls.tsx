@@ -2,11 +2,14 @@
 
 import ControlSlider from "@/components/ui/ControlSlider";
 import {
+  DEFAULT_STEP_VELOCITY,
   MAX_PITCH,
   MAX_SEND,
+  MAX_STEP_VELOCITY,
   MAX_VOLUME,
   MIN_PITCH,
   MIN_SEND,
+  MIN_STEP_VELOCITY,
   MIN_VOLUME,
   attackToSlider,
   clampPitch,
@@ -15,6 +18,7 @@ import {
   decayToSlider,
   formatFrequency,
   formatSeconds,
+  formatVelocity,
   frequencyToSlider,
   isAttackBypassed,
   isDecayBypassed,
@@ -23,12 +27,30 @@ import {
   sliderToAttack,
   sliderToDecay,
   sliderToFrequency,
+  type LockableParameter,
+  type StepLocks,
 } from "@/lib/sequencer";
 
 /** One channel offered as a choke source: its id, under the name on its pad. */
 export type ChokeOption = {
   id: string;
   name: string;
+};
+
+/**
+ * What the panel is given while a single step is open for editing. Its presence
+ * is the whole of the mode: the sliders above are the same controls either way,
+ * and this only changes what they are pointed at.
+ */
+export type StepEdit = {
+  /** Which step is open, counted from 0. */
+  index: number;
+  velocity: number;
+  /** Which of the parameters this step overrides. */
+  locks: StepLocks;
+  onVelocityChange: (velocity: number) => void;
+  onClearLock: (key: LockableParameter) => void;
+  onClearLocks: () => void;
 };
 
 type ChannelControlsProps = {
@@ -43,6 +65,8 @@ type ChannelControlsProps = {
   chokedBy: string | null;
   /** Every channel that could choke this one — this channel is not among them. */
   chokeOptions: ChokeOption[];
+  /** Set while one step is being edited; absent while the channel is. */
+  stepEdit?: StepEdit;
   onVolumeChange: (volume: number) => void;
   onPitchChange: (pitch: number) => void;
   onLowCutChange: (hz: number) => void;
@@ -57,7 +81,14 @@ type ChannelControlsProps = {
 
 /**
  * Volume, pitch, filters, the amplitude envelope, the two send amounts, and the
- * choke source for the selected channel.
+ * choke source — for the channel, or for one step of it.
+ *
+ * The values arrive already resolved: while a step is open the caller hands
+ * down that step's overrides in place of the channel's own settings, so the
+ * sliders show what the step is about to be played with and nothing here has to
+ * know which of the two it is looking at. `stepEdit` only adds what the channel
+ * has no equivalent of — the velocity, and the marks saying which rows have
+ * been overridden.
  */
 export default function ChannelControls({
   volume,
@@ -70,6 +101,7 @@ export default function ChannelControls({
   reverbSend,
   chokedBy,
   chokeOptions,
+  stepEdit,
   onVolumeChange,
   onPitchChange,
   onLowCutChange,
@@ -80,11 +112,74 @@ export default function ChannelControls({
   onReverbSendChange,
   onChokedByChange,
 }: ChannelControlsProps) {
+  /**
+   * What a lockable slider needs to show its state. Handed to every one of them
+   * while a step is open — including the ones with nothing locked, since it is
+   * passing the clear handler at all that reserves the column and keeps the
+   * rows from shifting sideways as locks come and go.
+   */
+  const lockProps = (key: LockableParameter) =>
+    stepEdit
+      ? {
+          locked: stepEdit.locks[key] !== undefined,
+          onClearLock: () => stepEdit.onClearLock(key),
+        }
+      : {};
+
+  const hasLocks =
+    stepEdit !== undefined && Object.keys(stepEdit.locks).length > 0;
+
   return (
     <section className="border-line flex flex-col gap-3 rounded-md border p-3">
-      <h2 className="text-xs font-semibold">Params</h2>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 className="text-xs font-semibold">
+          {stepEdit ? `Step ${stepEdit.index + 1}` : "Params"}
+        </h2>
+
+        {stepEdit && (
+          <>
+            {/* Said plainly, because the two controls this panel holds that a
+                step cannot override are otherwise indistinguishable from the
+                ones it can. */}
+            <p className="text-muted text-xs">
+              This step only — choke and the LFO stay per channel.
+            </p>
+
+            <button
+              type="button"
+              onClick={stepEdit.onClearLocks}
+              disabled={!hasLocks}
+              className="border-edge hover:bg-raised ml-auto rounded border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear locks
+            </button>
+          </>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+        {/*
+          First, and only here: how hard the step is hit is the one thing on
+          this panel a channel has no equivalent of, and it is what the swipe on
+          the grid has just been setting. Its clear button resets the accent
+          rather than dropping a lock — velocity is part of every step, not an
+          override sitting on top of one — which is why it is marked whenever it
+          is anywhere below full.
+        */}
+        {stepEdit && (
+          <ControlSlider
+            label="Velocity"
+            min={MIN_STEP_VELOCITY}
+            max={MAX_STEP_VELOCITY}
+            step={0.01}
+            value={stepEdit.velocity}
+            readout={formatVelocity(stepEdit.velocity)}
+            onChange={stepEdit.onVelocityChange}
+            locked={stepEdit.velocity < MAX_STEP_VELOCITY}
+            onClearLock={() => stepEdit.onVelocityChange(DEFAULT_STEP_VELOCITY)}
+          />
+        )}
+
         <ControlSlider
           label="Volume"
           min={MIN_VOLUME}
@@ -93,6 +188,7 @@ export default function ChannelControls({
           value={volume}
           readout={`${Math.round(volume * 100)}%`}
           onChange={(value) => onVolumeChange(clampVolume(value))}
+          {...lockProps("volume")}
         />
 
         <ControlSlider
@@ -103,6 +199,7 @@ export default function ChannelControls({
           value={pitch}
           readout={`${pitch > 0 ? `+${pitch}` : pitch} st`}
           onChange={(value) => onPitchChange(clampPitch(value))}
+          {...lockProps("pitch")}
         />
 
         {/* Cutoffs ride a 0..1 log scale, so the readout shows the real frequency. */}
@@ -116,6 +213,7 @@ export default function ChannelControls({
             isLowCutBypassed(lowCutHz) ? "Off" : formatFrequency(lowCutHz)
           }
           onChange={(position) => onLowCutChange(sliderToFrequency(position))}
+          {...lockProps("lowCutHz")}
         />
 
         <ControlSlider
@@ -128,6 +226,7 @@ export default function ChannelControls({
             isHighCutBypassed(highCutHz) ? "Off" : formatFrequency(highCutHz)
           }
           onChange={(position) => onHighCutChange(sliderToFrequency(position))}
+          {...lockProps("highCutHz")}
         />
 
         {/* Envelope times ride a 0..1 curve, so the readout shows the real time. */}
@@ -143,6 +242,7 @@ export default function ChannelControls({
               : formatSeconds(attackSeconds)
           }
           onChange={(position) => onAttackChange(sliderToAttack(position))}
+          {...lockProps("attackSeconds")}
         />
 
         <ControlSlider
@@ -155,6 +255,7 @@ export default function ChannelControls({
             isDecayBypassed(decaySeconds) ? "Off" : formatSeconds(decaySeconds)
           }
           onChange={(position) => onDecayChange(sliderToDecay(position))}
+          {...lockProps("decaySeconds")}
         />
 
         {/* How much of this channel is fed to each master send bus. */}
@@ -166,6 +267,7 @@ export default function ChannelControls({
           value={delaySend}
           readout={`${Math.round(delaySend * 100)}%`}
           onChange={(value) => onDelaySendChange(clampSend(value))}
+          {...lockProps("delaySend")}
         />
 
         <ControlSlider
@@ -176,6 +278,7 @@ export default function ChannelControls({
           value={reverbSend}
           readout={`${Math.round(reverbSend * 100)}%`}
           onChange={(value) => onReverbSendChange(clampSend(value))}
+          {...lockProps("reverbSend")}
         />
 
         {/*

@@ -1,16 +1,20 @@
 "use client";
 
 import StepButton from "./StepButton";
-import { STEPS_PER_BEAT, isDownbeat } from "@/lib/sequencer";
+import { STEPS_PER_BEAT, isDownbeat, type Step } from "@/lib/sequencer";
 
 type StepBeatProps = {
   channelLabel: string;
   /** Steps in this beat, at most STEPS_PER_BEAT of them. */
-  steps: boolean[];
+  steps: Step[];
   /** Index of this beat's first step within the whole pattern. */
   offset: number;
   currentStep: number | null;
-  onToggleStep: (stepIndex: number) => void;
+  /** The step the controls panel is editing, or null while none is open. */
+  editingStep: number | null;
+  onStepClick: (stepIndex: number) => void;
+  onStepHold: (stepIndex: number) => void;
+  onStepVelocityChange: (stepIndex: number, velocity: number) => void;
 };
 
 /**
@@ -23,7 +27,10 @@ export default function StepBeat({
   steps,
   offset,
   currentStep,
-  onToggleStep,
+  editingStep,
+  onStepClick,
+  onStepHold,
+  onStepVelocityChange,
 }: StepBeatProps) {
   return (
     <div className="flex gap-1">
@@ -36,11 +43,16 @@ export default function StepBeat({
         return (
           <StepButton
             key={slot}
-            active={steps[slot]}
+            step={steps[slot]}
             isCurrent={currentStep === stepIndex}
             isDownbeat={isDownbeat(stepIndex)}
+            isEditing={editingStep === stepIndex}
             label={`Channel ${channelLabel} step ${stepIndex + 1}`}
-            onToggle={() => onToggleStep(stepIndex)}
+            onClick={() => onStepClick(stepIndex)}
+            onHold={() => onStepHold(stepIndex)}
+            onVelocityChange={(velocity) =>
+              onStepVelocityChange(stepIndex, velocity)
+            }
           />
         );
       })}

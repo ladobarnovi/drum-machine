@@ -6,12 +6,13 @@ import {
   STEP_LENGTH_PRESETS,
   hasActiveSteps,
   matchesStepFill,
+  type Step,
   type StepFill,
 } from "@/lib/sequencer";
 
 type StepPatternControlsProps = {
   /** Full MAX_STEPS-long pattern; only the first `length` steps are written. */
-  steps: boolean[];
+  steps: Step[];
   length: number;
   onApplyFill: (fill: StepFill) => void;
   /** Steps to slide the pattern by: positive later, negative earlier. */

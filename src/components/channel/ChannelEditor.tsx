@@ -2,7 +2,10 @@
 
 import type { ReactNode } from "react";
 
-import ChannelControls, { type ChokeOption } from "./ChannelControls";
+import ChannelControls, {
+  type ChokeOption,
+  type StepEdit,
+} from "./ChannelControls";
 import ChannelLfoControls from "./ChannelLfoControls";
 import ChannelNameInput from "./ChannelNameInput";
 import SampleSlot from "./SampleSlot";
@@ -50,7 +53,11 @@ type SequencerSectionProps = {
   showSequencerOnly: true;
   showControlsOnly?: false;
   currentStep: number | null;
-  onToggleStep: (stepIndex: number) => void;
+  /** The step the controls panel is editing, or null while none is open. */
+  editingStep: number | null;
+  onStepClick: (stepIndex: number) => void;
+  onStepHold: (stepIndex: number) => void;
+  onStepVelocityChange: (stepIndex: number, velocity: number) => void;
   onApplyStepFill: (fill: StepFill) => void;
   onNudgeSteps: (offset: number) => void;
   onClearSteps: () => void;
@@ -63,8 +70,16 @@ type ControlsSectionProps = {
   showSampleOnly?: false;
   showSequencerOnly?: false;
   showControlsOnly: true;
+  /**
+   * What the sliders show: the channel's own settings, or those of the step
+   * being edited standing in for them. Resolved by the caller, which is the one
+   * that knows which step — if any — is open.
+   */
+  settings: Channel;
   /** The other channels, any one of which could be this one's choke source. */
   chokeOptions: ChokeOption[];
+  /** Set while one step is open, so the panel scopes itself to it. */
+  stepEdit?: StepEdit;
   onVolumeChange: (volume: number) => void;
   onPitchChange: (pitch: number) => void;
   onLowCutChange: (hz: number) => void;
@@ -128,7 +143,10 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           steps={channel.steps}
           length={channel.length}
           currentStep={props.currentStep}
-          onToggleStep={props.onToggleStep}
+          editingStep={props.editingStep}
+          onStepClick={props.onStepClick}
+          onStepHold={props.onStepHold}
+          onStepVelocityChange={props.onStepVelocityChange}
         />
 
         <StepPatternControls
@@ -144,19 +162,26 @@ export default function ChannelEditor(props: ChannelEditorProps) {
     );
   }
 
+  // Every slider below reads from the resolved settings rather than from the
+  // channel, so a locked parameter shows the step's value; the choke is the one
+  // exception, since a step cannot override it and it would be a lie to show it
+  // under a heading that says otherwise.
+  const { settings } = props;
+
   return (
     <Card>
       <ChannelControls
-        volume={channel.volume}
-        pitch={channel.pitch}
-        lowCutHz={channel.lowCutHz}
-        highCutHz={channel.highCutHz}
-        attackSeconds={channel.attackSeconds}
-        decaySeconds={channel.decaySeconds}
-        delaySend={channel.delaySend}
-        reverbSend={channel.reverbSend}
+        volume={settings.volume}
+        pitch={settings.pitch}
+        lowCutHz={settings.lowCutHz}
+        highCutHz={settings.highCutHz}
+        attackSeconds={settings.attackSeconds}
+        decaySeconds={settings.decaySeconds}
+        delaySend={settings.delaySend}
+        reverbSend={settings.reverbSend}
         chokedBy={channel.chokedBy}
         chokeOptions={props.chokeOptions}
+        stepEdit={props.stepEdit}
         onVolumeChange={props.onVolumeChange}
         onPitchChange={props.onPitchChange}
         onLowCutChange={props.onLowCutChange}

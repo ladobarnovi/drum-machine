@@ -41,6 +41,7 @@ import {
   captureChannelSnapshots,
   channelDisplayName,
   channelIdForIndex,
+  channelSettingsForStep,
   channelsChokedBy,
   clampAttack,
   clampChannelName,
@@ -51,20 +52,27 @@ import {
   clampPitch,
   clampSend,
   clampVolume,
+  clearStepLockAt,
+  clearStepLocksAt,
   clearSteps,
   createInitialChannels,
   hasSoloedChannel,
   invertSteps,
   isChannelAudible,
   nudgeSteps,
+  setStepLockAt,
+  setStepVelocityAt,
+  toggleStepAt,
   triggerOptionsForChannel,
   type Channel,
   type ChannelLfo,
+  type LockableParameter,
   type MasterDelay,
   type MasterDrive,
   type MasterFilter,
   type MasterReverb,
   type ParameterSnapshot,
+  type Step,
   type StepFill,
 } from "@/lib/sequencer";
 import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
@@ -90,6 +98,19 @@ export default function DrumMachine() {
 
   const closeDrawer = useCallback(() => setOpenDrawer(null), []);
 
+  /**
+   * Which step of the selected channel the controls panel is pointed at, or
+   * null while it is pointed at the channel itself.
+   *
+   * Held raw and narrowed below rather than used directly: a step can stop
+   * playing under it — the channel shortened past it, or another channel
+   * selected — and the editor has to close with it rather than stay open on a
+   * step that is no longer there.
+   */
+  const [rawEditingStepIndex, setRawEditingStepIndex] = useState<number | null>(
+    null,
+  );
+
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
 
   const [masterDrive, setMasterDrive] =
@@ -106,6 +127,26 @@ export default function DrumMachine() {
 
   /** The last saved parameter snapshot, or null until one has been taken. */
   const [snapshot, setSnapshot] = useState<ParameterSnapshot | null>(null);
+
+  const selectedChannel =
+    channels.find((channel) => channel.id === selectedChannelId) ?? channels[0];
+
+  /**
+   * The step the controls are editing, narrowed to one that still plays.
+   *
+   * Derived rather than trusted, so shortening a channel past the open step
+   * closes the editor instead of leaving it pointed at a step that has dropped
+   * out of the cycle — and so the same is true for any other way a step could
+   * stop being reachable, without each needing to remember to clear this.
+   */
+  const editingStepIndex =
+    rawEditingStepIndex !== null &&
+    rawEditingStepIndex < clampLength(selectedChannel.length)
+      ? rawEditingStepIndex
+      : null;
+
+  const editingStep: Step | null =
+    editingStepIndex === null ? null : selectedChannel.steps[editingStepIndex];
 
   const {
     ensureContext,
@@ -167,10 +208,14 @@ export default function DrumMachine() {
 
       for (const channel of channelsRef.current) {
         if (!isChannelAudible(channel, soloActive)) continue;
-        if (channel.steps[tick % clampLength(channel.length)]) {
-          trigger(channel.id, time, triggerOptionsForChannel(channel));
-          firedChannelIds.push(channel.id);
-        }
+
+        // The step is handed to the options rather than only consulted, so its
+        // velocity and whatever it locks reach this one hit and nothing else.
+        const step = channel.steps[tick % clampLength(channel.length)];
+        if (!step.on) continue;
+
+        trigger(channel.id, time, triggerOptionsForChannel(channel, step));
+        firedChannelIds.push(channel.id);
       }
 
       // One call for the whole step, so a busy tick lights every pad it hit in
@@ -208,22 +253,67 @@ export default function DrumMachine() {
     [],
   );
 
-  const handleToggleStep = useCallback(
-    (channelId: string, stepIndex: number) => {
+  /**
+   * Rewrites the selected channel's pattern. Every gesture on the grid comes
+   * through here, so each one only has to say what it does to the steps — and
+   * the grid is always the selected channel, which is what lets the handlers
+   * below take a step index and nothing else.
+   */
+  const updateSelectedSteps = useCallback(
+    (write: (steps: Step[], length: number) => Step[]) => {
+      const channelId = selectedChannel.id;
       setChannels((prev) =>
         prev.map((channel) =>
           channel.id === channelId
-            ? {
-                ...channel,
-                steps: channel.steps.map((active, index) =>
-                  index === stepIndex ? !active : active,
-                ),
-              }
+            ? { ...channel, steps: write(channel.steps, channel.length) }
             : channel,
         ),
       );
     },
-    [],
+    [selectedChannel.id],
+  );
+
+  /**
+   * A plain click on a step.
+   *
+   * While a step is open this closes it and does nothing else: the click that
+   * dismisses the editor must never also rewrite the step it was aimed at, or
+   * there would be no way out of the mode that didn't cost a hit.
+   */
+  const handleStepClick = useCallback(
+    (stepIndex: number) => {
+      if (editingStepIndex !== null) {
+        setRawEditingStepIndex(null);
+        return;
+      }
+
+      updateSelectedSteps((steps) => toggleStepAt(steps, stepIndex));
+    },
+    [editingStepIndex, updateSelectedSteps],
+  );
+
+  /**
+   * A held press or a swipe: opens the step for editing, switching it on if it
+   * was silent. There is nothing to shape about a hit that never happens, and
+   * the gesture is a request to shape one.
+   */
+  const handleStepHold = useCallback(
+    (stepIndex: number) => {
+      updateSelectedSteps((steps) =>
+        steps[stepIndex].on ? steps : toggleStepAt(steps, stepIndex),
+      );
+      setRawEditingStepIndex(stepIndex);
+    },
+    [updateSelectedSteps],
+  );
+
+  const handleStepVelocityChange = useCallback(
+    (stepIndex: number, velocity: number) => {
+      updateSelectedSteps((steps) =>
+        setStepVelocityAt(steps, stepIndex, velocity),
+      );
+    },
+    [updateSelectedSteps],
   );
 
   /**
@@ -233,53 +323,28 @@ export default function DrumMachine() {
    * rhythm, whatever it was playing before.
    */
   const handleApplyStepFill = useCallback(
-    (channelId: string, fill: StepFill) => {
-      setChannels((prev) =>
-        prev.map((channel) =>
-          channel.id === channelId
-            ? {
-                ...channel,
-                steps: applyStepFill(channel.steps, channel.length, fill),
-              }
-            : channel,
-        ),
+    (fill: StepFill) => {
+      updateSelectedSteps((steps, length) =>
+        applyStepFill(steps, length, fill),
       );
     },
-    [],
+    [updateSelectedSteps],
   );
 
-  const handleNudgeSteps = useCallback((channelId: string, offset: number) => {
-    setChannels((prev) =>
-      prev.map((channel) =>
-        channel.id === channelId
-          ? {
-              ...channel,
-              steps: nudgeSteps(channel.steps, channel.length, offset),
-            }
-          : channel,
-      ),
-    );
-  }, []);
+  const handleNudgeSteps = useCallback(
+    (offset: number) => {
+      updateSelectedSteps((steps, length) => nudgeSteps(steps, length, offset));
+    },
+    [updateSelectedSteps],
+  );
 
-  const handleClearSteps = useCallback((channelId: string) => {
-    setChannels((prev) =>
-      prev.map((channel) =>
-        channel.id === channelId
-          ? { ...channel, steps: clearSteps(channel.steps, channel.length) }
-          : channel,
-      ),
-    );
-  }, []);
+  const handleClearSteps = useCallback(() => {
+    updateSelectedSteps(clearSteps);
+  }, [updateSelectedSteps]);
 
-  const handleInvertSteps = useCallback((channelId: string) => {
-    setChannels((prev) =>
-      prev.map((channel) =>
-        channel.id === channelId
-          ? { ...channel, steps: invertSteps(channel.steps, channel.length) }
-          : channel,
-      ),
-    );
-  }, []);
+  const handleInvertSteps = useCallback(() => {
+    updateSelectedSteps(invertSteps);
+  }, [updateSelectedSteps]);
 
   const handleUpload = useCallback(
     async (channelId: string, file: File) => {
@@ -324,18 +389,37 @@ export default function DrumMachine() {
     [updateChannel],
   );
 
-  const handleVolumeChange = useCallback(
-    (channelId: string, volume: number) => {
-      updateChannel(channelId, { volume: clampVolume(volume) });
+  /**
+   * Writes one of the selected channel's parameters — or, while a step is open,
+   * that step's override of it.
+   *
+   * One place for the decision, so every slider in the panel follows the scope
+   * the panel is showing rather than each having to remember which mode it is
+   * in. Values arrive clamped, exactly as they did when these went straight to
+   * the channel: a lock is the same value, kept somewhere narrower.
+   */
+  const setParameter = useCallback(
+    (key: LockableParameter, value: number) => {
+      if (editingStepIndex !== null) {
+        updateSelectedSteps((steps) =>
+          setStepLockAt(steps, editingStepIndex, key, value),
+        );
+        return;
+      }
+
+      updateChannel(selectedChannel.id, { [key]: value } as Partial<Channel>);
     },
-    [updateChannel],
+    [editingStepIndex, selectedChannel.id, updateChannel, updateSelectedSteps],
+  );
+
+  const handleVolumeChange = useCallback(
+    (volume: number) => setParameter("volume", clampVolume(volume)),
+    [setParameter],
   );
 
   const handlePitchChange = useCallback(
-    (channelId: string, pitch: number) => {
-      updateChannel(channelId, { pitch: clampPitch(pitch) });
-    },
-    [updateChannel],
+    (pitch: number) => setParameter("pitch", clampPitch(pitch)),
+    [setParameter],
   );
 
   const handleNameChange = useCallback(
@@ -407,9 +491,22 @@ export default function DrumMachine() {
     [choke, ensureContext, flashChannels, trigger],
   );
 
-  const handleSelectChannelIndex = useCallback((index: number) => {
-    setSelectedChannelId(channelIdForIndex(index));
+  /**
+   * Moves the editor to another channel, closing whichever step was open.
+   *
+   * A step index means nothing across channels — step 5 of the snare is not the
+   * step that was being edited on the kick — so carrying it over would leave the
+   * panel scoped to a step nobody opened, showing locks nobody set.
+   */
+  const handleSelectChannel = useCallback((channelId: string) => {
+    setSelectedChannelId(channelId);
+    setRawEditingStepIndex(null);
   }, []);
+
+  const handleSelectChannelIndex = useCallback(
+    (index: number) => handleSelectChannel(channelIdForIndex(index)),
+    [handleSelectChannel],
+  );
 
   useChannelShortcuts({
     channelCount: channels.length,
@@ -423,46 +520,51 @@ export default function DrumMachine() {
   useMasterFilterShortcuts({ onToggle: handleToggleMasterFilter });
 
   const handleLowCutChange = useCallback(
-    (channelId: string, hz: number) => {
-      updateChannel(channelId, { lowCutHz: clampFrequency(hz) });
-    },
-    [updateChannel],
+    (hz: number) => setParameter("lowCutHz", clampFrequency(hz)),
+    [setParameter],
   );
 
   const handleHighCutChange = useCallback(
-    (channelId: string, hz: number) => {
-      updateChannel(channelId, { highCutHz: clampFrequency(hz) });
-    },
-    [updateChannel],
+    (hz: number) => setParameter("highCutHz", clampFrequency(hz)),
+    [setParameter],
   );
 
   const handleAttackChange = useCallback(
-    (channelId: string, seconds: number) => {
-      updateChannel(channelId, { attackSeconds: clampAttack(seconds) });
-    },
-    [updateChannel],
+    (seconds: number) => setParameter("attackSeconds", clampAttack(seconds)),
+    [setParameter],
   );
 
   const handleDecayChange = useCallback(
-    (channelId: string, seconds: number) => {
-      updateChannel(channelId, { decaySeconds: clampDecay(seconds) });
-    },
-    [updateChannel],
+    (seconds: number) => setParameter("decaySeconds", clampDecay(seconds)),
+    [setParameter],
   );
 
   const handleDelaySendChange = useCallback(
-    (channelId: string, amount: number) => {
-      updateChannel(channelId, { delaySend: clampSend(amount) });
-    },
-    [updateChannel],
+    (amount: number) => setParameter("delaySend", clampSend(amount)),
+    [setParameter],
   );
 
   const handleReverbSendChange = useCallback(
-    (channelId: string, amount: number) => {
-      updateChannel(channelId, { reverbSend: clampSend(amount) });
-    },
-    [updateChannel],
+    (amount: number) => setParameter("reverbSend", clampSend(amount)),
+    [setParameter],
   );
+
+  /** Puts one parameter of the open step back on the channel's own setting. */
+  const handleClearStepLock = useCallback(
+    (key: LockableParameter) => {
+      if (editingStepIndex === null) return;
+      updateSelectedSteps((steps) =>
+        clearStepLockAt(steps, editingStepIndex, key),
+      );
+    },
+    [editingStepIndex, updateSelectedSteps],
+  );
+
+  /** Puts the whole step back on the channel, velocity aside. */
+  const handleClearStepLocks = useCallback(() => {
+    if (editingStepIndex === null) return;
+    updateSelectedSteps((steps) => clearStepLocksAt(steps, editingStepIndex));
+  }, [editingStepIndex, updateSelectedSteps]);
 
   /**
    * Points a channel at the channel that chokes it, or at nothing.
@@ -610,9 +712,6 @@ export default function DrumMachine() {
   }, [canPlay, clearFlashes, isPlaying, play, stop]);
 
   useTransportShortcuts({ onTogglePlay: handleTogglePlay });
-
-  const selectedChannel =
-    channels.find((channel) => channel.id === selectedChannelId) ?? channels[0];
 
   /**
    * What the choke select offers: every channel but the selected one, under the
@@ -788,7 +887,7 @@ export default function DrumMachine() {
             channels={channels}
             selectedChannelId={selectedChannel.id}
             flashedChannelIds={flashedChannelIds}
-            onSelectChannel={setSelectedChannelId}
+            onSelectChannel={handleSelectChannel}
             onPreviewChannel={handlePreviewChannel}
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
@@ -797,18 +896,15 @@ export default function DrumMachine() {
           <ChannelEditor
             channel={selectedChannel}
             currentStep={currentStep}
+            editingStep={editingStepIndex}
             showSequencerOnly={true}
-            onToggleStep={(stepIndex) =>
-              handleToggleStep(selectedChannel.id, stepIndex)
-            }
-            onApplyStepFill={(fill) =>
-              handleApplyStepFill(selectedChannel.id, fill)
-            }
-            onNudgeSteps={(offset) =>
-              handleNudgeSteps(selectedChannel.id, offset)
-            }
-            onClearSteps={() => handleClearSteps(selectedChannel.id)}
-            onInvertSteps={() => handleInvertSteps(selectedChannel.id)}
+            onStepClick={handleStepClick}
+            onStepHold={handleStepHold}
+            onStepVelocityChange={handleStepVelocityChange}
+            onApplyStepFill={handleApplyStepFill}
+            onNudgeSteps={handleNudgeSteps}
+            onClearSteps={handleClearSteps}
+            onInvertSteps={handleInvertSteps}
             onLengthChange={(length) =>
               handleLengthChange(selectedChannel.id, length)
             }
@@ -816,30 +912,30 @@ export default function DrumMachine() {
 
           <ChannelEditor
             channel={selectedChannel}
+            settings={channelSettingsForStep(selectedChannel, editingStep)}
             showControlsOnly={true}
             chokeOptions={chokeOptions}
-            onVolumeChange={(volume) =>
-              handleVolumeChange(selectedChannel.id, volume)
+            stepEdit={
+              editingStepIndex === null || editingStep === null
+                ? undefined
+                : {
+                    index: editingStepIndex,
+                    velocity: editingStep.velocity,
+                    locks: editingStep.locks ?? {},
+                    onVelocityChange: (velocity) =>
+                      handleStepVelocityChange(editingStepIndex, velocity),
+                    onClearLock: handleClearStepLock,
+                    onClearLocks: handleClearStepLocks,
+                  }
             }
-            onPitchChange={(pitch) =>
-              handlePitchChange(selectedChannel.id, pitch)
-            }
-            onLowCutChange={(hz) => handleLowCutChange(selectedChannel.id, hz)}
-            onHighCutChange={(hz) =>
-              handleHighCutChange(selectedChannel.id, hz)
-            }
-            onAttackChange={(seconds) =>
-              handleAttackChange(selectedChannel.id, seconds)
-            }
-            onDecayChange={(seconds) =>
-              handleDecayChange(selectedChannel.id, seconds)
-            }
-            onDelaySendChange={(amount) =>
-              handleDelaySendChange(selectedChannel.id, amount)
-            }
-            onReverbSendChange={(amount) =>
-              handleReverbSendChange(selectedChannel.id, amount)
-            }
+            onVolumeChange={handleVolumeChange}
+            onPitchChange={handlePitchChange}
+            onLowCutChange={handleLowCutChange}
+            onHighCutChange={handleHighCutChange}
+            onAttackChange={handleAttackChange}
+            onDecayChange={handleDecayChange}
+            onDelaySendChange={handleDelaySendChange}
+            onReverbSendChange={handleReverbSendChange}
             onChokedByChange={(sourceId) =>
               handleChokedByChange(selectedChannel.id, sourceId)
             }

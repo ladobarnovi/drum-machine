@@ -1,15 +1,19 @@
 "use client";
 
 import StepBeat from "./StepBeat";
-import { STEPS_PER_BEAT } from "@/lib/sequencer";
+import { STEPS_PER_BEAT, type Step } from "@/lib/sequencer";
 
 type StepGridProps = {
   channelLabel: string;
   /** Full MAX_STEPS-long pattern; only the first `length` steps are shown. */
-  steps: boolean[];
+  steps: Step[];
   length: number;
   currentStep: number | null;
-  onToggleStep: (stepIndex: number) => void;
+  /** The step the controls panel is editing, or null while none is open. */
+  editingStep: number | null;
+  onStepClick: (stepIndex: number) => void;
+  onStepHold: (stepIndex: number) => void;
+  onStepVelocityChange: (stepIndex: number, velocity: number) => void;
 };
 
 /**
@@ -24,7 +28,10 @@ export default function StepGrid({
   steps,
   length,
   currentStep,
-  onToggleStep,
+  editingStep,
+  onStepClick,
+  onStepHold,
+  onStepVelocityChange,
 }: StepGridProps) {
   const visible = steps.slice(0, length);
   const beatCount = Math.ceil(visible.length / STEPS_PER_BEAT);
@@ -40,7 +47,10 @@ export default function StepGrid({
             steps={visible.slice(offset, offset + STEPS_PER_BEAT)}
             offset={offset}
             currentStep={currentStep}
-            onToggleStep={onToggleStep}
+            editingStep={editingStep}
+            onStepClick={onStepClick}
+            onStepHold={onStepHold}
+            onStepVelocityChange={onStepVelocityChange}
           />
         );
       })}
