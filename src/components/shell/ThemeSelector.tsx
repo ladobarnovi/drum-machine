@@ -45,7 +45,7 @@ export default function ThemeSelector() {
 
   return (
     <RailGroup title="Theme">
-      <div className="flex gap-1.5">
+      <div className="grid grid-cols-5 gap-1.5">
         {THEMES.map((theme) => {
           const isActive = theme.id === themeId;
 
@@ -60,7 +60,7 @@ export default function ThemeSelector() {
               // The ring is drawn in the *current* theme's selection colour,
               // like every other selected thing on the page; the tile inside it
               // is drawn in its own.
-              className={`relative aspect-square flex-1 cursor-pointer rounded-md border transition ${
+              className={`relative aspect-square cursor-pointer rounded-md border transition ${
                 isActive
                   ? "ring-select ring-offset-surface ring-2 ring-offset-2"
                   : "hover:ring-edge hover:ring-offset-surface hover:ring-2 hover:ring-offset-2"

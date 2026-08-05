@@ -9,7 +9,7 @@
  * force: the tokens only ever hold the active palette. Keep the two in step.
  */
 
-export type ThemeId = "classic" | "daylight" | "candy" | "neon" | "sunset";
+export type ThemeId = "classic" | "neon" | "tiki" | "carnival" | "glitch";
 
 export type Theme = {
   id: ThemeId;
@@ -46,27 +46,6 @@ export const THEMES: Theme[] = [
     },
   },
   {
-    id: "daylight",
-    name: "Daylight",
-    description:
-      "Warm paper and burnt orange. Light whatever your system says.",
-    swatch: {
-      surface: "#fdfcfa",
-      accent: "#e2621b",
-      edge: "#d9cfc1",
-    },
-  },
-  {
-    id: "candy",
-    name: "Candy",
-    description: "Pale lilac and hot pink.",
-    swatch: {
-      surface: "#fdf7ff",
-      accent: "#d4359b",
-      edge: "#d9c4ef",
-    },
-  },
-  {
     id: "neon",
     name: "Neon",
     description: "Indigo night, turquoise and magenta.",
@@ -77,13 +56,33 @@ export const THEMES: Theme[] = [
     },
   },
   {
-    id: "sunset",
-    name: "Sunset",
-    description: "Deep plum, coral and aqua.",
+    id: "tiki",
+    name: "Tiki",
+    description: "Jungle teal, mango and hibiscus pink.",
     swatch: {
-      surface: "#1b0f1a",
-      accent: "#ff6f4d",
-      edge: "#572d4c",
+      surface: "#0b2b27",
+      accent: "#ff8a3d",
+      edge: "#1e5a51",
+    },
+  },
+  {
+    id: "carnival",
+    name: "Carnival",
+    description: "Cream midway, carnival red and cobalt blue.",
+    swatch: {
+      surface: "#fffaf0",
+      accent: "#ff3b57",
+      edge: "#e6cb95",
+    },
+  },
+  {
+    id: "glitch",
+    name: "Glitch",
+    description: "Black void, acid green and shock pink, fighting it out.",
+    swatch: {
+      surface: "#050507",
+      accent: "#e8ff00",
+      edge: "#302f3d",
     },
   },
 ];
