@@ -40,6 +40,9 @@ import {
   DEFAULT_MASTER_FILTER,
   DEFAULT_MASTER_REVERB,
   DEFAULT_MASTER_VOLUME,
+  DEFAULT_SAMPLE_END,
+  DEFAULT_SAMPLE_REVERSED,
+  DEFAULT_SAMPLE_START,
   DEFAULT_SWING,
   DEFAULT_SWIPE_TARGET,
   applyChannelSnapshots,
@@ -55,7 +58,10 @@ import {
   clampDecay,
   clampFrequency,
   clampLength,
+  clampPan,
   clampPitch,
+  clampSampleEnd,
+  clampSampleStart,
   clampSend,
   clampVolume,
   clearStepAt,
@@ -63,14 +69,21 @@ import {
   clearStepLocksAt,
   clearSteps,
   createInitialChannels,
+  emptyChannel,
   hasSoloedChannel,
+  humanizeSteps,
   invertSteps,
   isChannelAudible,
   isStepCleared,
   nudgeSteps,
   pasteStepAt,
+  repeatOffsets,
+  secondsToNextStep,
   setStepLockAt,
+  setStepProbabilityAt,
+  setStepRepeatAt,
   setStepVelocityAt,
+  stepFires,
   toggleStepAt,
   triggerOptionsForChannel,
   type Channel,
@@ -87,8 +100,34 @@ import {
   type StepFill,
   type SwipeTarget,
 } from "@/lib/sequencer";
-import { PRESETS, presetSlotUrl, type Preset } from "@/lib/presets";
+import {
+  DEFAULT_PRESET,
+  PRESETS,
+  presetSlotUrl,
+  type Preset,
+} from "@/lib/presets";
 import { computePeaks } from "@/lib/waveform";
+
+/** Back to playing the whole file, which is what "Reset trim" asks for. */
+const UNTRIMMED = {
+  sampleStart: DEFAULT_SAMPLE_START,
+  sampleEnd: DEFAULT_SAMPLE_END,
+} as const;
+
+/**
+ * Every edit made to the sample in a slot, undone. Applied wherever the slot
+ * changes hands, because the handles index into the sample that was in it: a
+ * start point two thirds of the way through the old file means nothing in the
+ * new one, and would quietly hand back a hit that is mostly silence.
+ *
+ * The direction goes with them, unlike on a trim reset — that button is about
+ * the handles alone, where a new file arriving to find itself already playing
+ * backwards would be a surprise nothing on screen accounts for.
+ */
+const UNEDITED = {
+  ...UNTRIMMED,
+  sampleReversed: DEFAULT_SAMPLE_REVERSED,
+} as const;
 
 export default function DrumMachine() {
   const [channels, setChannels] = useState<Channel[]>(createInitialChannels);
@@ -150,6 +189,11 @@ export default function DrumMachine() {
   const [clipboardSample, setClipboardSample] = useState<{
     buffer: AudioBuffer;
     sample: SampleState;
+    /** The trim it was copied with, as fractions of the file. */
+    start: number;
+    end: number;
+    /** Whether it was playing backwards when it was copied. */
+    reversed: boolean;
   } | null>(null);
 
   /**
@@ -164,7 +208,15 @@ export default function DrumMachine() {
   const [swipeTarget, setSwipeTarget] =
     useState<SwipeTarget>(DEFAULT_SWIPE_TARGET);
 
-  const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
+  /**
+   * Which preset is being fetched, if any. Starts on the default kit rather
+   * than on null, because the machine is about to load it: the effect below
+   * only runs after the first paint, and starting at null would show a frame
+   * of the empty-kit notice and an idle picker before it did.
+   */
+  const [loadingPresetId, setLoadingPresetId] = useState<string | null>(
+    DEFAULT_PRESET.id,
+  );
 
   const [masterDrive, setMasterDrive] =
     useState<MasterDrive>(DEFAULT_MASTER_DRIVE);
@@ -278,6 +330,9 @@ export default function DrumMachine() {
     (tick: number, time: number) => {
       const soloActive = hasSoloedChannel(channelsRef.current);
       const firedChannelIds: string[] = [];
+      // The gap to the next tick, swing included — what a step's own repeats
+      // have to fit inside without running into the one after it.
+      const stepDuration = secondsToNextStep(tick, bpm, swing);
 
       for (const channel of channelsRef.current) {
         if (!isChannelAudible(channel, soloActive)) continue;
@@ -286,8 +341,14 @@ export default function DrumMachine() {
         // velocity and whatever it locks reach this one hit and nothing else.
         const step = channel.steps[tick % clampLength(channel.length)];
         if (!step.on) continue;
+        // Rolled once per step rather than once per repeat, so a roll either
+        // happens in full or not at all — never half-fires.
+        if (!stepFires(step.probability)) continue;
 
-        trigger(channel.id, time, triggerOptionsForChannel(channel, step));
+        const options = triggerOptionsForChannel(channel, step);
+        for (const offset of repeatOffsets(step.repeatCount, stepDuration)) {
+          trigger(channel.id, time + offset, options);
+        }
         firedChannelIds.push(channel.id);
       }
 
@@ -304,7 +365,7 @@ export default function DrumMachine() {
         choke(channelsChokedBy(channelsRef.current, sourceId), time);
       }
     },
-    [choke, flashChannels, trigger],
+    [bpm, choke, flashChannels, swing, trigger],
   );
 
   const { isPlaying, currentTick, play, stop } = useSequencer({
@@ -433,6 +494,24 @@ export default function DrumMachine() {
     [updateSelectedSteps],
   );
 
+  const handleStepProbabilityChange = useCallback(
+    (stepIndex: number, probability: number) => {
+      updateSelectedSteps((steps) =>
+        setStepProbabilityAt(steps, stepIndex, probability),
+      );
+    },
+    [updateSelectedSteps],
+  );
+
+  const handleStepRepeatChange = useCallback(
+    (stepIndex: number, repeatCount: number) => {
+      updateSelectedSteps((steps) =>
+        setStepRepeatAt(steps, stepIndex, repeatCount),
+      );
+    },
+    [updateSelectedSteps],
+  );
+
   /**
    * Tunes one step, which — unlike its velocity — means writing a lock: pitch
    * belongs to the channel until a step says otherwise. Clamped on the way in,
@@ -477,10 +556,20 @@ export default function DrumMachine() {
     updateSelectedSteps(invertSteps);
   }, [updateSelectedSteps]);
 
+  /**
+   * Rolls a fresh scatter over the played hits' velocities. Pressing it again
+   * humanizes what the last press left rather than re-rolling from where the
+   * pattern started, so the drift accumulates the way a nudge's does.
+   */
+  const handleHumanizeSteps = useCallback(() => {
+    updateSelectedSteps(humanizeSteps);
+  }, [updateSelectedSteps]);
+
   const handleUpload = useCallback(
     async (channelId: string, file: File) => {
       updateChannel(channelId, {
         sample: { status: "loading", name: file.name },
+        ...UNEDITED,
       });
       try {
         const buffer = await loadSample(channelId, file);
@@ -503,12 +592,71 @@ export default function DrumMachine() {
     [loadSample, removeSample, updateChannel],
   );
 
+  /**
+   * Moves one edge of the region a channel plays.
+   *
+   * The raw fraction the handle reports is clamped here rather than in the
+   * waveform, against the edge that did not move — so the strip only has to say
+   * where the pointer went, and there is one place that decides what a legal
+   * pair of edges is. Which also means a handle dragged past the other one
+   * simply stops, without the display and the setting ever disagreeing.
+   */
+  const handleSampleStartChange = useCallback(
+    (channelId: string, start: number) => {
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === channelId
+            ? {
+                ...channel,
+                sampleStart: clampSampleStart(start, channel.sampleEnd),
+              }
+            : channel,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleSampleEndChange = useCallback(
+    (channelId: string, end: number) => {
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === channelId
+            ? {
+                ...channel,
+                sampleEnd: clampSampleEnd(end, channel.sampleStart),
+              }
+            : channel,
+        ),
+      );
+    },
+    [],
+  );
+
+  /**
+   * Turns the sample round. Nothing is touched in the audio bank here: the
+   * reversed copy of the file is built by the first hit that needs one, so a
+   * channel switched back and forth never pays for it twice and one switched on
+   * and never played never pays at all.
+   */
+  const handleSampleReversedChange = useCallback(
+    (channelId: string, reversed: boolean) => {
+      updateChannel(channelId, { sampleReversed: reversed });
+    },
+    [updateChannel],
+  );
+
+  const handleSampleTrimReset = useCallback(
+    (channelId: string) => updateChannel(channelId, UNTRIMMED),
+    [updateChannel],
+  );
+
   // Removing a sample keeps the channel's pattern, so a new sample can be
   // dropped straight onto the same rhythm.
   const handleRemove = useCallback(
     (channelId: string) => {
       removeSample(channelId);
-      updateChannel(channelId, { sample: { status: "empty" } });
+      updateChannel(channelId, { sample: { status: "empty" }, ...UNEDITED });
     },
     [removeSample, updateChannel],
   );
@@ -545,6 +693,11 @@ export default function DrumMachine() {
 
   const handleVolumeChange = useCallback(
     (volume: number) => setParameter("volume", clampVolume(volume)),
+    [setParameter],
+  );
+
+  const handlePanChange = useCallback(
+    (pan: number) => setParameter("pan", clampPan(pan)),
     [setParameter],
   );
 
@@ -635,7 +788,17 @@ export default function DrumMachine() {
       const buffer = getSampleBuffer(channelId);
       if (!buffer) return;
 
-      setClipboardSample({ buffer, sample: channel.sample });
+      // The trim and the direction go with it: both are part of what was
+      // dialled into that sample, and pasting a hit that was cut down to its
+      // transient only to hear the whole file again — the right way round —
+      // would be the wrong answer to "copy".
+      setClipboardSample({
+        buffer,
+        sample: channel.sample,
+        start: channel.sampleStart,
+        end: channel.sampleEnd,
+        reversed: channel.sampleReversed,
+      });
     },
     [channels, getSampleBuffer],
   );
@@ -644,7 +807,12 @@ export default function DrumMachine() {
     (channelId: string) => {
       if (!clipboardSample) return;
       setSampleBuffer(channelId, clipboardSample.buffer);
-      updateChannel(channelId, { sample: clipboardSample.sample });
+      updateChannel(channelId, {
+        sample: clipboardSample.sample,
+        sampleStart: clipboardSample.start,
+        sampleEnd: clipboardSample.end,
+        sampleReversed: clipboardSample.reversed,
+      });
     },
     [clipboardSample, setSampleBuffer, updateChannel],
   );
@@ -843,14 +1011,35 @@ export default function DrumMachine() {
    * Fills the leading channels with a kit: names and loading state are applied
    * up front in one pass, then each sample resolves independently so a single
    * missing file can't stall the rest of the kit. Step patterns are untouched.
+   *
+   * A kit with no samples of its own is the blank one, and does the opposite:
+   * it empties every channel, patterns included, and reaches the channels the
+   * loaded kit never filled as well as the ones it did.
    */
   const handleLoadPreset = useCallback(
     async (preset: Preset) => {
       // Create the audio context while still inside the click gesture.
       ensureContext();
-      setLoadingPresetId(preset.id);
 
       const slots = preset.slots.slice(0, CHANNEL_COUNT);
+
+      if (slots.length === 0) {
+        // The decoded buffers go with the channels that pointed at them, or the
+        // kit would still be sitting in memory behind sixteen empty slots.
+        for (let index = 0; index < CHANNEL_COUNT; index += 1) {
+          removeSample(channelIdForIndex(index));
+        }
+
+        setChannels((prev) => prev.map(emptyChannel));
+        // The step the panel was pointed at has just been cleared, so there is
+        // no longer a hit there to shape.
+        setRawEditingStepIndex(null);
+        // Nothing is fetched, so this never enters the loading state at all.
+        setLoadingPresetId(null);
+        return;
+      }
+
+      setLoadingPresetId(preset.id);
 
       setChannels((prev) =>
         prev.map((channel, index) => {
@@ -860,6 +1049,7 @@ export default function DrumMachine() {
             ...channel,
             name: clampChannelName(slot.channelName),
             sample: { status: "loading", name: slot.file },
+            ...UNEDITED,
           };
         }),
       );
@@ -897,6 +1087,24 @@ export default function DrumMachine() {
     },
     [ensureContext, loadSampleFromUrl, removeSample, updateChannel],
   );
+
+  /**
+   * Loads the default kit once, on the way in, so the machine opens on
+   * something that plays instead of on sixteen empty channels waiting to be
+   * filled before anything can be heard.
+   *
+   * The AudioContext this creates has no gesture behind it, so it starts
+   * suspended — which decoding doesn't mind, and Play resumes. The ref is what
+   * keeps it to once: React runs mount effects twice in development, and
+   * without it the whole kit would be fetched and decoded twice over.
+   */
+  const loadedDefaultKitRef = useRef(false);
+
+  useEffect(() => {
+    if (loadedDefaultKitRef.current) return;
+    loadedDefaultKitRef.current = true;
+    void handleLoadPreset(DEFAULT_PRESET);
+  }, [handleLoadPreset]);
 
   const canPlay = channels.some(
     (channel) => channel.sample.status === "loaded",
@@ -1083,8 +1291,10 @@ export default function DrumMachine() {
         <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
           {/* First thing in the column, directly above the sample slot that
               answers it. Only while the kit is empty: once anything is loaded
-              the greyed-out transport is no longer a mystery worth explaining. */}
-          {!canPlay && <LoadSamplesNotice />}
+              the greyed-out transport is no longer a mystery worth explaining.
+              And not while a kit is on its way in, since asking for samples at
+              the moment samples are arriving would answer itself. */}
+          {!canPlay && loadingPresetId === null && <LoadSamplesNotice />}
 
           <ChannelEditor
             channel={selectedChannel}
@@ -1092,6 +1302,16 @@ export default function DrumMachine() {
             onUpload={(file) => void handleUpload(selectedChannel.id, file)}
             onRemove={() => handleRemove(selectedChannel.id)}
             onNameChange={(name) => handleNameChange(selectedChannel.id, name)}
+            onSampleStartChange={(start) =>
+              handleSampleStartChange(selectedChannel.id, start)
+            }
+            onSampleEndChange={(end) =>
+              handleSampleEndChange(selectedChannel.id, end)
+            }
+            onSampleReversedChange={(reversed) =>
+              handleSampleReversedChange(selectedChannel.id, reversed)
+            }
+            onSampleTrimReset={() => handleSampleTrimReset(selectedChannel.id)}
           />
 
           <ChannelGrid
@@ -1121,6 +1341,7 @@ export default function DrumMachine() {
             onNudgeSteps={handleNudgeSteps}
             onClearSteps={handleClearSteps}
             onInvertSteps={handleInvertSteps}
+            onHumanizeSteps={handleHumanizeSteps}
             onLengthChange={(length) =>
               handleLengthChange(selectedChannel.id, length)
             }
@@ -1137,14 +1358,24 @@ export default function DrumMachine() {
                 : {
                     index: editingStepIndex,
                     velocity: editingStep.velocity,
+                    probability: editingStep.probability,
+                    repeatCount: editingStep.repeatCount,
                     locks: editingStep.locks ?? {},
                     onVelocityChange: (velocity) =>
                       handleStepVelocityChange(editingStepIndex, velocity),
+                    onProbabilityChange: (probability) =>
+                      handleStepProbabilityChange(
+                        editingStepIndex,
+                        probability,
+                      ),
+                    onRepeatChange: (repeatCount) =>
+                      handleStepRepeatChange(editingStepIndex, repeatCount),
                     onClearLock: handleClearStepLock,
                     onClearLocks: handleClearStepLocks,
                   }
             }
             onVolumeChange={handleVolumeChange}
+            onPanChange={handlePanChange}
             onPitchChange={handlePitchChange}
             onLowCutChange={handleLowCutChange}
             onHighCutChange={handleHighCutChange}

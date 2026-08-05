@@ -30,6 +30,9 @@ export default function PresetPicker({
 
   const isLoading = loadingPresetId !== null;
 
+  /** The blank kit is the one with nothing to load, so it clears instead. */
+  const isEmptyKit = selected.slots.length === 0;
+
   return (
     <RailGroup title="Kit">
       <select
@@ -51,11 +54,13 @@ export default function PresetPicker({
         disabled={isLoading}
         className="border-edge hover:bg-raised w-full rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isLoading ? "Loading…" : "Load kit"}
+        {isLoading ? "Loading…" : isEmptyKit ? "Clear kit" : "Load kit"}
       </button>
 
       <p className="text-muted text-xs">
-        Fills channels 1–{selected.slots.length}. Step patterns are kept.
+        {isEmptyKit
+          ? "Empties every channel — samples and patterns both."
+          : `Fills channels 1–${selected.slots.length}. Step patterns are kept.`}
       </p>
     </RailGroup>
   );

@@ -9,8 +9,12 @@ import {
 } from "react";
 
 import {
+  MAX_STEP_PROBABILITY,
+  MIN_STEP_REPEAT,
   clampStepVelocity,
   formatPitch,
+  formatProbability,
+  formatStepRepeat,
   formatVelocity,
   hasStepLocks,
   stepPitch,
@@ -230,6 +234,11 @@ export default function StepButton({
 
   const velocity = clampStepVelocity(step.velocity);
   const locked = hasStepLocks(step);
+  // A second kind of override from a lock: not what the step sounds like, but
+  // whether and how often it plays at all.
+  const hasVariance =
+    step.probability < MAX_STEP_PROBABILITY ||
+    step.repeatCount > MIN_STEP_REPEAT;
 
   // Shown only while the grid is writing pitch, and only where there is a pitch
   // to read: in velocity mode the fill already says everything about a step, and
@@ -261,7 +270,15 @@ export default function StepButton({
       type="button"
       aria-label={`${label}, ${step.on ? formatVelocity(velocity) : "off"}${
         step.locks?.pitch === undefined ? "" : `, ${formatPitch(pitch)}`
-      }${locked ? ", locked" : ""}`}
+      }${locked ? ", locked" : ""}${
+        step.probability < MAX_STEP_PROBABILITY
+          ? `, ${formatProbability(step.probability)} chance`
+          : ""
+      }${
+        step.repeatCount > MIN_STEP_REPEAT
+          ? `, repeats ${formatStepRepeat(step.repeatCount)}`
+          : ""
+      }`}
       aria-pressed={step.on}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -302,6 +319,19 @@ export default function StepButton({
         <span
           aria-hidden
           className="bg-select ring-surface absolute top-1 right-1 size-1.5 rounded-full ring-1"
+        />
+      )}
+
+      {/*
+        Opposite corner from the lock dot, and outlined rather than filled: the
+        same colour still reads as "this step differs from the default", but the
+        shape keeps the two kinds of override — how it sounds, and whether or
+        how often it plays at all — apart at a glance.
+      */}
+      {hasVariance && (
+        <span
+          aria-hidden
+          className="border-select absolute top-1 left-1 size-1.5 rounded-full border bg-transparent"
         />
       )}
     </button>

@@ -36,6 +36,18 @@ export const MIN_VOLUME = 0;
 export const MAX_VOLUME = 1.5;
 export const DEFAULT_VOLUME = 1;
 
+/**
+ * Where the channel sits across the stereo image: -1 hard left, +1 hard right,
+ * 0 dead centre.
+ *
+ * The full width is on offer rather than a safer range, because a drum machine
+ * is where hard-panned hats and toms belong; the default is the centre, which
+ * is where every channel already sat before there was such a thing as pan.
+ */
+export const MIN_PAN = -1;
+export const MAX_PAN = 1;
+export const DEFAULT_PAN = 0;
+
 /** Pitch offset in semitones; ±12 is one octave either way. */
 export const MIN_PITCH = -12;
 export const MAX_PITCH = 12;
@@ -613,6 +625,79 @@ export type SampleState =
     }
   | { status: "error"; message: string };
 
+/**
+ * Where in a loaded sample playback starts and ends, as fractions of the whole
+ * file rather than as a number of seconds.
+ *
+ * Fractions because that is the unit the waveform strip is already drawn in: it
+ * stretches the whole file across its width whatever the file's length, so a
+ * handle dragged halfway along means halfway through the sample at any duration
+ * and the display never has to be converted into the setting to stay in step.
+ * It also means the pair survive a pitch change, which moves how long the region
+ * lasts without moving where in the sample it sits.
+ */
+export const DEFAULT_SAMPLE_START = 0;
+export const DEFAULT_SAMPLE_END = 1;
+
+/**
+ * Which way through the file a hit reads. Forwards until asked otherwise, since
+ * that is what the sample already is — reversing is an effect applied to it.
+ */
+export const DEFAULT_SAMPLE_REVERSED = false;
+
+/**
+ * The narrowest region the two handles may leave between them.
+ *
+ * Half a percent of the file, which on anything longer than a click is still
+ * only a few milliseconds — narrow enough to trim a hit down to its transient.
+ * The floor exists so the handles cannot be dragged through one another onto a
+ * region that plays nothing: a channel that has silently stopped sounding is a
+ * bad thing to have to work out from the mix.
+ */
+export const MIN_SAMPLE_SPAN = 0.005;
+
+function clampFraction(value: number): number {
+  return Math.min(Math.max(value, 0), 1);
+}
+
+/**
+ * The start handle, kept inside the file and behind the end handle.
+ *
+ * Each edge is clamped against where the other one currently is rather than the
+ * two being validated as a pair, because that is how they are moved: one handle
+ * at a time, with the other standing still. Dragging one into the other stops it
+ * a span short instead of pushing it along, so the edge that was not grabbed
+ * stays exactly where it was put.
+ */
+export function clampSampleStart(start: number, end: number): number {
+  if (!Number.isFinite(start)) return DEFAULT_SAMPLE_START;
+  const ceiling = clampFraction(end) - MIN_SAMPLE_SPAN;
+  return Math.min(Math.max(start, 0), Math.max(ceiling, 0));
+}
+
+export function clampSampleEnd(end: number, start: number): number {
+  if (!Number.isFinite(end)) return DEFAULT_SAMPLE_END;
+  const floor = clampFraction(start) + MIN_SAMPLE_SPAN;
+  return Math.max(Math.min(end, 1), Math.min(floor, 1));
+}
+
+/** True once the handles have been moved off the ends of the file. */
+export function isSampleTrimmed(start: number, end: number): boolean {
+  return start > DEFAULT_SAMPLE_START || end < DEFAULT_SAMPLE_END;
+}
+
+/** How long the region between the handles lasts, at playback rate 1. */
+export function sampleSpanSeconds(
+  start: number,
+  end: number,
+  durationSeconds: number,
+): number {
+  return (
+    (clampSampleEnd(end, start) - clampSampleStart(start, end)) *
+    durationSeconds
+  );
+}
+
 export const MAX_CHANNEL_NAME_LENGTH = 24;
 
 /**
@@ -633,6 +718,36 @@ export const MAX_STEP_VELOCITY = 1;
 export const DEFAULT_STEP_VELOCITY = MAX_STEP_VELOCITY;
 
 /**
+ * Chance a step fires when its turn comes round, as a fraction. At 1 (the
+ * default) a step behaves exactly as it always has — every pass plays it; below
+ * that it rolls the dice each time its tick comes up and sits out the times it
+ * loses, which is what turns a fixed pattern into one that varies loop to loop.
+ *
+ * The floor is 0 rather than something above silence the way velocity's is:
+ * a step that never fires is a legitimate thing to dial in — a hit saved for
+ * later, muted by chance rather than by hand — and there is no meter to lose it
+ * on the way to.
+ */
+export const MIN_STEP_PROBABILITY = 0;
+export const MAX_STEP_PROBABILITY = 1;
+export const DEFAULT_STEP_PROBABILITY = MAX_STEP_PROBABILITY;
+
+/**
+ * How many times a step retriggers within its own duration. At 1 (the
+ * default) it fires once, like every step always has; above that it splits the
+ * gap to the next step evenly and fires again on each subdivision, for the
+ * rolls and ratchets a single hit can't make on its own.
+ *
+ * Capped at 4 rather than left open-ended: a step is already a 16th note, so a
+ * repeat of 4 already reaches the 64th notes the grid's own top length maxes
+ * out at, and going further would ask for a subdivision finer than the pattern
+ * itself can express anywhere else.
+ */
+export const MIN_STEP_REPEAT = 1;
+export const MAX_STEP_REPEAT = 4;
+export const DEFAULT_STEP_REPEAT = MIN_STEP_REPEAT;
+
+/**
  * The channel parameters a single step is allowed to override.
  *
  * Written as keys of `Channel` rather than as a list of their own, so the two
@@ -646,6 +761,7 @@ export const DEFAULT_STEP_VELOCITY = MAX_STEP_VELOCITY;
  */
 export const LOCKABLE_PARAMETERS = [
   "volume",
+  "pan",
   "pitch",
   "lowCutHz",
   "highCutHz",
@@ -680,6 +796,10 @@ export type Step = {
   on: boolean;
   /** How hard, as a fraction of the channel's volume. */
   velocity: number;
+  /** Chance this step actually fires when its turn comes, 0..1. */
+  probability: number;
+  /** How many times this step retriggers within its own duration. */
+  repeatCount: number;
   /**
    * What this step overrides, or undefined for a step that plays the channel as
    * its sliders show it. Left off rather than held as an empty object, since
@@ -690,7 +810,12 @@ export type Step = {
 };
 
 export function createStep(): Step {
-  return { on: false, velocity: DEFAULT_STEP_VELOCITY };
+  return {
+    on: false,
+    velocity: DEFAULT_STEP_VELOCITY,
+    probability: DEFAULT_STEP_PROBABILITY,
+    repeatCount: DEFAULT_STEP_REPEAT,
+  };
 }
 
 /** True once a step overrides at least one of the channel's parameters. */
@@ -705,6 +830,32 @@ export function clampStepVelocity(value: number): number {
 
 export function formatVelocity(value: number): string {
   return `${Math.round(clampStepVelocity(value) * 100)}%`;
+}
+
+export function clampStepProbability(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_STEP_PROBABILITY;
+  return Math.min(Math.max(value, MIN_STEP_PROBABILITY), MAX_STEP_PROBABILITY);
+}
+
+export function formatProbability(value: number): string {
+  return `${Math.round(clampStepProbability(value) * 100)}%`;
+}
+
+/** Rolls the dice for one step: true more often the higher the probability. */
+export function stepFires(probability: number): boolean {
+  return Math.random() < clampStepProbability(probability);
+}
+
+export function clampStepRepeat(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_STEP_REPEAT;
+  return Math.min(
+    Math.max(Math.round(value), MIN_STEP_REPEAT),
+    MAX_STEP_REPEAT,
+  );
+}
+
+export function formatStepRepeat(value: number): string {
+  return `×${clampStepRepeat(value)}`;
 }
 
 /**
@@ -757,6 +908,8 @@ export type Channel = {
   length: number;
   /** Linear gain applied to every hit on this channel. */
   volume: number;
+  /** Where this channel sits across the stereo image; at DEFAULT_PAN, centred. */
+  pan: number;
   /** Pitch offset in semitones, applied via playback rate. */
   pitch: number;
   /** Highpass cutoff; at MIN_FILTER_HZ the filter is bypassed. */
@@ -787,6 +940,21 @@ export type Channel = {
   /** Modulation applied to every hit on this channel. */
   lfo: ChannelLfo;
   sample: SampleState;
+  /**
+   * Where in the sample a hit starts, as a fraction of the whole file. Trimming
+   * the front is what turns a recording with air in front of it into a hit that
+   * lands on the beat.
+   */
+  sampleStart: number;
+  /** Where a hit stops, as a fraction of the whole file. */
+  sampleEnd: number;
+  /**
+   * Plays the trimmed region back to front. The edges keep their meaning — the
+   * same slice of the file is heard, read the other way — so reversing a hit
+   * cut to its transient gives that transient's tail leading into it, which is
+   * the swell a reversed sample is wanted for.
+   */
+  sampleReversed: boolean;
 };
 
 export function channelIdForIndex(index: number): string {
@@ -803,6 +971,7 @@ export function createInitialChannels(): Channel[] {
     steps: Array.from({ length: MAX_STEPS }, createStep),
     length: DEFAULT_STEP_COUNT,
     volume: DEFAULT_VOLUME,
+    pan: DEFAULT_PAN,
     pitch: DEFAULT_PITCH,
     lowCutHz: DEFAULT_LOW_CUT_HZ,
     highCutHz: DEFAULT_HIGH_CUT_HZ,
@@ -817,7 +986,38 @@ export function createInitialChannels(): Channel[] {
     chokedBy: null,
     lfo: DEFAULT_CHANNEL_LFO,
     sample: { status: "empty" },
+    // The whole file, so a sample plays in full until an edge is dragged in.
+    sampleStart: DEFAULT_SAMPLE_START,
+    sampleEnd: DEFAULT_SAMPLE_END,
+    sampleReversed: DEFAULT_SAMPLE_REVERSED,
   }));
+}
+
+/**
+ * A channel with nothing on it: no sample, no pattern, and the name back to the
+ * channel number it started as. The trim goes with the sample, since the edges
+ * it holds were dragged onto a file that is no longer there.
+ *
+ * How the channel *sounds* — volume, pitch, cuts, envelope, sends, routing and
+ * the LFO — is deliberately kept. Emptying is for clearing away what was loaded
+ * and what was written, not for undoing a mix; anyone wanting the sliders back
+ * where they started can recall a snapshot.
+ *
+ * Every step is reset, not just the ones inside `length`, unlike `clearSteps`:
+ * this is the whole channel going, so nothing is left waiting past the end for
+ * a pattern that was made to be forgotten.
+ */
+export function emptyChannel(channel: Channel): Channel {
+  return {
+    ...channel,
+    name: channel.label,
+    steps: Array.from({ length: MAX_STEPS }, createStep),
+    length: DEFAULT_STEP_COUNT,
+    sample: { status: "empty" },
+    sampleStart: DEFAULT_SAMPLE_START,
+    sampleEnd: DEFAULT_SAMPLE_END,
+    sampleReversed: DEFAULT_SAMPLE_REVERSED,
+  };
 }
 
 /**
@@ -832,6 +1032,7 @@ export function createInitialChannels(): Channel[] {
 export type ChannelSnapshot = Pick<
   Channel,
   | "volume"
+  | "pan"
   | "pitch"
   | "lowCutHz"
   | "highCutHz"
@@ -880,6 +1081,7 @@ export function captureChannelSnapshots(
       channel.id,
       {
         volume: channel.volume,
+        pan: channel.pan,
         pitch: channel.pitch,
         lowCutHz: channel.lowCutHz,
         highCutHz: channel.highCutHz,
@@ -946,10 +1148,18 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
   // Dropped when it would move nothing, so a switched-off LFO costs no nodes.
   const lfo = isLfoBypassed(settings.lfo) ? undefined : settings.lfo;
 
+  // Read off the channel rather than the resolved settings: the trim belongs to
+  // the sample sitting in the slot, not to how one step of the pattern sounds,
+  // so it is not among the parameters a step is allowed to lock.
+  const trimmed = isSampleTrimmed(channel.sampleStart, channel.sampleEnd);
+
   return {
     // Velocity only attenuates, so this keeps the ceiling the channel volume
     // already had and a pattern with no accents in it is unchanged.
     gain: clampVolume(settings.volume) * velocity,
+    // Left off in the centre, where a panner would only widen a mono voice to
+    // no audible end.
+    pan: isPanCentred(settings.pan) ? undefined : clampPan(settings.pan),
     playbackRate: playbackRateForPitch(settings.pitch),
     // Undefined skips the filter node entirely when it would be inaudible —
     // unless the LFO is pointed at that cut, since modulation needs a node to
@@ -978,6 +1188,17 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
     // A voice only needs the node a choke fades when something can actually
     // choke it, so an unrouted channel costs nothing.
     chokeable: settings.chokedBy !== null,
+    // Left off while the handles are at the ends of the file, so an untrimmed
+    // channel schedules exactly the plain `start(time)` it always did.
+    sampleStart: trimmed
+      ? clampSampleStart(channel.sampleStart, channel.sampleEnd)
+      : undefined,
+    sampleEnd: trimmed
+      ? clampSampleEnd(channel.sampleEnd, channel.sampleStart)
+      : undefined,
+    // Off the channel too, and for the same reason: which way the file is read
+    // is a property of the sample in the slot, not of one hit in the pattern.
+    sampleReversed: channel.sampleReversed,
     lfo,
   };
 }
@@ -1150,6 +1371,43 @@ export function invertSteps(steps: Step[], length: number): Step[] {
 }
 
 /**
+ * How far humanizing may move a step's velocity, either way, as a fraction of
+ * the full velocity range.
+ *
+ * A tenth is deliberately small. Humanizing stands in for a player who is not
+ * quite even rather than for one who is accenting: past this the scatter stops
+ * reading as a hand on the pads and starts reading as a pattern that was
+ * programmed with accents in it, which is what velocity is already for.
+ */
+export const HUMANIZE_VELOCITY_AMOUNT = 0.1;
+
+/**
+ * Scatters the velocity of every hit a channel plays, by up to
+ * HUMANIZE_VELOCITY_AMOUNT either way.
+ *
+ * Only steps that are `on` are touched. Velocity on a silent step is what it
+ * will be hit at once it is switched back on — the thing `invertSteps` and
+ * toggling are careful to preserve — so humanizing a pattern would otherwise
+ * quietly rewrite the parts of it that aren't playing.
+ *
+ * The swing is symmetric and clamped, which means a step already at full
+ * velocity can only be moved down; on a pattern where nothing has been accented
+ * yet that leaves roughly half the hits where they were. That is the honest
+ * outcome rather than a flaw to design around: velocity only ever attenuates
+ * here, so there is nothing above full to scatter into, and pressing again
+ * walks the pattern further out — each press moves what the last one left.
+ */
+export function humanizeSteps(steps: Step[], length: number): Step[] {
+  const playing = clampLength(length);
+  return steps.map((step, index) => {
+    if (index >= playing || !step.on) return step;
+
+    const offset = (Math.random() * 2 - 1) * HUMANIZE_VELOCITY_AMOUNT;
+    return { ...step, velocity: clampStepVelocity(step.velocity + offset) };
+  });
+}
+
+/**
  * Slides the whole pattern along by `offset` steps — positive later, negative
  * earlier.
  *
@@ -1229,6 +1487,36 @@ export function setStepVelocityAt(
   }));
 }
 
+/**
+ * Sets a step's probability, switching it on if it wasn't — the same reasoning
+ * as velocity: dialling in a chance is a request to hear the step, not to leave
+ * it silent regardless of what the dice would have said.
+ */
+export function setStepProbabilityAt(
+  steps: Step[],
+  index: number,
+  probability: number,
+): Step[] {
+  return withStep(steps, index, (step) => ({
+    ...step,
+    on: true,
+    probability: clampStepProbability(probability),
+  }));
+}
+
+/** Sets how many times a step retriggers, switching it on if it wasn't. */
+export function setStepRepeatAt(
+  steps: Step[],
+  index: number,
+  repeatCount: number,
+): Step[] {
+  return withStep(steps, index, (step) => ({
+    ...step,
+    on: true,
+    repeatCount: clampStepRepeat(repeatCount),
+  }));
+}
+
 /** Overrides one of the channel's parameters on one step. */
 export function setStepLockAt(
   steps: Step[],
@@ -1285,7 +1573,11 @@ export function clearStepAt(steps: Step[], index: number): Step[] {
 /** True while a step is already at `createStep`'s defaults, with nothing to clear. */
 export function isStepCleared(step: Step): boolean {
   return (
-    !step.on && step.velocity === DEFAULT_STEP_VELOCITY && !hasStepLocks(step)
+    !step.on &&
+    step.velocity === DEFAULT_STEP_VELOCITY &&
+    step.probability === DEFAULT_STEP_PROBABILITY &&
+    step.repeatCount === DEFAULT_STEP_REPEAT &&
+    !hasStepLocks(step)
   );
 }
 
@@ -1302,6 +1594,8 @@ export function pasteStepAt(
   return withStep(steps, index, () => ({
     on: source.on,
     velocity: source.velocity,
+    probability: source.probability,
+    repeatCount: source.repeatCount,
     ...(source.locks ? { locks: { ...source.locks } } : {}),
   }));
 }
@@ -1318,6 +1612,34 @@ export function clampChannelName(value: string): string {
 export function clampVolume(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_VOLUME;
   return Math.min(Math.max(value, MIN_VOLUME), MAX_VOLUME);
+}
+
+export function clampPan(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_PAN;
+  return Math.min(Math.max(value, MIN_PAN), MAX_PAN);
+}
+
+/**
+ * A centred channel needs no panner at all, so the node is skipped entirely —
+ * the same bargain the filters and the sends already make.
+ *
+ * Worth making here in particular: a StereoPannerNode turns a mono voice into a
+ * stereo one, so leaving it in the path on a centred channel would double the
+ * work every node downstream of it does for a placement that hasn't moved.
+ */
+export function isPanCentred(value: number): boolean {
+  return clampPan(value) === DEFAULT_PAN;
+}
+
+/**
+ * Which side, and how far over — "L 50%" rather than "-0.5", because nobody
+ * hears a pan as a signed number. The centre is named rather than given a
+ * percentage of nothing.
+ */
+export function formatPan(value: number): string {
+  const clamped = clampPan(value);
+  if (clamped === DEFAULT_PAN) return "C";
+  return `${clamped < 0 ? "L" : "R"} ${Math.round(Math.abs(clamped) * 100)}%`;
 }
 
 export function clampDrive(value: number): number {
@@ -1620,4 +1942,26 @@ export function secondsToNextStep(
 
   const nextStepIsOffGrid = (tick + 1) % 2 === 1;
   return step * (nextStepIsOffGrid ? 1 + amount : 1 - amount);
+}
+
+/**
+ * When, relative to a step's own start, each of its repeats fires — always
+ * starting with 0, so the first entry lands exactly on the step's own scheduled
+ * time and every hit after it is purely additional.
+ *
+ * The repeats split `stepDurationSeconds` — the gap to the *next* step, swing
+ * included — into equal slices rather than spacing themselves at some fixed
+ * rate, so a roll always finishes before the following step starts however
+ * long that gap happens to be, and speeds up or slows down with the tempo and
+ * the swing exactly as a single hit already does.
+ */
+export function repeatOffsets(
+  count: number,
+  stepDurationSeconds: number,
+): number[] {
+  const repeats = clampStepRepeat(count);
+  return Array.from(
+    { length: repeats },
+    (_, index) => (index / repeats) * stepDurationSeconds,
+  );
 }

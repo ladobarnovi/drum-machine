@@ -2,23 +2,35 @@
 
 import ControlSlider from "@/components/ui/ControlSlider";
 import {
+  DEFAULT_STEP_PROBABILITY,
+  DEFAULT_STEP_REPEAT,
   DEFAULT_STEP_VELOCITY,
+  MAX_PAN,
   MAX_PITCH,
   MAX_SEND,
+  MAX_STEP_PROBABILITY,
+  MAX_STEP_REPEAT,
   MAX_STEP_VELOCITY,
   MAX_VOLUME,
+  MIN_PAN,
   MIN_PITCH,
   MIN_SEND,
+  MIN_STEP_PROBABILITY,
+  MIN_STEP_REPEAT,
   MIN_STEP_VELOCITY,
   MIN_VOLUME,
   attackToSlider,
+  clampPan,
   clampPitch,
   clampSend,
   clampVolume,
   decayToSlider,
   formatFrequency,
+  formatPan,
   formatPitch,
+  formatProbability,
   formatSeconds,
+  formatStepRepeat,
   formatVelocity,
   frequencyToSlider,
   isAttackBypassed,
@@ -47,15 +59,22 @@ export type StepEdit = {
   /** Which step is open, counted from 0. */
   index: number;
   velocity: number;
+  /** Chance this step fires when its turn comes, 0..1. */
+  probability: number;
+  /** How many times this step retriggers within its own duration. */
+  repeatCount: number;
   /** Which of the parameters this step overrides. */
   locks: StepLocks;
   onVelocityChange: (velocity: number) => void;
+  onProbabilityChange: (probability: number) => void;
+  onRepeatChange: (repeatCount: number) => void;
   onClearLock: (key: LockableParameter) => void;
   onClearLocks: () => void;
 };
 
 type ChannelControlsProps = {
   volume: number;
+  pan: number;
   pitch: number;
   lowCutHz: number;
   highCutHz: number;
@@ -69,6 +88,7 @@ type ChannelControlsProps = {
   /** Set while one step is being edited; absent while the channel is. */
   stepEdit?: StepEdit;
   onVolumeChange: (volume: number) => void;
+  onPanChange: (pan: number) => void;
   onPitchChange: (pitch: number) => void;
   onLowCutChange: (hz: number) => void;
   onHighCutChange: (hz: number) => void;
@@ -81,8 +101,8 @@ type ChannelControlsProps = {
 };
 
 /**
- * Volume, pitch, filters, the amplitude envelope, the two send amounts, and the
- * choke source — for the channel, or for one step of it.
+ * Volume, pan, pitch, filters, the amplitude envelope, the two send amounts,
+ * and the choke source — for the channel, or for one step of it.
  *
  * The values arrive already resolved: while a step is open the caller hands
  * down that step's overrides in place of the channel's own settings, so the
@@ -93,6 +113,7 @@ type ChannelControlsProps = {
  */
 export default function ChannelControls({
   volume,
+  pan,
   pitch,
   lowCutHz,
   highCutHz,
@@ -104,6 +125,7 @@ export default function ChannelControls({
   chokeOptions,
   stepEdit,
   onVolumeChange,
+  onPanChange,
   onPitchChange,
   onLowCutChange,
   onHighCutChange,
@@ -181,6 +203,38 @@ export default function ChannelControls({
           />
         )}
 
+        {/* Chance the step fires at all, marked whenever it isn't a sure thing. */}
+        {stepEdit && (
+          <ControlSlider
+            label="Probability"
+            min={MIN_STEP_PROBABILITY}
+            max={MAX_STEP_PROBABILITY}
+            step={0.01}
+            value={stepEdit.probability}
+            readout={formatProbability(stepEdit.probability)}
+            onChange={stepEdit.onProbabilityChange}
+            locked={stepEdit.probability < MAX_STEP_PROBABILITY}
+            onClearLock={() =>
+              stepEdit.onProbabilityChange(DEFAULT_STEP_PROBABILITY)
+            }
+          />
+        )}
+
+        {/* How many times the step retriggers within its own length. */}
+        {stepEdit && (
+          <ControlSlider
+            label="Repeat"
+            min={MIN_STEP_REPEAT}
+            max={MAX_STEP_REPEAT}
+            step={1}
+            value={stepEdit.repeatCount}
+            readout={formatStepRepeat(stepEdit.repeatCount)}
+            onChange={stepEdit.onRepeatChange}
+            locked={stepEdit.repeatCount > MIN_STEP_REPEAT}
+            onClearLock={() => stepEdit.onRepeatChange(DEFAULT_STEP_REPEAT)}
+          />
+        )}
+
         <ControlSlider
           label="Volume"
           min={MIN_VOLUME}
@@ -190,6 +244,19 @@ export default function ChannelControls({
           readout={`${Math.round(volume * 100)}%`}
           onChange={(value) => onVolumeChange(clampVolume(value))}
           {...lockProps("volume")}
+        />
+
+        {/* Straight after the volume, which is the other half of placing a
+            channel in a mix: how loud it is, and where it is. */}
+        <ControlSlider
+          label="Pan"
+          min={MIN_PAN}
+          max={MAX_PAN}
+          step={0.01}
+          value={pan}
+          readout={formatPan(pan)}
+          onChange={(value) => onPanChange(clampPan(value))}
+          {...lockProps("pan")}
         />
 
         <ControlSlider

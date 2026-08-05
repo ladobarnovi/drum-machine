@@ -15,6 +15,9 @@ import {
   DEFAULT_MASTER_REVERB,
   DEFAULT_MASTER_VOLUME,
   DEFAULT_REVERB_TONE_HZ,
+  DEFAULT_SAMPLE_END,
+  DEFAULT_SAMPLE_REVERSED,
+  DEFAULT_SAMPLE_START,
   LFO_FILTER_RANGE_OCTAVES,
   LFO_PITCH_RANGE_SEMITONES,
   MAX_DELAY_LINE_SECONDS,
@@ -27,10 +30,13 @@ import {
   clampLfoRate,
   clampRatio,
   clampReverbDecay,
+  clampSampleEnd,
+  clampSampleStart,
   clampSend,
   clampThresholdDb,
   clampVolume,
   delayTimeSeconds,
+  isSampleTrimmed,
   type ChannelLfo,
   type DriveType,
   type LfoShape,
@@ -44,6 +50,8 @@ import {
 type TriggerOptions = {
   /** Linear gain for this hit. */
   gain?: number;
+  /** Stereo placement, -1 to 1. Omit to leave the hit centred and mono. */
+  pan?: number;
   /** Playback rate multiplier; also changes pitch. */
   playbackRate?: number;
   /** Highpass cutoff in Hz. Omit to skip the filter entirely. */
@@ -60,6 +68,14 @@ type TriggerOptions = {
   reverbSend?: number;
   /** Whether another channel can cut this hit short. Omit when nothing can. */
   chokeable?: boolean;
+  /**
+   * Where in the buffer the hit starts and stops, as fractions of the whole
+   * file. Omit either one to play the sample from its start, or to its end.
+   */
+  sampleStart?: number;
+  sampleEnd?: number;
+  /** Reads the region back to front. Omit to play the sample forwards. */
+  sampleReversed?: boolean;
   /** Modulation running for the length of this hit. Omit for none. */
   lfo?: ChannelLfo;
 };
@@ -555,6 +571,37 @@ function createCutFilter(
   return filter;
 }
 
+/**
+ * The same audio, read back to front.
+ *
+ * A whole second buffer rather than a negative playback rate, because there is
+ * no such thing: a source node only ever reads forwards, so playing a sample
+ * backwards means holding one that already is. The copy costs the file's own
+ * size in memory and a pass over its frames, which is why callers cache it
+ * rather than building one per hit.
+ */
+function reverseBuffer(
+  context: AudioContext,
+  buffer: AudioBuffer,
+): AudioBuffer {
+  const reversed = context.createBuffer(
+    buffer.numberOfChannels,
+    buffer.length,
+    buffer.sampleRate,
+  );
+
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const from = buffer.getChannelData(channel);
+    const into = reversed.getChannelData(channel);
+    const last = from.length - 1;
+    for (let frame = 0; frame <= last; frame += 1) {
+      into[frame] = from[last - frame];
+    }
+  }
+
+  return reversed;
+}
+
 function createMasterChain(context: AudioContext): MasterChain {
   const input = context.createGain();
   const shaper = context.createWaveShaper();
@@ -890,6 +937,11 @@ function applyVolume(
 export function useSampleBank() {
   const contextRef = useRef<AudioContext | null>(null);
   const buffersRef = useRef(new Map<string, AudioBuffer>());
+  // The back-to-front copy of every sample a channel is playing reversed, built
+  // on first use. Keyed by the forward buffer rather than by channel id, so two
+  // channels pointed at one sample — a pasted copy — share the one reversal,
+  // and a buffer that has been replaced takes its copy with it when it goes.
+  const reversedBuffersRef = useRef(new WeakMap<AudioBuffer, AudioBuffer>());
   const masterRef = useRef<MasterChain | null>(null);
   // Holds the latest settings even before there is a context to apply them to,
   // so a knob moved before the first gesture isn't lost.
@@ -1107,6 +1159,7 @@ export function useSampleBank() {
       time: number,
       {
         gain = 1,
+        pan,
         playbackRate = 1,
         lowCutHz,
         highCutHz,
@@ -1115,13 +1168,26 @@ export function useSampleBank() {
         delaySend,
         reverbSend,
         chokeable = false,
+        sampleStart = DEFAULT_SAMPLE_START,
+        sampleEnd = DEFAULT_SAMPLE_END,
+        sampleReversed = DEFAULT_SAMPLE_REVERSED,
         lfo,
       }: TriggerOptions = {},
     ) => {
       const context = contextRef.current;
       const master = masterRef.current;
-      const buffer = buffersRef.current.get(channelId);
-      if (!context || !master || !buffer) return;
+      const forward = buffersRef.current.get(channelId);
+      if (!context || !master || !forward) return;
+
+      // Reversed on the first hit that asks for it, and kept: the pass over the
+      // frames is far too much to do while a step is being scheduled, and a
+      // channel left reversed would pay it again on every hit.
+      let buffer = forward;
+      if (sampleReversed) {
+        const cache = reversedBuffersRef.current;
+        buffer = cache.get(forward) ?? reverseBuffer(context, forward);
+        cache.set(forward, buffer);
+      }
 
       const source = context.createBufferSource();
       source.buffer = buffer;
@@ -1192,6 +1258,21 @@ export function useSampleBank() {
 
         tail.connect(envelope);
         tail = envelope;
+      }
+
+      // Upstream of the volume node, so the sends tapped off it below are panned
+      // with the channel: a tom hard right should reach the delay from the right
+      // as well, rather than being placed in the dry mix and then quietly
+      // recentred by its own repeats.
+      //
+      // Set rather than ramped, unlike the master params: this is a fresh node
+      // built for one hit and nothing is sounding through it yet, so there is no
+      // value to move away from and nothing to click.
+      if (pan !== undefined) {
+        const panner = context.createStereoPanner();
+        panner.pan.value = pan;
+        tail.connect(panner);
+        tail = panner;
       }
 
       // A volume LFO is written into the voice's own gain rather than given a
@@ -1340,7 +1421,28 @@ export function useSampleBank() {
         };
       }
 
-      source.start(time);
+      // Trimming is done by the source itself rather than by scheduling a stop:
+      // the offset and the duration are read in the buffer's own frames, so the
+      // region holds its place whatever the playback rate is — a hit tuned down
+      // an octave plays the same slice of the file, twice as slowly, exactly as
+      // a hardware sampler does. A stop scheduled in wall-clock seconds could
+      // not follow that, and a pitch LFO moves the rate while the hit sounds.
+      if (isSampleTrimmed(sampleStart, sampleEnd)) {
+        const start = clampSampleStart(sampleStart, sampleEnd);
+        const end = clampSampleEnd(sampleEnd, sampleStart);
+
+        // The handles are fractions of the file as it was loaded, so against a
+        // reversed buffer they have to be mirrored: what was the last third of
+        // the file is the first third of the copy. The span is the same either
+        // way — the same slice of audio, read the other way round.
+        source.start(
+          time,
+          (sampleReversed ? 1 - end : start) * buffer.duration,
+          (end - start) * buffer.duration,
+        );
+      } else {
+        source.start(time);
+      }
 
       // Past the decay there is nothing left to hear, so the voice is released
       // rather than left running silently until the buffer ends.

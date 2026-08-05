@@ -46,6 +46,12 @@ type SampleSectionProps = {
   onUpload: (file: File) => void;
   onRemove: () => void;
   onNameChange: (name: string) => void;
+  /** Where the waveform's two trim handles have been dragged to. */
+  onSampleStartChange: (fraction: number) => void;
+  onSampleEndChange: (fraction: number) => void;
+  /** Which way through the file the trimmed region is read. */
+  onSampleReversedChange: (reversed: boolean) => void;
+  onSampleTrimReset: () => void;
 };
 
 /** The step grid, and the pattern and length controls under it. */
@@ -68,6 +74,7 @@ type SequencerSectionProps = {
   onNudgeSteps: (offset: number) => void;
   onClearSteps: () => void;
   onInvertSteps: () => void;
+  onHumanizeSteps: () => void;
   onLengthChange: (length: number) => void;
 };
 
@@ -87,6 +94,7 @@ type ControlsSectionProps = {
   /** Set while one step is open, so the panel scopes itself to it. */
   stepEdit?: StepEdit;
   onVolumeChange: (volume: number) => void;
+  onPanChange: (pan: number) => void;
   onPitchChange: (pitch: number) => void;
   onLowCutChange: (hz: number) => void;
   onHighCutChange: (hz: number) => void;
@@ -136,7 +144,16 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           />
         </div>
 
-        <Waveform sample={channel.sample} />
+        <Waveform
+          sample={channel.sample}
+          start={channel.sampleStart}
+          end={channel.sampleEnd}
+          onStartChange={props.onSampleStartChange}
+          onEndChange={props.onSampleEndChange}
+          reversed={channel.sampleReversed}
+          onReversedChange={props.onSampleReversedChange}
+          onReset={props.onSampleTrimReset}
+        />
       </Card>
     );
   }
@@ -167,6 +184,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onNudge={props.onNudgeSteps}
           onClear={props.onClearSteps}
           onInvert={props.onInvertSteps}
+          onHumanize={props.onHumanizeSteps}
           onLengthChange={props.onLengthChange}
           onSwipeTargetChange={props.onSwipeTargetChange}
         />
@@ -184,6 +202,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
     <Card>
       <ChannelControls
         volume={settings.volume}
+        pan={settings.pan}
         pitch={settings.pitch}
         lowCutHz={settings.lowCutHz}
         highCutHz={settings.highCutHz}
@@ -195,6 +214,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
         chokeOptions={props.chokeOptions}
         stepEdit={props.stepEdit}
         onVolumeChange={props.onVolumeChange}
+        onPanChange={props.onPanChange}
         onPitchChange={props.onPitchChange}
         onLowCutChange={props.onLowCutChange}
         onHighCutChange={props.onHighCutChange}

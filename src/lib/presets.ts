@@ -8,9 +8,12 @@ export type PresetSlot = {
 export type Preset = {
   id: string;
   name: string;
-  /** Public directory holding this preset's samples. */
+  /** Public directory holding this preset's samples. Unused when it has none. */
   directory: string;
-  /** One slot per channel, in order, starting at channel 1. */
+  /**
+   * One slot per channel, in order, starting at channel 1. Empty for a preset
+   * that loads nothing — see `PRESET_EMPTY`.
+   */
   slots: PresetSlot[];
 };
 
@@ -54,7 +57,31 @@ export const PRESET_808: Preset = {
   ],
 };
 
-export const PRESETS: Preset[] = [PRESET_909, PRESET_808];
+/**
+ * The blank kit: no slots and no directory of its own, because it is defined by
+ * what it takes away rather than by what it loads. Picking it empties every
+ * channel — samples and patterns both — which is the one thing the other kits
+ * can't do, since they only ever write over the channels they reach.
+ */
+export const PRESET_EMPTY: Preset = {
+  id: "empty",
+  name: "Empty",
+  directory: "",
+  slots: [],
+};
+
+/**
+ * Every kit on offer, in the order the picker lists them. The blank one comes
+ * last: it is what you reach for to start over, not something to play.
+ */
+export const PRESETS: Preset[] = [PRESET_909, PRESET_808, PRESET_EMPTY];
+
+/**
+ * The kit the machine loads itself with on startup, so the page opens on
+ * something that plays rather than on sixteen empty channels. First in
+ * `PRESETS`, which is what the picker opens showing.
+ */
+export const DEFAULT_PRESET: Preset = PRESET_909;
 
 /**
  * Sample filenames contain spaces, so the segment is encoded for the URL.

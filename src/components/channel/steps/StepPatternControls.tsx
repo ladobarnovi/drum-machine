@@ -3,6 +3,7 @@
 import LengthControl from "./LengthControl";
 import Accordion from "@/components/ui/Accordion";
 import {
+  HUMANIZE_VELOCITY_AMOUNT,
   STEP_FILLS,
   STEP_LENGTH_PRESETS,
   SWIPE_TARGETS,
@@ -26,6 +27,8 @@ type StepPatternControlsProps = {
   onClear: () => void;
   /** Flips the played steps: hits off, silences on. */
   onInvert: () => void;
+  /** Scatters the velocity of every hit, for a less machine-even pattern. */
+  onHumanize: () => void;
   onLengthChange: (length: number) => void;
   onSwipeTargetChange: (target: SwipeTarget) => void;
 };
@@ -61,6 +64,7 @@ export default function StepPatternControls({
   onNudge,
   onClear,
   onInvert,
+  onHumanize,
   onLengthChange,
   onSwipeTargetChange,
 }: StepPatternControlsProps) {
@@ -70,6 +74,10 @@ export default function StepPatternControls({
   // clear either, so the same test disables both. Invert is the exception:
   // flipping an empty pattern fills it, so it stays live.
   const hasHits = hasActiveSteps(steps, length);
+
+  // Read off the constant rather than written into the label, so the two can't
+  // drift if the scatter is ever widened or narrowed.
+  const humanizePercent = Math.round(HUMANIZE_VELOCITY_AMOUNT * 100);
 
   const actionClass =
     "border-edge hover:bg-raised rounded border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
@@ -179,6 +187,19 @@ export default function StepPatternControls({
             className={actionClass}
           >
             Invert
+          </button>
+
+          {/* Spelt out, because the button names an effect rather than an
+              edit: what it actually does to the pattern is only visible in the
+              step shading afterwards. */}
+          <button
+            type="button"
+            onClick={onHumanize}
+            disabled={!hasHits}
+            aria-label={`Humanize pattern: vary the velocity of every hit by up to ${humanizePercent}%`}
+            className={actionClass}
+          >
+            Humanize
           </button>
 
           <button
