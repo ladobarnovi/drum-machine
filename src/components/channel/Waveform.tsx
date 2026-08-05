@@ -44,22 +44,37 @@ const VIEWBOX_HEIGHT = 100;
 const KEY_STEP = 0.01;
 const FINE_KEY_STEP = 0.001;
 
-/** Builds a filled, centre-mirrored outline: left-to-right on top, back along the bottom. */
-function buildPath(peaks: number[]): string {
+/**
+ * Builds a filled, centre-mirrored outline: left-to-right on top, back along
+ * the bottom.
+ *
+ * `reversed` reads the buckets from the far end instead of copying the array
+ * round, since this already walks every one of them twice and a mirrored shape
+ * is the same walk from the other side.
+ */
+function buildPath(peaks: number[], reversed: boolean): string {
   const half = VIEWBOX_HEIGHT / 2;
-  const top = peaks.map((peak, index) => `L ${index} ${half - peak * half}`);
+  const last = peaks.length - 1;
+  const peakAt = (index: number) => peaks[reversed ? last - index : index];
+
+  const top = peaks.map(
+    (_, index) => `L ${index} ${half - peakAt(index) * half}`,
+  );
   const bottom = [];
-  for (let index = peaks.length - 1; index >= 0; index--) {
-    bottom.push(`L ${index} ${half + peaks[index] * half}`);
+  for (let index = last; index >= 0; index--) {
+    bottom.push(`L ${index} ${half + peakAt(index) * half}`);
   }
   return `M 0 ${half} ${top.join(" ")} ${bottom.join(" ")} Z`;
 }
 
 type TrimHandleProps = {
   edge: "start" | "end";
-  /** Where this handle sits, as a fraction of the whole file. */
+  /**
+   * Where this handle sits, as a fraction of the strip — which is the file read
+   * left to right, or the file read backwards once it has been reversed.
+   */
   position: number;
-  /** How far into the file that is, for the readout a screen reader speaks. */
+  /** How far into the strip that is, for the readout a screen reader speaks. */
   seconds: number;
   onChange: (fraction: number) => void;
   /** Where a pointer at `clientX` falls along the strip, as a fraction. */
@@ -228,6 +243,28 @@ export default function Waveform({
   const trimmed = isSampleTrimmed(start, end);
   const spanSeconds = sampleSpanSeconds(start, end, sample.durationSeconds);
 
+  /**
+   * A fraction of the file as a fraction of the strip, and back again — the
+   * same flip either way, which is why one function does both directions.
+   *
+   * Reversing turns the picture round without touching the trim: `start` and
+   * `end` go on meaning the same two points of the file they always did, and
+   * the same audio goes on playing. It is only where those points *are shown*
+   * that moves, and everything drawn on the strip below goes through here so
+   * that the shape and the handles can never be mirrored independently of one
+   * another.
+   */
+  const onStrip = (fraction: number) => (reversed ? 1 - fraction : fraction);
+
+  // Which end of the file each end of the picture is. Reversed, the hit begins
+  // at the file's later edge, so the handle on the left writes `end`: the two
+  // are labelled for the sound — where it starts, where it stops — rather than
+  // for the file, which is what a flipped strip is showing in the first place.
+  const leading = reversed ? end : start;
+  const trailing = reversed ? start : end;
+  const onLeadingChange = reversed ? onEndChange : onStartChange;
+  const onTrailingChange = reversed ? onStartChange : onEndChange;
+
   return (
     <div className="flex flex-col gap-1.5">
       {/*
@@ -236,9 +273,9 @@ export default function Waveform({
         where the direction the file is read in applies to every sample and has
         to be reachable — and visible — without trimming one first.
 
-        Lit while it is on, like every other toggle in the machine. It has to
-        be: the waveform is drawn from the file, so nothing in the shape below
-        says which way it is about to be played.
+        Lit while it is on, like every other toggle in the machine. The strip
+        turns round with it, but a shape alone cannot say which way round it
+        was to begin with — the light is what makes that readable at a glance.
       */}
       <div className="flex items-center text-[10px]">
         <button
@@ -267,7 +304,9 @@ export default function Waveform({
             viewBox={`0 0 ${sample.peaks.length} ${VIEWBOX_HEIGHT}`}
             // Stretch freely: the strip is a shape overview, not a to-scale plot.
             preserveAspectRatio="none"
-            aria-label={`Waveform for ${sample.name}`}
+            // Spelt out, because the flip is the only thing that says the
+            // sample is reversed to anyone who cannot see the shape turn round.
+            aria-label={`Waveform for ${sample.name}${reversed ? ", reversed" : ""}`}
             role="img"
             className="text-accent h-full w-full"
           >
@@ -281,7 +320,7 @@ export default function Waveform({
               opacity={0.35}
               vectorEffect="non-scaling-stroke"
             />
-            <path d={buildPath(sample.peaks)} fill="currentColor" />
+            <path d={buildPath(sample.peaks, reversed)} fill="currentColor" />
           </svg>
 
           {/*
@@ -292,12 +331,12 @@ export default function Waveform({
           <div
             aria-hidden
             className="bg-surface/70 pointer-events-none absolute inset-y-0 left-0"
-            style={{ width: `${start * 100}%` }}
+            style={{ width: `${onStrip(leading) * 100}%` }}
           />
           <div
             aria-hidden
             className="bg-surface/70 pointer-events-none absolute inset-y-0 right-0"
-            style={{ width: `${(1 - end) * 100}%` }}
+            style={{ width: `${(1 - onStrip(trailing)) * 100}%` }}
           />
 
           {/* How long the channel now plays for, which is the trimmed span
@@ -310,19 +349,22 @@ export default function Waveform({
           </span>
         </div>
 
+        {/* Both work in strip fractions and hand one back; the conversion at
+            the boundary is what leaves the handles knowing nothing about which
+            way round the file is being read. */}
         <TrimHandle
           edge="start"
-          position={start}
-          seconds={start * sample.durationSeconds}
-          onChange={onStartChange}
+          position={onStrip(leading)}
+          seconds={onStrip(leading) * sample.durationSeconds}
+          onChange={(fraction) => onLeadingChange(onStrip(fraction))}
           fractionAt={fractionAt}
         />
 
         <TrimHandle
           edge="end"
-          position={end}
-          seconds={end * sample.durationSeconds}
-          onChange={onEndChange}
+          position={onStrip(trailing)}
+          seconds={onStrip(trailing) * sample.durationSeconds}
+          onChange={(fraction) => onTrailingChange(onStrip(fraction))}
           fractionAt={fractionAt}
         />
       </div>
@@ -332,9 +374,12 @@ export default function Waveform({
           saying so. */}
       {trimmed && (
         <div className="flex items-center gap-2 text-[10px]">
+          {/* Where the handles are on the strip, so the pair reads left to
+              right the way they sit — which on a reversed sample is the file
+              counted from its far end. */}
           <span className="text-muted tabular-nums">
-            {formatSeconds(start * sample.durationSeconds)} –{" "}
-            {formatSeconds(end * sample.durationSeconds)} of{" "}
+            {formatSeconds(onStrip(leading) * sample.durationSeconds)} –{" "}
+            {formatSeconds(onStrip(trailing) * sample.durationSeconds)} of{" "}
             {formatSeconds(sample.durationSeconds)}
           </span>
 
