@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelEditor from "@/components/channel/ChannelEditor";
 import ChannelGrid from "@/components/channel/ChannelGrid";
+import StepContextMenu from "@/components/channel/steps/StepContextMenu";
 import MasterDelayControls from "@/components/master/MasterDelayControls";
 import MasterDriveControls from "@/components/master/MasterDriveControls";
 import MasterFilterControls from "@/components/master/MasterFilterControls";
@@ -53,6 +54,7 @@ import {
   clampPitch,
   clampSend,
   clampVolume,
+  clearStepAt,
   clearStepLockAt,
   clearStepLocksAt,
   clearSteps,
@@ -60,7 +62,9 @@ import {
   hasSoloedChannel,
   invertSteps,
   isChannelAudible,
+  isStepCleared,
   nudgeSteps,
+  pasteStepAt,
   setStepLockAt,
   setStepVelocityAt,
   toggleStepAt,
@@ -112,6 +116,16 @@ export default function DrumMachine() {
   const [rawEditingStepIndex, setRawEditingStepIndex] = useState<number | null>(
     null,
   );
+
+  /** Which step's right-click menu is open, and where it was raised. */
+  const [contextMenuStep, setContextMenuStep] = useState<{
+    index: number;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  /** The last step copied from the grid's context menu, or null until one is. */
+  const [clipboardStep, setClipboardStep] = useState<Step | null>(null);
 
   /**
    * What a vertical swipe across the step grid writes.
@@ -321,6 +335,43 @@ export default function DrumMachine() {
     [updateSelectedSteps],
   );
 
+  /** A right click on a step: raises its action menu at the pointer. */
+  const handleStepContextMenu = useCallback(
+    (stepIndex: number, x: number, y: number) => {
+      setContextMenuStep({ index: stepIndex, x, y });
+    },
+    [],
+  );
+
+  const closeStepContextMenu = useCallback(() => setContextMenuStep(null), []);
+
+  /** "Clear Step" from the context menu: back to off with nothing set. */
+  const handleClearStepFromMenu = useCallback(() => {
+    if (contextMenuStep === null) return;
+    updateSelectedSteps((steps) => clearStepAt(steps, contextMenuStep.index));
+  }, [contextMenuStep, updateSelectedSteps]);
+
+  /** "Edit Step" from the context menu: the same gesture as a held press. */
+  const handleEditStepFromMenu = useCallback(() => {
+    if (contextMenuStep === null) return;
+    handleStepHold(contextMenuStep.index);
+  }, [contextMenuStep, handleStepHold]);
+
+  /** "Copy" from the context menu: the step is never mutated in place, so
+   *  holding this reference is enough — nothing can change underneath it. */
+  const handleCopyStepFromMenu = useCallback(() => {
+    if (contextMenuStep === null) return;
+    setClipboardStep(selectedChannel.steps[contextMenuStep.index]);
+  }, [contextMenuStep, selectedChannel.steps]);
+
+  /** "Paste" from the context menu: overwrites the step with the copied one. */
+  const handlePasteStepFromMenu = useCallback(() => {
+    if (contextMenuStep === null || clipboardStep === null) return;
+    updateSelectedSteps((steps) =>
+      pasteStepAt(steps, contextMenuStep.index, clipboardStep),
+    );
+  }, [contextMenuStep, clipboardStep, updateSelectedSteps]);
+
   const handleStepVelocityChange = useCallback(
     (stepIndex: number, velocity: number) => {
       updateSelectedSteps((steps) =>
@@ -529,6 +580,7 @@ export default function DrumMachine() {
   const handleSelectChannel = useCallback((channelId: string) => {
     setSelectedChannelId(channelId);
     setRawEditingStepIndex(null);
+    setContextMenuStep(null);
   }, []);
 
   const handleSelectChannelIndex = useCallback(
@@ -931,6 +983,7 @@ export default function DrumMachine() {
             onStepHold={handleStepHold}
             onStepVelocityChange={handleStepVelocityChange}
             onStepPitchChange={handleStepPitchChange}
+            onStepContextMenu={handleStepContextMenu}
             onSwipeTargetChange={setSwipeTarget}
             onApplyStepFill={handleApplyStepFill}
             onNudgeSteps={handleNudgeSteps}
@@ -974,6 +1027,22 @@ export default function DrumMachine() {
           />
         </div>
       </div>
+
+      {contextMenuStep && (
+        <StepContextMenu
+          x={contextMenuStep.x}
+          y={contextMenuStep.y}
+          onClose={closeStepContextMenu}
+          clearDisabled={isStepCleared(
+            selectedChannel.steps[contextMenuStep.index],
+          )}
+          onClearStep={handleClearStepFromMenu}
+          onEditStep={handleEditStepFromMenu}
+          onCopyStep={handleCopyStepFromMenu}
+          pasteDisabled={clipboardStep === null}
+          onPasteStep={handlePasteStepFromMenu}
+        />
+      )}
     </div>
   );
 }

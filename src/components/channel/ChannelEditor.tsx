@@ -62,6 +62,7 @@ type SequencerSectionProps = {
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
   onStepPitchChange: (stepIndex: number, semitones: number) => void;
+  onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
   onSwipeTargetChange: (target: SwipeTarget) => void;
   onApplyStepFill: (fill: StepFill) => void;
   onNudgeSteps: (offset: number) => void;
@@ -155,6 +156,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onStepHold={props.onStepHold}
           onStepVelocityChange={props.onStepVelocityChange}
           onStepPitchChange={props.onStepPitchChange}
+          onStepContextMenu={props.onStepContextMenu}
         />
 
         <StepPatternControls

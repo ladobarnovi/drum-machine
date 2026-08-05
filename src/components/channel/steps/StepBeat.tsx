@@ -25,6 +25,7 @@ type StepBeatProps = {
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
   onStepPitchChange: (stepIndex: number, semitones: number) => void;
+  onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
 };
 
 /**
@@ -44,6 +45,7 @@ export default function StepBeat({
   onStepHold,
   onStepVelocityChange,
   onStepPitchChange,
+  onStepContextMenu,
 }: StepBeatProps) {
   return (
     <div className="flex gap-1">
@@ -71,6 +73,7 @@ export default function StepBeat({
             onPitchChange={(semitones) =>
               onStepPitchChange(stepIndex, semitones)
             }
+            onContextMenu={(x, y) => onStepContextMenu(stepIndex, x, y)}
           />
         );
       })}

@@ -4,6 +4,7 @@ import {
   useCallback,
   useRef,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
 } from "react";
 
@@ -74,6 +75,8 @@ type StepButtonProps = {
   onHold: () => void;
   onVelocityChange: (velocity: number) => void;
   onPitchChange: (semitones: number) => void;
+  /** A right click: raises the step's action menu at the pointer. */
+  onContextMenu: (x: number, y: number) => void;
 };
 
 /**
@@ -98,6 +101,7 @@ export default function StepButton({
   onHold,
   onVelocityChange,
   onPitchChange,
+  onContextMenu,
 }: StepButtonProps) {
   const gestureRef = useRef<Gesture | null>(null);
 
@@ -213,6 +217,17 @@ export default function StepButton({
     }
   };
 
+  const handleContextMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    // Always suppressed: on a touch screen this is the long press that would
+    // otherwise land on top of the editor that same press just opened via
+    // `onHold`, and the mouse button check below already tells a genuine
+    // right click apart from that.
+    event.preventDefault();
+    if (event.button !== 2) return;
+
+    onContextMenu(event.clientX, event.clientY);
+  };
+
   const velocity = clampStepVelocity(step.velocity);
   const locked = hasStepLocks(step);
 
@@ -254,9 +269,7 @@ export default function StepButton({
       onPointerCancel={endGesture}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      // A long press on a touch screen otherwise raises the context menu on top
-      // of the editor that same press has just opened.
-      onContextMenu={(event) => event.preventDefault()}
+      onContextMenu={handleContextMenu}
       // `touch-none` keeps the browser from claiming a vertical drag for
       // scrolling, which would swallow the swipe before it arrived. Scrolling
       // from inside the grid means starting the drag off a step, which the gaps

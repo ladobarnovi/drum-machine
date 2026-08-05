@@ -19,6 +19,7 @@ type StepGridProps = {
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
   onStepPitchChange: (stepIndex: number, semitones: number) => void;
+  onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
 };
 
 /**
@@ -40,6 +41,7 @@ export default function StepGrid({
   onStepHold,
   onStepVelocityChange,
   onStepPitchChange,
+  onStepContextMenu,
 }: StepGridProps) {
   const visible = steps.slice(0, length);
   const beatCount = Math.ceil(visible.length / STEPS_PER_BEAT);
@@ -62,6 +64,7 @@ export default function StepGrid({
             onStepHold={onStepHold}
             onStepVelocityChange={onStepVelocityChange}
             onStepPitchChange={onStepPitchChange}
+            onStepContextMenu={onStepContextMenu}
           />
         );
       })}

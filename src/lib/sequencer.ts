@@ -1121,6 +1121,35 @@ export function clearStepLocksAt(steps: Step[], index: number): Step[] {
   });
 }
 
+/** Resets one step to a freshly created one: off, default velocity, no locks. */
+export function clearStepAt(steps: Step[], index: number): Step[] {
+  return withStep(steps, index, () => createStep());
+}
+
+/** True while a step is already at `createStep`'s defaults, with nothing to clear. */
+export function isStepCleared(step: Step): boolean {
+  return (
+    !step.on && step.velocity === DEFAULT_STEP_VELOCITY && !hasStepLocks(step)
+  );
+}
+
+/**
+ * Overwrites one step with a copy of another, replacing it wholesale rather
+ * than merging — a paste is a request for exactly what was copied, on, off,
+ * velocity, and locks alike.
+ */
+export function pasteStepAt(
+  steps: Step[],
+  index: number,
+  source: Step,
+): Step[] {
+  return withStep(steps, index, () => ({
+    on: source.on,
+    velocity: source.velocity,
+    ...(source.locks ? { locks: { ...source.locks } } : {}),
+  }));
+}
+
 /** What to show for a channel: its name, falling back to the channel number. */
 export function channelDisplayName(channel: Channel): string {
   return channel.name.trim() || channel.label;
