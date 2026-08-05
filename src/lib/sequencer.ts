@@ -328,12 +328,116 @@ export type MasterReverb = {
   toneHz: number;
   /** Return level, on the same scale as a channel's volume. */
   level: number;
+  /**
+   * How much of the return is tapped on into the phaser bus, so the tail can be
+   * set moving rather than sitting still behind the kit. Taken after `level`,
+   * exactly as the delay's own send into this bus is.
+   */
+  phaserSend: number;
 };
 
 export const DEFAULT_MASTER_REVERB: MasterReverb = {
   enabled: false,
   decaySeconds: DEFAULT_REVERB_DECAY_SECONDS,
   toneHz: DEFAULT_REVERB_TONE_HZ,
+  level: DEFAULT_VOLUME,
+  // Closed, like every other send here: nothing feeds the phaser until asked.
+  phaserSend: DEFAULT_SEND,
+};
+
+/**
+ * How many allpass stages the phaser runs. Each *pair* of stages puts one notch
+ * in the sum with the dry signal, so these read as 1, 2, 3 and 4 notches —
+ * fewer is the broad, obvious sweep, more is the dense, vocal one.
+ *
+ * Even numbers only, and a short list rather than a slider: an odd count moves
+ * the notches without adding one, which is a distinction nobody wants to hunt
+ * for on a rail.
+ */
+export const PHASER_STAGE_COUNTS = [2, 4, 6, 8] as const;
+
+export type PhaserStages = (typeof PHASER_STAGE_COUNTS)[number];
+
+/** Four stages — two notches, which is the classic pedal. */
+export const DEFAULT_PHASER_STAGES: PhaserStages = 4;
+
+/** Rail labels. Kept short: the sidebar select is only so wide. */
+export const PHASER_STAGE_LABELS: Record<PhaserStages, string> = {
+  2: "2 · 1 notch",
+  4: "4 · 2 notches",
+  6: "6 · 3 notches",
+  8: "8 · 4 notches",
+};
+
+/**
+ * Where the notches sit at the bottom of the sweep, and where the topmost one
+ * reaches. The band is the midrange rather than the whole spectrum: a notch
+ * below this is felt as a loss of weight rather than heard as movement, and one
+ * above it is lost among the hats.
+ */
+export const MIN_PHASER_HZ = 200;
+export const MAX_PHASER_HZ = 1600;
+
+/** How far full depth sweeps the notches, either way, in octaves. */
+export const PHASER_SWEEP_OCTAVES = 2;
+
+/**
+ * How fast the sweep runs, in Hz. The floor is slow enough that a phase takes
+ * most of a minute to come round — the drifting setting a phaser is left on;
+ * the ceiling is where the sweep stops reading as movement and starts adding a
+ * warble of its own.
+ */
+export const MIN_PHASER_RATE_HZ = 0.02;
+export const MAX_PHASER_RATE_HZ = 8;
+/** Roughly a cycle every two bars at the default tempo. */
+export const DEFAULT_PHASER_RATE_HZ = 0.25;
+
+/** How much of the sweep's range the LFO actually covers. */
+export const MIN_PHASER_DEPTH = 0;
+export const MAX_PHASER_DEPTH = 1;
+export const DEFAULT_PHASER_DEPTH = 0.7;
+
+/**
+ * How much of the last allpass stage is fed back into the first. Feedback is
+ * what sharpens the notches into the resonant, whistling character a phaser is
+ * reached for; the ceiling is short of unity so the emphasis can never run away
+ * with the bus.
+ */
+export const MIN_PHASER_FEEDBACK = 0;
+export const MAX_PHASER_FEEDBACK = 0.7;
+export const DEFAULT_PHASER_FEEDBACK = 0.35;
+
+/**
+ * The phaser bus. A send like the delay and the reverb, and — this being an
+ * allpass effect — one that leans on that more than they do: what comes back is
+ * the same signal with its phase turned, and the notches only exist once it is
+ * summed with the dry mix at the master input. So the deepest phasing is a
+ * channel sent wide open against a return at unity, and pulling either one down
+ * shallows the notches rather than turning the effect off.
+ *
+ * Fed by the channels, and by the reverb bus, so a tail can be set moving.
+ */
+export type MasterPhaser = {
+  enabled: boolean;
+  /** How many allpass stages the signal passes, so how many notches there are. */
+  stages: PhaserStages;
+  /** Cycles per second of the sweep. */
+  rateHz: number;
+  /** 0..1, scaled into PHASER_SWEEP_OCTAVES either way. */
+  depth: number;
+  /** How much of the chain's output is fed back into it. */
+  feedback: number;
+  /** Return level, and the whole of the bypass. */
+  level: number;
+};
+
+/** Starts silent but already dialled in, exactly like the other two buses. */
+export const DEFAULT_MASTER_PHASER: MasterPhaser = {
+  enabled: false,
+  stages: DEFAULT_PHASER_STAGES,
+  rateHz: DEFAULT_PHASER_RATE_HZ,
+  depth: DEFAULT_PHASER_DEPTH,
+  feedback: DEFAULT_PHASER_FEEDBACK,
   level: DEFAULT_VOLUME,
 };
 
@@ -769,6 +873,7 @@ export const LOCKABLE_PARAMETERS = [
   "decaySeconds",
   "delaySend",
   "reverbSend",
+  "phaserSend",
 ] as const;
 
 export type LockableParameter = (typeof LOCKABLE_PARAMETERS)[number];
@@ -927,6 +1032,8 @@ export type Channel = {
   delaySend: number;
   /** How much of this channel is tapped off to the reverb bus. */
   reverbSend: number;
+  /** How much of this channel is tapped off to the phaser bus. */
+  phaserSend: number;
   /** Silences this channel on its own. */
   muted: boolean;
   /** While any channel is soloed, every channel that isn't goes silent. */
@@ -979,6 +1086,7 @@ export function createInitialChannels(): Channel[] {
     decaySeconds: DEFAULT_DECAY_SECONDS,
     delaySend: DEFAULT_SEND,
     reverbSend: DEFAULT_SEND,
+    phaserSend: DEFAULT_SEND,
     muted: false,
     soloed: false,
     // Nothing chokes anything until it is asked to: a kit where hits cut each
@@ -1040,6 +1148,7 @@ export type ChannelSnapshot = Pick<
   | "decaySeconds"
   | "delaySend"
   | "reverbSend"
+  | "phaserSend"
   | "muted"
   | "soloed"
   | "chokedBy"
@@ -1047,7 +1156,7 @@ export type ChannelSnapshot = Pick<
 >;
 
 /**
- * Every channel's parameters, all four master stages, and the output fader,
+ * Every channel's parameters, all six master stages, and the output fader,
  * taken at one moment.
  *
  * Channels are keyed by id rather than held in order, so a snapshot lands on the
@@ -1065,6 +1174,7 @@ export type ParameterSnapshot = {
   filter: MasterFilter;
   delay: MasterDelay;
   reverb: MasterReverb;
+  phaser: MasterPhaser;
   compressor: MasterCompressor;
   volume: number;
 };
@@ -1089,6 +1199,7 @@ export function captureChannelSnapshots(
         decaySeconds: channel.decaySeconds,
         delaySend: channel.delaySend,
         reverbSend: channel.reverbSend,
+        phaserSend: channel.phaserSend,
         muted: channel.muted,
         soloed: channel.soloed,
         chokedBy: channel.chokedBy,
@@ -1185,6 +1296,9 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
     reverbSend: isSendClosed(settings.reverbSend)
       ? undefined
       : clampSend(settings.reverbSend),
+    phaserSend: isSendClosed(settings.phaserSend)
+      ? undefined
+      : clampSend(settings.phaserSend),
     // A voice only needs the node a choke fades when something can actually
     // choke it, so an unrouted channel costs nothing.
     chokeable: settings.chokedBy !== null,
@@ -1700,6 +1814,60 @@ export function clampReverbDecay(value: number): number {
     Math.max(value, MIN_REVERB_DECAY_SECONDS),
     MAX_REVERB_DECAY_SECONDS,
   );
+}
+
+/** Narrows the raw string a `<select>` hands back to a stage count on offer. */
+export function clampPhaserStages(value: string): PhaserStages {
+  const stages = Number(value) as PhaserStages;
+  return PHASER_STAGE_COUNTS.includes(stages) ? stages : DEFAULT_PHASER_STAGES;
+}
+
+export function clampPhaserRate(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_PHASER_RATE_HZ;
+  return Math.min(Math.max(value, MIN_PHASER_RATE_HZ), MAX_PHASER_RATE_HZ);
+}
+
+export function clampPhaserDepth(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_PHASER_DEPTH;
+  return Math.min(Math.max(value, MIN_PHASER_DEPTH), MAX_PHASER_DEPTH);
+}
+
+export function clampPhaserFeedback(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_PHASER_FEEDBACK;
+  return Math.min(Math.max(value, MIN_PHASER_FEEDBACK), MAX_PHASER_FEEDBACK);
+}
+
+const PHASER_RATE_RATIO = MAX_PHASER_RATE_HZ / MIN_PHASER_RATE_HZ;
+
+/**
+ * Sweep rates map to a 0..1 slider position logarithmically, for the same
+ * reason the LFO's do: this range spans nine octaves, and the slow end — where
+ * a phaser spends most of its life — would be a sliver on a linear one.
+ */
+export function phaserRateToSlider(hz: number): number {
+  return (
+    Math.log(clampPhaserRate(hz) / MIN_PHASER_RATE_HZ) /
+    Math.log(PHASER_RATE_RATIO)
+  );
+}
+
+export function sliderToPhaserRate(position: number): number {
+  const clamped = Math.min(Math.max(position, 0), 1);
+  return clampPhaserRate(
+    MIN_PHASER_RATE_HZ * Math.pow(PHASER_RATE_RATIO, clamped),
+  );
+}
+
+/**
+ * Slow sweeps read as a period rather than as a frequency — "8.0 s" is a wait
+ * you can picture, where "0.13 Hz" is arithmetic — so below one cycle a second
+ * the readout switches to how long a cycle takes.
+ */
+export function formatPhaserRate(hz: number): string {
+  const clamped = clampPhaserRate(hz);
+  return clamped < 1
+    ? `${(1 / clamped).toFixed(1)} s`
+    : `${clamped.toFixed(2)} Hz`;
 }
 
 export function clampPitch(value: number): number {

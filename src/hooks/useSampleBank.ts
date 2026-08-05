@@ -12,6 +12,7 @@ import {
   DEFAULT_MASTER_DELAY,
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
+  DEFAULT_MASTER_PHASER,
   DEFAULT_MASTER_REVERB,
   DEFAULT_MASTER_VOLUME,
   DEFAULT_REVERB_TONE_HZ,
@@ -21,6 +22,10 @@ import {
   LFO_FILTER_RANGE_OCTAVES,
   LFO_PITCH_RANGE_SEMITONES,
   MAX_DELAY_LINE_SECONDS,
+  MAX_PHASER_HZ,
+  MIN_PHASER_HZ,
+  PHASER_STAGE_COUNTS,
+  PHASER_SWEEP_OCTAVES,
   clampCompressorAttack,
   clampCompressorRelease,
   clampDrive,
@@ -28,6 +33,9 @@ import {
   clampFrequency,
   clampLfoAmount,
   clampLfoRate,
+  clampPhaserDepth,
+  clampPhaserFeedback,
+  clampPhaserRate,
   clampRatio,
   clampReverbDecay,
   clampSampleEnd,
@@ -44,6 +52,7 @@ import {
   type MasterDelay,
   type MasterDrive,
   type MasterFilter,
+  type MasterPhaser,
   type MasterReverb,
 } from "@/lib/sequencer";
 
@@ -66,6 +75,8 @@ type TriggerOptions = {
   delaySend?: number;
   /** How much of this hit is tapped to the reverb bus. Omit to send nothing. */
   reverbSend?: number;
+  /** How much of this hit is tapped to the phaser bus. Omit to send nothing. */
+  phaserSend?: number;
   /** Whether another channel can cut this hit short. Omit when nothing can. */
   chokeable?: boolean;
   /**
@@ -261,6 +272,22 @@ const REVERB_IMPULSE_CHANNELS = 2;
  * space, and the ear hears the difference immediately.
  */
 const REVERB_DECAY_CURVE = 2.5;
+
+/**
+ * How many allpass stages are built. The longest count on offer, always: the
+ * chain is wired once and tapped part way along, so changing the stage count
+ * crossfades between taps instead of rebuilding nodes underneath a bus that is
+ * sounding. Eight biquads idling costs far less than one click.
+ */
+const PHASER_STAGES = PHASER_STAGE_COUNTS[PHASER_STAGE_COUNTS.length - 1];
+
+/**
+ * How abruptly each allpass stage turns the phase. Unlike the cut filters', an
+ * allpass `Q` is linear rather than in dB, so this is the textbook 1 rather
+ * than a converted one — wide enough that the stages overlap into one sweep
+ * instead of eight separate steps.
+ */
+const PHASER_Q = 1;
 
 /**
  * Cents in the units the LFO's depths are expressed in. Pitch and cutoff are
@@ -508,7 +535,44 @@ type MasterChain = {
   impulseKey: number;
   /** The reverb's return level, and its whole bypass. */
   reverbLevel: GainNode;
+  /** How much of the reverb's return is passed on to the phaser bus. */
+  reverbToPhaser: GainNode;
+
+  /** Where channel phaser sends land. */
+  phaserBus: GainNode;
+  /** Every allpass stage, in series. Only the first `stages` of them are heard. */
+  allpass: BiquadFilterNode[];
+  /**
+   * One tap per stage count on offer, taken after that many stages. Exactly one
+   * is open at a time, which is how the stage count changes without a node
+   * being reconnected — the same crossfade the master bypasses use.
+   */
+  phaserTaps: GainNode[];
+  /** Where the taps sum: the chain's output, and what feeds the loop back. */
+  phaserWet: GainNode;
+  phaserFeedback: GainNode;
+  /** What makes that loop legal; see `createMasterChain`. */
+  phaserFeedbackDelay: DelayNode;
+  /** The sweep itself, left running for the life of the context. */
+  phaserLfo: OscillatorNode;
+  /** Scales the sweep into cents, so depth is an interval either way. */
+  phaserDepth: GainNode;
+  /** The phaser's return level, and its whole bypass. */
+  phaserLevel: GainNode;
 };
+
+/**
+ * Where each allpass stage sits before the sweep moves it, spread
+ * logarithmically across the phaser's band — the ear hears frequency that way,
+ * so an even spread in Hz would bunch every stage but the last into the bottom
+ * of the range.
+ */
+function phaserStageFrequency(index: number): number {
+  return (
+    MIN_PHASER_HZ *
+    Math.pow(MAX_PHASER_HZ / MIN_PHASER_HZ, index / (PHASER_STAGES - 1))
+  );
+}
 
 /**
  * Noise shaped by a decay envelope — the standard way to synthesise a plausible
@@ -631,6 +695,22 @@ function createMasterChain(context: AudioContext): MasterChain {
   const convolver = context.createConvolver();
   const damping = createCutFilter(context, "lowpass", DEFAULT_REVERB_TONE_HZ);
   const reverbLevel = context.createGain();
+  const reverbToPhaser = context.createGain();
+  const phaserBus = context.createGain();
+  const allpass = Array.from({ length: PHASER_STAGES }, (_, index) => {
+    const stage = context.createBiquadFilter();
+    stage.type = "allpass";
+    stage.frequency.value = phaserStageFrequency(index);
+    stage.Q.value = PHASER_Q;
+    return stage;
+  });
+  const phaserTaps = PHASER_STAGE_COUNTS.map(() => context.createGain());
+  const phaserWet = context.createGain();
+  const phaserFeedback = context.createGain();
+  const phaserFeedbackDelay = context.createDelay(1);
+  const phaserLfo = context.createOscillator();
+  const phaserDepth = context.createGain();
+  const phaserLevel = context.createGain();
 
   // Saturation generates harmonics above Nyquist that would otherwise fold back
   // down as aliasing, which reads as a metallic ring rather than as distortion.
@@ -725,11 +805,60 @@ function createMasterChain(context: AudioContext): MasterChain {
   delayLevel.connect(delayToReverb);
   delayToReverb.connect(reverbBus);
 
-  // Both returns land on the master input, so the sends are summed with the dry
-  // channels and the whole mix — repeats and tail included — is what the drive
-  // and filter stages downstream then work on.
+  // The allpass chain, wired to its full length once. Every stage turns the
+  // phase without touching the level — which is the whole trick: nothing here
+  // is audible on its own, and the notches only appear where this is summed
+  // against the untouched signal at the master input below.
+  phaserBus.connect(allpass[0]);
+  for (let stage = 1; stage < allpass.length; stage += 1) {
+    allpass[stage - 1].connect(allpass[stage]);
+  }
+
+  // A tap after each stage count on offer. They all stay connected and the
+  // stage count simply decides which one is open, so changing it crossfades
+  // rather than reconnecting a chain that is already sounding.
+  PHASER_STAGE_COUNTS.forEach((stages, index) => {
+    const tap = phaserTaps[index];
+    allpass[stages - 1].connect(tap);
+    tap.connect(phaserWet);
+  });
+
+  // Feedback is taken from the wet sum, so it wraps whichever tap is open and
+  // the resonance follows the stage count. The DelayNode is what makes the
+  // cycle legal at all — Web Audio mutes a loop that has none — and it is left
+  // at zero, since a loop still carries the one render quantum (128 samples,
+  // under 3 ms) the spec imposes whatever the delay is set to. That quantum is
+  // audible as a faint comb colour on top of the phasing at high feedback,
+  // which is why the feedback ceiling sits well short of unity.
+  phaserWet.connect(phaserFeedback);
+  phaserFeedback.connect(phaserFeedbackDelay);
+  phaserFeedbackDelay.connect(allpass[0]);
+  phaserFeedbackDelay.delayTime.value = 0;
+
+  // One sweep for the whole bus, riding `detune` rather than `frequency`, so
+  // depth is an interval — every stage moves by the same musical distance
+  // however low or high it happens to be parked.
+  phaserLfo.type = "sine";
+  phaserLfo.connect(phaserDepth);
+  for (const stage of allpass) phaserDepth.connect(stage.detune);
+  phaserLfo.start();
+
+  phaserWet.connect(phaserLevel);
+
+  // The reverb's send on into the phaser, tapped after the return level for the
+  // same reason the delay's send into the reverb is: pulling the tail down
+  // takes its share of the sweep with it, and switching the reverb off takes
+  // both. Nothing downstream of the phaser reaches the reverb bus, so the three
+  // buses stay a chain — delay into reverb into phaser — rather than a loop.
+  reverbLevel.connect(reverbToPhaser);
+  reverbToPhaser.connect(phaserBus);
+
+  // All three returns land on the master input, so the sends are summed with
+  // the dry channels and the whole mix — repeats, tail and sweep included — is
+  // what the drive and filter stages downstream then work on.
   delayLevel.connect(input);
   reverbLevel.connect(input);
+  phaserLevel.connect(input);
 
   // Start bypassed to match the defaults, so the first ramp has somewhere
   // sensible to come from rather than passing both paths at unity.
@@ -742,8 +871,13 @@ function createMasterChain(context: AudioContext): MasterChain {
   // Sends are parallel, so silencing the return *is* the bypass.
   delayLevel.gain.value = 0;
   reverbLevel.gain.value = 0;
-  // Matches the closed default, so the first ramp doesn't start from unity.
+  phaserLevel.gain.value = 0;
+  // Match the closed defaults, so the first ramp doesn't start from unity.
   delayToReverb.gain.value = 0;
+  reverbToPhaser.gain.value = 0;
+  // Every tap shut until the first apply opens the one the stage count asks
+  // for, or the chain would be heard at all four lengths at once.
+  for (const tap of phaserTaps) tap.gain.value = 0;
 
   return {
     input,
@@ -777,6 +911,16 @@ function createMasterChain(context: AudioContext): MasterChain {
     // No impulse built yet, so the first apply always installs one.
     impulseKey: 0,
     reverbLevel,
+    reverbToPhaser,
+    phaserBus,
+    allpass,
+    phaserTaps,
+    phaserWet,
+    phaserFeedback,
+    phaserFeedbackDelay,
+    phaserLfo,
+    phaserDepth,
+    phaserLevel,
   };
 }
 
@@ -885,6 +1029,45 @@ function applyReverb(
     reverb.enabled ? clampVolume(reverb.level) : 0,
     now,
   );
+  rampTo(chain.reverbToPhaser.gain, clampSend(reverb.phaserSend), now);
+}
+
+/**
+ * Rate, depth, feedback and the stage count keep tracking while the bus is
+ * switched off, exactly as the other two sends do, so a sweep can be dialled in
+ * silently and then brought up. Silencing the return is the whole of the bypass.
+ *
+ * The stage count crossfades between taps rather than rewiring the chain, so
+ * changing it under a bus that is sounding is a change of character rather than
+ * a click.
+ */
+function applyPhaser(
+  context: AudioContext,
+  chain: MasterChain,
+  phaser: MasterPhaser,
+) {
+  const now = context.currentTime;
+
+  rampTo(chain.phaserLfo.frequency, clampPhaserRate(phaser.rateHz), now);
+  rampTo(
+    chain.phaserDepth.gain,
+    clampPhaserDepth(phaser.depth) * PHASER_SWEEP_OCTAVES * CENTS_PER_OCTAVE,
+    now,
+  );
+  rampTo(chain.phaserFeedback.gain, clampPhaserFeedback(phaser.feedback), now);
+
+  // Falls back to the shortest chain rather than to nothing, so an unknown
+  // stage count can never leave every tap shut and the bus silent.
+  const selected = Math.max(0, PHASER_STAGE_COUNTS.indexOf(phaser.stages));
+  chain.phaserTaps.forEach((tap, index) => {
+    rampTo(tap.gain, index === selected ? 1 : 0, now);
+  });
+
+  rampTo(
+    chain.phaserLevel.gain,
+    phaser.enabled ? clampVolume(phaser.level) : 0,
+    now,
+  );
 }
 
 function applyCompressor(
@@ -952,6 +1135,7 @@ export function useSampleBank() {
   // chain is built, which happens long after the tempo was last set.
   const delayBpmRef = useRef(DEFAULT_BPM);
   const reverbRef = useRef<MasterReverb>(DEFAULT_MASTER_REVERB);
+  const phaserRef = useRef<MasterPhaser>(DEFAULT_MASTER_PHASER);
   const compressorRef = useRef<MasterCompressor>(DEFAULT_MASTER_COMPRESSOR);
   // The scope's read buffer, built on first use and then reused every frame.
   const waveformRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
@@ -991,6 +1175,7 @@ export function useSampleBank() {
       applyFilter(context, chain, filterRef.current);
       applyDelay(context, chain, delayRef.current, delayBpmRef.current);
       applyReverb(context, chain, reverbRef.current);
+      applyPhaser(context, chain, phaserRef.current);
       applyCompressor(context, chain, compressorRef.current);
       applyVolume(context, chain, volumeRef.current);
     }
@@ -1042,6 +1227,17 @@ export function useSampleBank() {
     if (!context || !chain) return;
 
     applyReverb(context, chain, reverb);
+  }, []);
+
+  /** Points the phaser bus at `phaser`, creating no context of its own. */
+  const applyMasterPhaser = useCallback((phaser: MasterPhaser) => {
+    phaserRef.current = phaser;
+
+    const context = contextRef.current;
+    const chain = masterRef.current;
+    if (!context || !chain) return;
+
+    applyPhaser(context, chain, phaser);
   }, []);
 
   /** Points the compressor at `compressor`, creating no context of its own. */
@@ -1167,6 +1363,7 @@ export function useSampleBank() {
         decaySeconds,
         delaySend,
         reverbSend,
+        phaserSend,
         chokeable = false,
         sampleStart = DEFAULT_SAMPLE_START,
         sampleEnd = DEFAULT_SAMPLE_END,
@@ -1306,6 +1503,13 @@ export function useSampleBank() {
         send.gain.value = clampSend(reverbSend);
         gainNode.connect(send);
         send.connect(master.reverbBus);
+      }
+
+      if (phaserSend !== undefined) {
+        const send = context.createGain();
+        send.gain.value = clampSend(phaserSend);
+        gainNode.connect(send);
+        send.connect(master.phaserBus);
       }
 
       // A channel keeps a continuous LFO only while something is tapping it, so
@@ -1493,6 +1697,7 @@ export function useSampleBank() {
     applyMasterFilter,
     applyMasterDelay,
     applyMasterReverb,
+    applyMasterPhaser,
     applyMasterCompressor,
     getGainReduction,
     getWaveform,

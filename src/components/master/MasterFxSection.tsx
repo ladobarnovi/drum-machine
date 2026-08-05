@@ -30,8 +30,12 @@ export default function MasterFxSection({
   return (
     <section className="border-line flex flex-col gap-3 rounded-md border p-3">
       <div className="flex items-center justify-between">
-        {/* Nested under the group heading `RailGroup` puts above these boxes. */}
-        <h3 className="text-xs font-semibold">{title}</h3>
+        {/*
+          Top level within its rail, like the group headings on the other one:
+          the boxes now sit directly in a tab panel, which is named by its tab
+          rather than by a heading of its own.
+        */}
+        <h2 className="text-xs font-semibold">{title}</h2>
 
         <button
           type="button"

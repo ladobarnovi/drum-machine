@@ -82,6 +82,7 @@ type ChannelControlsProps = {
   decaySeconds: number;
   delaySend: number;
   reverbSend: number;
+  phaserSend: number;
   chokedBy: string | null;
   /** Every channel that could choke this one — this channel is not among them. */
   chokeOptions: ChokeOption[];
@@ -96,12 +97,13 @@ type ChannelControlsProps = {
   onDecayChange: (seconds: number) => void;
   onDelaySendChange: (amount: number) => void;
   onReverbSendChange: (amount: number) => void;
+  onPhaserSendChange: (amount: number) => void;
   /** The raw select value; empty means no choke. */
   onChokedByChange: (channelId: string) => void;
 };
 
 /**
- * Volume, pan, pitch, filters, the amplitude envelope, the two send amounts,
+ * Volume, pan, pitch, filters, the amplitude envelope, the three send amounts,
  * and the choke source — for the channel, or for one step of it.
  *
  * The values arrive already resolved: while a step is open the caller hands
@@ -121,6 +123,7 @@ export default function ChannelControls({
   decaySeconds,
   delaySend,
   reverbSend,
+  phaserSend,
   chokedBy,
   chokeOptions,
   stepEdit,
@@ -133,6 +136,7 @@ export default function ChannelControls({
   onDecayChange,
   onDelaySendChange,
   onReverbSendChange,
+  onPhaserSendChange,
   onChokedByChange,
 }: ChannelControlsProps) {
   /**
@@ -347,6 +351,17 @@ export default function ChannelControls({
           readout={`${Math.round(reverbSend * 100)}%`}
           onChange={(value) => onReverbSendChange(clampSend(value))}
           {...lockProps("reverbSend")}
+        />
+
+        <ControlSlider
+          label="Phaser"
+          min={MIN_SEND}
+          max={MAX_SEND}
+          step={0.01}
+          value={phaserSend}
+          readout={`${Math.round(phaserSend * 100)}%`}
+          onChange={(value) => onPhaserSendChange(clampSend(value))}
+          {...lockProps("phaserSend")}
         />
 
         {/*

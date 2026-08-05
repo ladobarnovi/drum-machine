@@ -6,10 +6,12 @@ type RailGroupProps = {
 };
 
 /**
- * Labelled band in one of the side rails. The rails carry several of them — the
- * send buses channels feed by choice, the stages the whole mix passes through
- * whether it likes it or not, and the transport on the other side — so the boxes
- * read as distinct kinds of thing rather than one undifferentiated stack.
+ * Labelled band in one of the side rails. The controls rail carries several of
+ * them — the transport, the kit, the output fader, the theme — so they read as
+ * distinct kinds of thing rather than one undifferentiated stack.
+ *
+ * The effects rail reaches for `RailTabs` instead: it carries enough stages
+ * that stacking them all would make the lower ones a scroll away.
  */
 export default function RailGroup({ title, children }: RailGroupProps) {
   return (

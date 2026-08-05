@@ -10,6 +10,7 @@ import MasterCompressorControls from "@/components/master/MasterCompressorContro
 import MasterDelayControls from "@/components/master/MasterDelayControls";
 import MasterDriveControls from "@/components/master/MasterDriveControls";
 import MasterFilterControls from "@/components/master/MasterFilterControls";
+import MasterPhaserControls from "@/components/master/MasterPhaserControls";
 import MasterReverbControls from "@/components/master/MasterReverbControls";
 import MasterVolumeControls from "@/components/master/MasterVolumeControls";
 import Oscilloscope from "@/components/master/Oscilloscope";
@@ -24,7 +25,7 @@ import SidebarTab from "@/components/shell/SidebarTab";
 import ThemeSelector from "@/components/shell/ThemeSelector";
 import PlayButton from "@/components/transport/PlayButton";
 import Transport from "@/components/transport/Transport";
-import RailGroup from "@/components/ui/RailGroup";
+import RailTabs from "@/components/ui/RailTabs";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
@@ -38,6 +39,7 @@ import {
   DEFAULT_MASTER_DELAY,
   DEFAULT_MASTER_DRIVE,
   DEFAULT_MASTER_FILTER,
+  DEFAULT_MASTER_PHASER,
   DEFAULT_MASTER_REVERB,
   DEFAULT_MASTER_VOLUME,
   DEFAULT_SAMPLE_END,
@@ -93,6 +95,7 @@ import {
   type MasterDelay,
   type MasterDrive,
   type MasterFilter,
+  type MasterPhaser,
   type MasterReverb,
   type ParameterSnapshot,
   type SampleState,
@@ -228,6 +231,9 @@ export default function DrumMachine() {
   const [masterReverb, setMasterReverb] = useState<MasterReverb>(
     DEFAULT_MASTER_REVERB,
   );
+  const [masterPhaser, setMasterPhaser] = useState<MasterPhaser>(
+    DEFAULT_MASTER_PHASER,
+  );
   const [masterCompressor, setMasterCompressor] = useState<MasterCompressor>(
     DEFAULT_MASTER_COMPRESSOR,
   );
@@ -270,6 +276,7 @@ export default function DrumMachine() {
     applyMasterFilter,
     applyMasterDelay,
     applyMasterReverb,
+    applyMasterPhaser,
     applyMasterCompressor,
     getGainReduction,
     getWaveform,
@@ -304,6 +311,10 @@ export default function DrumMachine() {
   useEffect(() => {
     applyMasterReverb(masterReverb);
   }, [applyMasterReverb, masterReverb]);
+
+  useEffect(() => {
+    applyMasterPhaser(masterPhaser);
+  }, [applyMasterPhaser, masterPhaser]);
 
   useEffect(() => {
     applyMasterCompressor(masterCompressor);
@@ -912,6 +923,11 @@ export default function DrumMachine() {
     [setParameter],
   );
 
+  const handlePhaserSendChange = useCallback(
+    (amount: number) => setParameter("phaserSend", clampSend(amount)),
+    [setParameter],
+  );
+
   /** Puts one parameter of the open step back on the channel's own setting. */
   const handleClearStepLock = useCallback(
     (key: LockableParameter) => {
@@ -962,7 +978,7 @@ export default function DrumMachine() {
   );
 
   /**
-   * Freezes the current sound: every channel's parameters, all five master
+   * Freezes the current sound: every channel's parameters, all six master
    * stages and the output fader, in one go. Patterns, samples and the transport
    * are deliberately not part of it, so a snapshot is a mix to come back to
    * rather than a whole song.
@@ -977,6 +993,7 @@ export default function DrumMachine() {
       filter: masterFilter,
       delay: masterDelay,
       reverb: masterReverb,
+      phaser: masterPhaser,
       compressor: masterCompressor,
       volume: masterVolume,
     });
@@ -985,6 +1002,7 @@ export default function DrumMachine() {
     masterDelay,
     masterDrive,
     masterFilter,
+    masterPhaser,
     masterReverb,
     masterVolume,
   ]);
@@ -1003,6 +1021,7 @@ export default function DrumMachine() {
     setMasterFilter(snapshot.filter);
     setMasterDelay(snapshot.delay);
     setMasterReverb(snapshot.reverb);
+    setMasterPhaser(snapshot.phaser);
     setMasterCompressor(snapshot.compressor);
     setMasterVolume(snapshot.volume);
   }, [snapshot]);
@@ -1204,41 +1223,74 @@ export default function DrumMachine() {
         onClose={closeDrawer}
       >
         {/*
-          Both groups run in signal-chain order, and the sends come first
-          because their returns rejoin at the master input — so the drive and
-          the cuts in the group below are working on the repeats and the tail
-          as well as on the dry channels.
+          Two tabs rather than two stacked bands: six stages of sliders is more
+          than a rail's height, and which of the two kinds of stage you are
+          working on — the buses channels feed by choice, or the stages the
+          whole mix goes through whether it likes it or not — is a decision that
+          holds for a while rather than one made slider by slider.
+
+          Sends come first because their returns rejoin at the master input, so
+          the stages on the other tab are working on the repeats, the tail and
+          the sweep as well as on the dry channels. Each tab then runs in
+          signal-chain order within itself.
         */}
-        <RailGroup title="Send FX">
-          <MasterDelayControls
-            delay={masterDelay}
-            bpm={bpm}
-            onChange={setMasterDelay}
-          />
+        <RailTabs
+          label="Effects"
+          tabs={[
+            {
+              id: "send-fx",
+              label: "Send FX",
+              panel: (
+                <>
+                  <MasterDelayControls
+                    delay={masterDelay}
+                    bpm={bpm}
+                    onChange={setMasterDelay}
+                  />
 
-          <MasterReverbControls
-            reverb={masterReverb}
-            onChange={setMasterReverb}
-          />
-        </RailGroup>
+                  <MasterReverbControls
+                    reverb={masterReverb}
+                    onChange={setMasterReverb}
+                  />
 
-        <RailGroup title="Master FX">
-          <MasterDriveControls drive={masterDrive} onChange={setMasterDrive} />
+                  {/* Last of the three, because the other two can feed it: the
+                      delay sends on into the reverb, and the reverb sends on
+                      into here. */}
+                  <MasterPhaserControls
+                    phaser={masterPhaser}
+                    onChange={setMasterPhaser}
+                  />
+                </>
+              ),
+            },
+            {
+              id: "master-fx",
+              label: "Master FX",
+              panel: (
+                <>
+                  <MasterDriveControls
+                    drive={masterDrive}
+                    onChange={setMasterDrive}
+                  />
 
-          <MasterFilterControls
-            filter={masterFilter}
-            onChange={setMasterFilter}
-          />
+                  <MasterFilterControls
+                    filter={masterFilter}
+                    onChange={setMasterFilter}
+                  />
 
-          {/* Last of the stages, and last in the signal too: it is levelling
-              what the drive and the cuts have already made rather than a mix
-              still about to change under it. */}
-          <MasterCompressorControls
-            compressor={masterCompressor}
-            getGainReduction={getGainReduction}
-            onChange={setMasterCompressor}
-          />
-        </RailGroup>
+                  {/* Last of the stages, and last in the signal too: it is
+                      levelling what the drive and the cuts have already made
+                      rather than a mix still about to change under it. */}
+                  <MasterCompressorControls
+                    compressor={masterCompressor}
+                    getGainReduction={getGainReduction}
+                    onChange={setMasterCompressor}
+                  />
+                </>
+              ),
+            },
+          ]}
+        />
       </Sidebar>
 
       <SidebarTab
@@ -1383,6 +1435,7 @@ export default function DrumMachine() {
             onDecayChange={handleDecayChange}
             onDelaySendChange={handleDelaySendChange}
             onReverbSendChange={handleReverbSendChange}
+            onPhaserSendChange={handlePhaserSendChange}
             onChokedByChange={(sourceId) =>
               handleChokedByChange(selectedChannel.id, sourceId)
             }

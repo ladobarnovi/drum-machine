@@ -4,10 +4,13 @@ import MasterFxSection from "./MasterFxSection";
 import RailSlider from "@/components/ui/RailSlider";
 import {
   MAX_REVERB_DECAY_SECONDS,
+  MAX_SEND,
   MAX_VOLUME,
   MIN_REVERB_DECAY_SECONDS,
+  MIN_SEND,
   MIN_VOLUME,
   clampReverbDecay,
+  clampSend,
   clampVolume,
   formatFrequency,
   formatSeconds,
@@ -28,6 +31,10 @@ type MasterReverbControlsProps = {
  * Tone is a lowpass on the tail rather than on the way in, which is what lets a
  * long reverb sit behind a kit: the space stays audible while the hats stop
  * smearing across it.
+ *
+ * Like the delay, it is a sender in its own right: "To phaser" passes the
+ * return on into the phaser bus, so the tail can be set moving instead of
+ * hanging still behind the kit.
  */
 export default function MasterReverbControls({
   reverb,
@@ -80,6 +87,24 @@ export default function MasterReverbControls({
         value={reverb.level}
         readout={`${Math.round(reverb.level * 100)}%`}
         onChange={(value) => onChange({ ...reverb, level: clampVolume(value) })}
+      />
+
+      {/*
+        Last, because the send is taken after the level — the same place the
+        delay's send into this bus is taken from, and for the same reason:
+        pulling the tail down takes its share of the sweep with it.
+      */}
+      <RailSlider
+        label="To phaser"
+        ariaLabel="Master reverb phaser send"
+        min={MIN_SEND}
+        max={MAX_SEND}
+        step={0.01}
+        value={reverb.phaserSend}
+        readout={`${Math.round(reverb.phaserSend * 100)}%`}
+        onChange={(value) =>
+          onChange({ ...reverb, phaserSend: clampSend(value) })
+        }
       />
     </MasterFxSection>
   );
