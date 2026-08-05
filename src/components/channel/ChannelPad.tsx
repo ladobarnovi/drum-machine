@@ -19,6 +19,8 @@ type ChannelPadProps = {
   onPreview: () => void;
   onToggleMute: () => void;
   onToggleSolo: () => void;
+  /** A right click anywhere on the pad: raises the channel's action menu. */
+  onContextMenu: (x: number, y: number) => void;
 };
 
 const TOGGLE_BASE =
@@ -35,6 +37,7 @@ export default function ChannelPad({
   onPreview,
   onToggleMute,
   onToggleSolo,
+  onContextMenu,
 }: ChannelPadProps) {
   const displayName = channelDisplayName(channel);
   const shortcut = shortcutLabelForIndex(index);
@@ -44,6 +47,11 @@ export default function ChannelPad({
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     onSelect();
     if (event.altKey) onPreview();
+  };
+
+  const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    onContextMenu(event.clientX, event.clientY);
   };
 
   const selection = isSelected ? "border-select bg-select-soft" : "border-edge";
@@ -59,6 +67,7 @@ export default function ChannelPad({
     // aspect-square keeps a pad at least as tall as it is wide; the grid row can
     // still stretch it further if the contents ever need more room.
     <div
+      onContextMenu={handleContextMenu}
       className={`flex aspect-square flex-col gap-1 rounded-md border p-1.5 ring-2 transition sm:p-2 ${selection} ${trigger}`}
     >
       <button

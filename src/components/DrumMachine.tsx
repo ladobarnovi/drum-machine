@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import ChannelContextMenu from "@/components/channel/ChannelContextMenu";
 import ChannelEditor from "@/components/channel/ChannelEditor";
 import ChannelGrid from "@/components/channel/ChannelGrid";
 import StepContextMenu from "@/components/channel/steps/StepContextMenu";
@@ -77,6 +78,7 @@ import {
   type MasterFilter,
   type MasterReverb,
   type ParameterSnapshot,
+  type SampleState,
   type Step,
   type StepFill,
   type SwipeTarget,
@@ -127,6 +129,25 @@ export default function DrumMachine() {
   /** The last step copied from the grid's context menu, or null until one is. */
   const [clipboardStep, setClipboardStep] = useState<Step | null>(null);
 
+  /** Which channel's right-click menu is open, and where it was raised. */
+  const [contextMenuChannel, setContextMenuChannel] = useState<{
+    channelId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  /** The last pattern copied from a channel's context menu. */
+  const [clipboardPattern, setClipboardPattern] = useState<{
+    steps: Step[];
+    length: number;
+  } | null>(null);
+
+  /** The last sample copied from a channel's context menu. */
+  const [clipboardSample, setClipboardSample] = useState<{
+    buffer: AudioBuffer;
+    sample: SampleState;
+  } | null>(null);
+
   /**
    * What a vertical swipe across the step grid writes.
    *
@@ -176,6 +197,14 @@ export default function DrumMachine() {
   const editingStep: Step | null =
     editingStepIndex === null ? null : selectedChannel.steps[editingStepIndex];
 
+  /** The channel the open context menu belongs to, whichever pad raised it. */
+  const contextMenuChannelTarget =
+    contextMenuChannel === null
+      ? null
+      : (channels.find(
+          (channel) => channel.id === contextMenuChannel.channelId,
+        ) ?? null);
+
   const {
     ensureContext,
     applyMasterDrive,
@@ -186,6 +215,8 @@ export default function DrumMachine() {
     loadSample,
     loadSampleFromUrl,
     removeSample,
+    getSampleBuffer,
+    setSampleBuffer,
     trigger,
     choke,
   } = useSampleBank();
@@ -281,15 +312,9 @@ export default function DrumMachine() {
     [],
   );
 
-  /**
-   * Rewrites the selected channel's pattern. Every gesture on the grid comes
-   * through here, so each one only has to say what it does to the steps — and
-   * the grid is always the selected channel, which is what lets the handlers
-   * below take a step index and nothing else.
-   */
-  const updateSelectedSteps = useCallback(
-    (write: (steps: Step[], length: number) => Step[]) => {
-      const channelId = selectedChannel.id;
+  /** Rewrites one channel's pattern, whichever channel that is. */
+  const updateStepsForChannel = useCallback(
+    (channelId: string, write: (steps: Step[], length: number) => Step[]) => {
       setChannels((prev) =>
         prev.map((channel) =>
           channel.id === channelId
@@ -298,7 +323,20 @@ export default function DrumMachine() {
         ),
       );
     },
-    [selectedChannel.id],
+    [],
+  );
+
+  /**
+   * Rewrites the selected channel's pattern. Every gesture on the grid comes
+   * through here, so each one only has to say what it does to the steps — and
+   * the grid is always the selected channel, which is what lets the handlers
+   * below take a step index and nothing else.
+   */
+  const updateSelectedSteps = useCallback(
+    (write: (steps: Step[], length: number) => Step[]) => {
+      updateStepsForChannel(selectedChannel.id, write);
+    },
+    [selectedChannel.id, updateStepsForChannel],
   );
 
   /**
@@ -532,6 +570,69 @@ export default function DrumMachine() {
   const handleToggleSolo = useCallback(
     (channelId: string) => toggleChannelFlag(channelId, "soloed"),
     [toggleChannelFlag],
+  );
+
+  /** A right click on a channel pad: raises its action menu at the pointer. */
+  const handleChannelContextMenu = useCallback(
+    (channelId: string, x: number, y: number) => {
+      setContextMenuChannel({ channelId, x, y });
+    },
+    [],
+  );
+
+  const closeChannelContextMenu = useCallback(
+    () => setContextMenuChannel(null),
+    [],
+  );
+
+  /** "Clear Pattern" from the context menu: every step back to `createStep`. */
+  const handleClearPatternFromMenu = useCallback(
+    (channelId: string) => updateStepsForChannel(channelId, clearSteps),
+    [updateStepsForChannel],
+  );
+
+  /** "Copy Pattern": the steps and the length that gives them their loop. */
+  const handleCopyPatternFromMenu = useCallback(
+    (channelId: string) => {
+      const channel = channels.find((item) => item.id === channelId);
+      if (!channel) return;
+      setClipboardPattern({ steps: channel.steps, length: channel.length });
+    },
+    [channels],
+  );
+
+  const handlePastePatternFromMenu = useCallback(
+    (channelId: string) => {
+      if (!clipboardPattern) return;
+      updateChannel(channelId, {
+        steps: clipboardPattern.steps,
+        length: clipboardPattern.length,
+      });
+    },
+    [clipboardPattern, updateChannel],
+  );
+
+  /** "Copy Sample": nothing to copy from a channel with none loaded. */
+  const handleCopySampleFromMenu = useCallback(
+    (channelId: string) => {
+      const channel = channels.find((item) => item.id === channelId);
+      if (!channel || channel.sample.status !== "loaded") return;
+
+      const buffer = getSampleBuffer(channelId);
+      if (!buffer) return;
+
+      setClipboardSample({ buffer, sample: channel.sample });
+    },
+    [channels, getSampleBuffer],
+  );
+
+  const handlePasteSampleFromMenu = useCallback(
+    (channelId: string) => {
+      if (!clipboardSample) return;
+      setSampleBuffer(channelId, clipboardSample.buffer);
+      updateChannel(channelId, { sample: clipboardSample.sample });
+    },
+    [clipboardSample, setSampleBuffer, updateChannel],
   );
 
   /**
@@ -971,6 +1072,7 @@ export default function DrumMachine() {
             onPreviewChannel={handlePreviewChannel}
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
+            onChannelContextMenu={handleChannelContextMenu}
           />
 
           <ChannelEditor
@@ -1041,6 +1143,38 @@ export default function DrumMachine() {
           onCopyStep={handleCopyStepFromMenu}
           pasteDisabled={clipboardStep === null}
           onPasteStep={handlePasteStepFromMenu}
+        />
+      )}
+
+      {contextMenuChannel && contextMenuChannelTarget && (
+        <ChannelContextMenu
+          x={contextMenuChannel.x}
+          y={contextMenuChannel.y}
+          onClose={closeChannelContextMenu}
+          onClearPattern={() =>
+            handleClearPatternFromMenu(contextMenuChannelTarget.id)
+          }
+          onCopyPattern={() =>
+            handleCopyPatternFromMenu(contextMenuChannelTarget.id)
+          }
+          pastePatternDisabled={clipboardPattern === null}
+          onPastePattern={() =>
+            handlePastePatternFromMenu(contextMenuChannelTarget.id)
+          }
+          copySampleDisabled={
+            contextMenuChannelTarget.sample.status !== "loaded"
+          }
+          onCopySample={() =>
+            handleCopySampleFromMenu(contextMenuChannelTarget.id)
+          }
+          pasteSampleDisabled={clipboardSample === null}
+          onPasteSample={() =>
+            handlePasteSampleFromMenu(contextMenuChannelTarget.id)
+          }
+          muted={contextMenuChannelTarget.muted}
+          onToggleMute={() => handleToggleMute(contextMenuChannelTarget.id)}
+          soloed={contextMenuChannelTarget.soloed}
+          onToggleSolo={() => handleToggleSolo(contextMenuChannelTarget.id)}
         />
       )}
     </div>

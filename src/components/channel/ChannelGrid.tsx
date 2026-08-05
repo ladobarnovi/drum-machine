@@ -16,6 +16,7 @@ type ChannelGridProps = {
   onPreviewChannel: (channelId: string) => void;
   onToggleMute: (channelId: string) => void;
   onToggleSolo: (channelId: string) => void;
+  onChannelContextMenu: (channelId: string, x: number, y: number) => void;
 };
 
 export default function ChannelGrid({
@@ -26,6 +27,7 @@ export default function ChannelGrid({
   onPreviewChannel,
   onToggleMute,
   onToggleSolo,
+  onChannelContextMenu,
 }: ChannelGridProps) {
   const soloActive = hasSoloedChannel(channels);
 
@@ -47,6 +49,7 @@ export default function ChannelGrid({
           onPreview={() => onPreviewChannel(channel.id)}
           onToggleMute={() => onToggleMute(channel.id)}
           onToggleSolo={() => onToggleSolo(channel.id)}
+          onContextMenu={(x, y) => onChannelContextMenu(channel.id, x, y)}
         />
       ))}
     </div>

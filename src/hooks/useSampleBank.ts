@@ -937,6 +937,24 @@ export function useSampleBank() {
     buffersRef.current.delete(channelId);
   }, []);
 
+  /** The decoded buffer behind a channel's sample, e.g. to hand off to a copy. */
+  const getSampleBuffer = useCallback(
+    (channelId: string) => buffersRef.current.get(channelId),
+    [],
+  );
+
+  /**
+   * Points `channelId` at an already-decoded buffer, e.g. pasting a copied
+   * sample. Safe to share one `AudioBuffer` across channels — it is only ever
+   * read from during playback, never written to.
+   */
+  const setSampleBuffer = useCallback(
+    (channelId: string, buffer: AudioBuffer) => {
+      buffersRef.current.set(channelId, buffer);
+    },
+    [],
+  );
+
   /** Schedules the channel's sample to play at `time` on the audio clock. */
   const trigger = useCallback(
     (
@@ -1232,6 +1250,8 @@ export function useSampleBank() {
     loadSample,
     loadSampleFromUrl,
     removeSample,
+    getSampleBuffer,
+    setSampleBuffer,
     trigger,
     choke,
   };
