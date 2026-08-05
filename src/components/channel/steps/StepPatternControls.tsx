@@ -1,6 +1,7 @@
 "use client";
 
 import LengthControl from "./LengthControl";
+import Accordion from "@/components/ui/Accordion";
 import {
   STEP_FILLS,
   STEP_LENGTH_PRESETS,
@@ -89,9 +90,9 @@ export default function StepPatternControls({
   const headingClass = "text-xs font-semibold";
 
   return (
-    <section className="border-line flex flex-col gap-4 rounded-md border p-3">
+    <Accordion title="Sequencer options">
       <div className={groupClass}>
-        <h2 className={headingClass}>Sequence Length</h2>
+        <h2 className={headingClass}>Length</h2>
 
         {/*
           Field and presets side by side, since they set the same number two
@@ -216,6 +217,6 @@ export default function StepPatternControls({
           ))}
         </div>
       </div>
-    </section>
+    </Accordion>
   );
 }
