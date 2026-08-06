@@ -12,6 +12,7 @@ import SampleSlot from "./SampleSlot";
 import Waveform from "./Waveform";
 import StepGrid from "./steps/StepGrid";
 import StepPatternControls from "./steps/StepPatternControls";
+import Accordion from "@/components/ui/Accordion";
 import {
   channelDisplayName,
   type Channel,
@@ -208,34 +209,38 @@ export default function ChannelEditor(props: ChannelEditorProps) {
 
   return (
     <>
-      <ChannelControls
-        volume={settings.volume}
-        pan={settings.pan}
-        pitch={settings.pitch}
-        lowCutHz={settings.lowCutHz}
-        highCutHz={settings.highCutHz}
-        attackSeconds={settings.attackSeconds}
-        decaySeconds={settings.decaySeconds}
-        delaySend={settings.delaySend}
-        reverbSend={settings.reverbSend}
-        phaserSend={settings.phaserSend}
-        chokedBy={channel.chokedBy}
-        chokeOptions={props.chokeOptions}
-        stepEdit={props.stepEdit}
-        onVolumeChange={props.onVolumeChange}
-        onPanChange={props.onPanChange}
-        onPitchChange={props.onPitchChange}
-        onLowCutChange={props.onLowCutChange}
-        onHighCutChange={props.onHighCutChange}
-        onAttackChange={props.onAttackChange}
-        onDecayChange={props.onDecayChange}
-        onDelaySendChange={props.onDelaySendChange}
-        onReverbSendChange={props.onReverbSendChange}
-        onPhaserSendChange={props.onPhaserSendChange}
-        onChokedByChange={props.onChokedByChange}
-      />
+      <Accordion title="Channel Params">
+        <ChannelControls
+          volume={settings.volume}
+          pan={settings.pan}
+          pitch={settings.pitch}
+          lowCutHz={settings.lowCutHz}
+          highCutHz={settings.highCutHz}
+          attackSeconds={settings.attackSeconds}
+          decaySeconds={settings.decaySeconds}
+          delaySend={settings.delaySend}
+          reverbSend={settings.reverbSend}
+          phaserSend={settings.phaserSend}
+          chokedBy={channel.chokedBy}
+          chokeOptions={props.chokeOptions}
+          stepEdit={props.stepEdit}
+          onVolumeChange={props.onVolumeChange}
+          onPanChange={props.onPanChange}
+          onPitchChange={props.onPitchChange}
+          onLowCutChange={props.onLowCutChange}
+          onHighCutChange={props.onHighCutChange}
+          onAttackChange={props.onAttackChange}
+          onDecayChange={props.onDecayChange}
+          onDelaySendChange={props.onDelaySendChange}
+          onReverbSendChange={props.onReverbSendChange}
+          onPhaserSendChange={props.onPhaserSendChange}
+          onChokedByChange={props.onChokedByChange}
+        />
+      </Accordion>
 
-      <ChannelLfoControls lfo={channel.lfo} onChange={props.onLfoChange} />
+      <Accordion title="Channel LFO" defaultOpen={false}>
+        <ChannelLfoControls lfo={channel.lfo} onChange={props.onLfoChange} />
+      </Accordion>
     </>
   );
 }

@@ -37,7 +37,7 @@ export default function ChannelLfoControls({
   onChange,
 }: ChannelLfoControlsProps) {
   return (
-    <section className="border-line flex flex-col gap-3 rounded-md border p-3">
+    <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold">LFO</h2>
 
