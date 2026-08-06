@@ -163,9 +163,12 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   }
 
   if (props.showSequencerOnly) {
+    // No `Card` here, unlike the other two sections: this one shares its card
+    // with the Patterns and Banks tabs it sits alongside, and that wrapper —
+    // along with the tab strip that used to be this section's own "Sequencer"
+    // heading — belongs to `SequencerTabsSection`, one level up.
     return (
-      <Card>
-        <h3 className="text-xs font-semibold">Sequencer</h3>
+      <>
         <StepGrid
           channelLabel={displayName}
           steps={channel.steps}
@@ -193,7 +196,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onLengthChange={props.onLengthChange}
           onSwipeTargetChange={props.onSwipeTargetChange}
         />
-      </Card>
+      </>
     );
   }
 

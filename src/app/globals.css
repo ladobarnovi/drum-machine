@@ -50,6 +50,11 @@
   --solo: #10b981;
   --danger: #ef4444;
 
+  /* Pattern and bank slots: two more flags in the same family as mute/solo,
+     chosen to sit apart from every other token above. */
+  --pattern: #8b5cf6;
+  --bank: #ec4899;
+
   --backdrop: rgb(23 23 23 / 0.4); /* behind an open drawer */
   --pad-hover: rgb(
     0 0 0 / 0.05
@@ -94,6 +99,9 @@
     --solo: #10b981;
     --danger: #ef4444;
 
+    --pattern: #8b5cf6;
+    --bank: #ec4899;
+
     --backdrop: rgb(23 23 23 / 0.4);
     --pad-hover: rgb(255 255 255 / 0.1);
 
@@ -136,6 +144,9 @@
   --solo: #3ee97f;
   --danger: #ff5470;
 
+  --pattern: #b794f6;
+  --bank: #6ea8ff;
+
   --backdrop: rgb(6 4 18 / 0.6);
   --pad-hover: rgb(255 255 255 / 0.08);
 
@@ -176,6 +187,9 @@
   --solo: #4be08a;
   --danger: #ff5c5c;
 
+  --pattern: #b18cff;
+  --bank: #4aa8ff;
+
   --backdrop: rgb(3 14 12 / 0.6);
   --pad-hover: rgb(255 255 255 / 0.08);
 
@@ -215,6 +229,9 @@
   --mute: #e0940a;
   --solo: #1fa35c;
   --danger: #d92d3c;
+
+  --pattern: #7c3aed;
+  --bank: #0d9488;
 
   --backdrop: rgb(43 26 61 / 0.4);
   --pad-hover: rgb(43 26 61 / 0.06);
@@ -258,6 +275,9 @@
   --solo: #00ff66;
   --danger: #ff0033;
 
+  --pattern: #00e5ff;
+  --bank: #ff8800;
+
   --backdrop: rgb(2 2 4 / 0.65);
   --pad-hover: rgb(255 255 255 / 0.08);
 
@@ -300,6 +320,9 @@
   --color-mute: var(--mute);
   --color-solo: var(--solo);
   --color-danger: var(--danger);
+
+  --color-pattern: var(--pattern);
+  --color-bank: var(--bank);
 
   --color-backdrop: var(--backdrop);
   --color-pad-hover: var(--pad-hover);

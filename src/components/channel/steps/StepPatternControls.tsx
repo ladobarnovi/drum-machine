@@ -98,7 +98,7 @@ export default function StepPatternControls({
   const headingClass = "text-xs font-semibold";
 
   return (
-    <Accordion title="Sequencer options">
+    <Accordion title="Sequencer Options" defaultOpen={false}>
       <div className={groupClass}>
         <h2 className={headingClass}>Length</h2>
 
@@ -130,7 +130,7 @@ export default function StepPatternControls({
       </div>
 
       <div className={groupClass}>
-        <h2 className={headingClass}>Patterns</h2>
+        <h2 className={headingClass}>Fills</h2>
 
         <div className="flex flex-wrap gap-2">
           {STEP_FILLS.map((fill) => {

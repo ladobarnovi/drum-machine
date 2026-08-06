@@ -7,11 +7,11 @@ type ChannelContextMenuProps = {
   x: number;
   y: number;
   onClose: () => void;
-  onClearPattern: () => void;
-  onCopyPattern: () => void;
-  /** Disabled while no pattern has been copied yet. */
-  pastePatternDisabled: boolean;
-  onPastePattern: () => void;
+  onClearSteps: () => void;
+  onCopySteps: () => void;
+  /** Disabled while no steps have been copied yet. */
+  pasteStepsDisabled: boolean;
+  onPasteSteps: () => void;
   /** Disabled while the channel has no sample loaded to copy. */
   copySampleDisabled: boolean;
   onCopySample: () => void;
@@ -31,10 +31,10 @@ export default function ChannelContextMenu({
   x,
   y,
   onClose,
-  onClearPattern,
-  onCopyPattern,
-  pastePatternDisabled,
-  onPastePattern,
+  onClearSteps,
+  onCopySteps,
+  pasteStepsDisabled,
+  onPasteSteps,
   copySampleDisabled,
   onCopySample,
   pasteSampleDisabled,
@@ -57,19 +57,19 @@ export default function ChannelContextMenu({
       onClose={onClose}
       width="w-44"
     >
-      <ContextMenuItem onClick={run(onClearPattern)}>
-        Clear Pattern
+      <ContextMenuItem onClick={run(onClearSteps)}>
+        Clear Steps
       </ContextMenuItem>
 
-      <ContextMenuItem onClick={run(onCopyPattern)}>
-        Copy Pattern
+      <ContextMenuItem onClick={run(onCopySteps)}>
+        Copy Steps
       </ContextMenuItem>
 
       <ContextMenuItem
-        disabled={pastePatternDisabled}
-        onClick={run(onPastePattern)}
+        disabled={pasteStepsDisabled}
+        onClick={run(onPasteSteps)}
       >
-        Paste Pattern
+        Paste Steps
       </ContextMenuItem>
 
       <div className={dividerClass} aria-hidden />

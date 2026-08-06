@@ -14,6 +14,8 @@ import MasterPhaserControls from "@/components/master/MasterPhaserControls";
 import MasterReverbControls from "@/components/master/MasterReverbControls";
 import MasterVolumeControls from "@/components/master/MasterVolumeControls";
 import Oscilloscope from "@/components/master/Oscilloscope";
+import PatternContextMenu from "@/components/patterns/PatternContextMenu";
+import SequencerTabsSection from "@/components/patterns/SequencerTabsSection";
 import PresetPicker from "@/components/session/PresetPicker";
 import SnapshotControls from "@/components/session/SnapshotControls";
 import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
@@ -26,6 +28,7 @@ import ThemeSelector from "@/components/shell/ThemeSelector";
 import PlayButton from "@/components/transport/PlayButton";
 import Transport from "@/components/transport/Transport";
 import RailTabs from "@/components/ui/RailTabs";
+import { useBanks } from "@/hooks/useBanks";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
@@ -103,6 +106,7 @@ import {
   type StepFill,
   type SwipeTarget,
 } from "@/lib/sequencer";
+import { applyPattern } from "@/lib/patterns";
 import {
   DEFAULT_PRESET,
   PRESETS,
@@ -134,6 +138,16 @@ const UNEDITED = {
 
 export default function DrumMachine() {
   const [channels, setChannels] = useState<Channel[]>(createInitialChannels);
+  const {
+    banks,
+    selectedBankIndex,
+    selectBank,
+    activePattern,
+    getPattern,
+    savePattern,
+    deletePattern,
+    markPatternActive,
+  } = useBanks();
   const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [swing, setSwing] = useState(DEFAULT_SWING);
   const [selectedChannelId, setSelectedChannelId] = useState(
@@ -182,10 +196,17 @@ export default function DrumMachine() {
     y: number;
   } | null>(null);
 
-  /** The last pattern copied from a channel's context menu. */
-  const [clipboardPattern, setClipboardPattern] = useState<{
+  /** The last steps copied from a channel's context menu. */
+  const [clipboardSteps, setClipboardSteps] = useState<{
     steps: Step[];
     length: number;
+  } | null>(null);
+
+  /** Which pattern slot's right-click menu is open, and where it was raised. */
+  const [contextMenuPattern, setContextMenuPattern] = useState<{
+    index: number;
+    x: number;
+    y: number;
   } | null>(null);
 
   /** The last sample copied from a channel's context menu. */
@@ -774,31 +795,72 @@ export default function DrumMachine() {
     [],
   );
 
-  /** "Clear Pattern" from the context menu: every step back to `createStep`. */
-  const handleClearPatternFromMenu = useCallback(
+  /**
+   * Clicking a pattern slot: loads it into the live kit right away, steps and
+   * mix alike, even mid-playback — there is nothing to queue, since the
+   * scheduler already reads `channels` fresh on every tick. A click on an
+   * empty slot has nothing to load, so `PatternGrid` never calls this for one.
+   */
+  const handleLoadPattern = useCallback(
+    (index: number) => {
+      const pattern = getPattern(index);
+      if (!pattern) return;
+      setChannels((current) => applyPattern(current, pattern));
+      markPatternActive(index);
+    },
+    [getPattern, markPatternActive],
+  );
+
+  /** A right click on a pattern slot: raises its action menu at the pointer. */
+  const handlePatternContextMenu = useCallback(
+    (index: number, x: number, y: number) => {
+      setContextMenuPattern({ index, x, y });
+    },
+    [],
+  );
+
+  const closePatternContextMenu = useCallback(
+    () => setContextMenuPattern(null),
+    [],
+  );
+
+  /** "Save Pattern": snapshots the live kit into the right-clicked slot. */
+  const handleSavePatternFromMenu = useCallback(
+    (index: number) => savePattern(index, channels),
+    [savePattern, channels],
+  );
+
+  /** "Delete Pattern": empties the slot without touching the live kit. */
+  const handleDeletePatternFromMenu = useCallback(
+    (index: number) => deletePattern(index),
+    [deletePattern],
+  );
+
+  /** "Clear Steps" from the context menu: every step back to `createStep`. */
+  const handleClearStepsFromMenu = useCallback(
     (channelId: string) => updateStepsForChannel(channelId, clearSteps),
     [updateStepsForChannel],
   );
 
-  /** "Copy Pattern": the steps and the length that gives them their loop. */
-  const handleCopyPatternFromMenu = useCallback(
+  /** "Copy Steps": the steps and the length that gives them their loop. */
+  const handleCopyStepsFromMenu = useCallback(
     (channelId: string) => {
       const channel = channels.find((item) => item.id === channelId);
       if (!channel) return;
-      setClipboardPattern({ steps: channel.steps, length: channel.length });
+      setClipboardSteps({ steps: channel.steps, length: channel.length });
     },
     [channels],
   );
 
-  const handlePastePatternFromMenu = useCallback(
+  const handlePasteStepsFromMenu = useCallback(
     (channelId: string) => {
-      if (!clipboardPattern) return;
+      if (!clipboardSteps) return;
       updateChannel(channelId, {
-        steps: clipboardPattern.steps,
-        length: clipboardPattern.length,
+        steps: clipboardSteps.steps,
+        length: clipboardSteps.length,
       });
     },
-    [clipboardPattern, updateChannel],
+    [clipboardSteps, updateChannel],
   );
 
   /** "Copy Sample": nothing to copy from a channel with none loaded. */
@@ -1369,6 +1431,18 @@ export default function DrumMachine() {
             id="drum-main-content"
             className="mx-auto flex w-full max-w-5xl flex-col gap-6  p-6"
           >
+            <ChannelGrid
+              channels={channels}
+              selectedChannelId={selectedChannel.id}
+              flashedChannelIds={flashedChannelIds}
+              getChannelLevel={getChannelLevel}
+              onSelectChannel={handleSelectChannel}
+              onPreviewChannel={handlePreviewChannel}
+              onToggleMute={handleToggleMute}
+              onToggleSolo={handleToggleSolo}
+              onChannelContextMenu={handleChannelContextMenu}
+            />
+
             {/* First thing in the column, directly above the sample slot that
               answers it. Only while the kit is empty: once anything is loaded
               the greyed-out transport is no longer a mystery worth explaining.
@@ -1399,12 +1473,11 @@ export default function DrumMachine() {
               getPlayhead={getSelectedPlayhead}
             />
 
-            <ChannelEditor
+            <SequencerTabsSection
               channel={selectedChannel}
               currentStep={currentStep}
               editingStep={editingStepIndex}
               swipeTarget={swipeTarget}
-              showSequencerOnly={true}
               onStepClick={handleStepClick}
               onStepHold={handleStepHold}
               onStepVelocityChange={handleStepVelocityChange}
@@ -1419,18 +1492,16 @@ export default function DrumMachine() {
               onLengthChange={(length) =>
                 handleLengthChange(selectedChannel.id, length)
               }
-            />
-
-            <ChannelGrid
-              channels={channels}
-              selectedChannelId={selectedChannel.id}
-              flashedChannelIds={flashedChannelIds}
-              getChannelLevel={getChannelLevel}
-              onSelectChannel={handleSelectChannel}
-              onPreviewChannel={handlePreviewChannel}
-              onToggleMute={handleToggleMute}
-              onToggleSolo={handleToggleSolo}
-              onChannelContextMenu={handleChannelContextMenu}
+              banks={banks}
+              selectedBankIndex={selectedBankIndex}
+              activePatternIndex={
+                activePattern?.bankIndex === selectedBankIndex
+                  ? activePattern.patternIndex
+                  : null
+              }
+              onSelectBank={selectBank}
+              onLoadPattern={handleLoadPattern}
+              onPatternContextMenu={handlePatternContextMenu}
             />
 
             <ChannelEditor
@@ -1500,15 +1571,15 @@ export default function DrumMachine() {
           x={contextMenuChannel.x}
           y={contextMenuChannel.y}
           onClose={closeChannelContextMenu}
-          onClearPattern={() =>
-            handleClearPatternFromMenu(contextMenuChannelTarget.id)
+          onClearSteps={() =>
+            handleClearStepsFromMenu(contextMenuChannelTarget.id)
           }
-          onCopyPattern={() =>
-            handleCopyPatternFromMenu(contextMenuChannelTarget.id)
+          onCopySteps={() =>
+            handleCopyStepsFromMenu(contextMenuChannelTarget.id)
           }
-          pastePatternDisabled={clipboardPattern === null}
-          onPastePattern={() =>
-            handlePastePatternFromMenu(contextMenuChannelTarget.id)
+          pasteStepsDisabled={clipboardSteps === null}
+          onPasteSteps={() =>
+            handlePasteStepsFromMenu(contextMenuChannelTarget.id)
           }
           copySampleDisabled={
             contextMenuChannelTarget.sample.status !== "loaded"
@@ -1524,6 +1595,19 @@ export default function DrumMachine() {
           onToggleMute={() => handleToggleMute(contextMenuChannelTarget.id)}
           soloed={contextMenuChannelTarget.soloed}
           onToggleSolo={() => handleToggleSolo(contextMenuChannelTarget.id)}
+        />
+      )}
+
+      {contextMenuPattern && (
+        <PatternContextMenu
+          x={contextMenuPattern.x}
+          y={contextMenuPattern.y}
+          onClose={closePatternContextMenu}
+          onSavePattern={() => handleSavePatternFromMenu(contextMenuPattern.index)}
+          deleteDisabled={getPattern(contextMenuPattern.index) === null}
+          onDeletePattern={() =>
+            handleDeletePatternFromMenu(contextMenuPattern.index)
+          }
         />
       )}
     </div>

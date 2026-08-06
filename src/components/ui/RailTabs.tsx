@@ -13,6 +13,18 @@ type RailTabsProps = {
   label: string;
   /** At least one; the first is what shows until another is picked. */
   tabs: RailTab[];
+  /**
+   * "rail" (the default) is sized for the narrow FX sidebar this component
+   * started in. "panel" is sized for a full page column — larger, sentence
+   * case rather than small caps — for the Sequencer/Patterns/Banks switcher,
+   * which has no rail to fit inside.
+   */
+  variant?: "rail" | "panel";
+};
+
+const TAB_BUTTON_CLASS: Record<"rail" | "panel", string> = {
+  rail: "px-2 py-1 text-[10px] font-semibold tracking-wide uppercase",
+  panel: "px-3 py-1.5 text-xs font-semibold sm:text-sm",
 };
 
 /**
@@ -29,7 +41,7 @@ type RailTabsProps = {
  * has nothing to lose by not existing — and mounting all of them to keep them
  * hidden would leave the rail's scroll height set by the longest one.
  */
-export default function RailTabs({ label, tabs }: RailTabsProps) {
+export default function RailTabs({ label, tabs, variant = "rail" }: RailTabsProps) {
   const [activeId, setActiveId] = useState(tabs[0].id);
   const buttonsRef = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -96,7 +108,7 @@ export default function RailTabs({ label, tabs }: RailTabsProps) {
               // walking through every tab on the way into the panel.
               tabIndex={isActive ? 0 : -1}
               onClick={() => setActiveId(tab.id)}
-              className={`flex-1 rounded px-2 py-1 text-[10px] font-semibold tracking-wide uppercase transition-colors ${
+              className={`flex-1 rounded transition-colors ${TAB_BUTTON_CLASS[variant]} ${
                 isActive
                   ? "bg-accent text-on-accent"
                   : "text-muted hover:bg-raised"
