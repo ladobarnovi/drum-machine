@@ -504,6 +504,24 @@ function releaseChannelLfo(
 }
 
 /**
+ * A channel's meter tap: the voices split into their two sides, each with an
+ * analyser of its own.
+ *
+ * Split rather than read whole because an AnalyserNode analyses a *mono
+ * down-mix* of whatever reaches it, and the voices reaching this one have
+ * already been through the panner. A hard-panned channel is at full level in
+ * one speaker and silent in the other, which down-mixes to half — so a single
+ * analyser would report a tom as 6 dB quieter for having been placed to the
+ * side, which is not a thing that happened to how loud it is.
+ */
+type ChannelMeter = {
+  /** Where the voices land, and the only part of this the audio graph sees. */
+  splitter: ChannelSplitterNode;
+  /** One analyser per side; the louder of the two is what the bar shows. */
+  sides: AnalyserNode[];
+};
+
+/**
  * The meter tap for a channel, made on that channel's first hit and kept for
  * the life of the context.
  *
@@ -513,21 +531,34 @@ function releaseChannelLfo(
  * voice has to pass through.
  *
  * Built lazily because a channel with no sample in it can never be heard, and
- * sixteen analysers standing by for the eleven a kit actually loads is eleven
- * kilobytes of read buffers to no end.
+ * sixteen of these standing by for the eleven a kit actually loads is a stack
+ * of read buffers to no end.
  */
 function meterForChannel(
   context: AudioContext,
-  meters: Map<string, AnalyserNode>,
+  meters: Map<string, ChannelMeter>,
   channelId: string,
-): AnalyserNode {
+): ChannelMeter {
   const existing = meters.get(channelId);
   if (existing) return existing;
 
-  const analyser = context.createAnalyser();
-  analyser.fftSize = METER_FFT_SIZE;
-  meters.set(channelId, analyser);
-  return analyser;
+  const splitter = context.createChannelSplitter(2);
+
+  // A mono voice — which is every voice on a centred channel, since the panner
+  // is skipped there — is spread across these outputs discretely rather than
+  // copied to both, so it arrives on the left and leaves the right silent. The
+  // louder side is the signal either way, which is what makes one reading cover
+  // both the panned and the unpanned case.
+  const sides = [0, 1].map((side) => {
+    const analyser = context.createAnalyser();
+    analyser.fftSize = METER_FFT_SIZE;
+    splitter.connect(analyser, side);
+    return analyser;
+  });
+
+  const meter = { splitter, sides };
+  meters.set(channelId, meter);
+  return meter;
 }
 
 /** The always-connected nodes every voice is summed through. */
@@ -1200,7 +1231,7 @@ export function useSampleBank() {
   // The scope's read buffer, built on first use and then reused every frame.
   const waveformRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   // The meter tap of every channel that has been heard, by channel id.
-  const channelMetersRef = useRef(new Map<string, AnalyserNode>());
+  const channelMetersRef = useRef(new Map<string, ChannelMeter>());
   // The meters' read buffer. One for all sixteen rather than one each: they are
   // read one after another inside a single frame and the peak is taken before
   // the next read overwrites it, so there is never more than one in use.
@@ -1365,18 +1396,20 @@ export function useSampleBank() {
    * this is read sixteen times a frame, and no part of it belongs in a render.
    */
   const getChannelLevel = useCallback((channelId: string) => {
-    const analyser = channelMetersRef.current.get(channelId);
-    if (!analyser) return 0;
+    const meter = channelMetersRef.current.get(channelId);
+    if (!meter) return 0;
 
     const samples = (meterSamplesRef.current ??= new Float32Array(
-      analyser.fftSize,
+      METER_FFT_SIZE,
     ));
-    analyser.getFloatTimeDomainData(samples);
 
     let peak = 0;
-    for (let index = 0; index < samples.length; index += 1) {
-      const magnitude = Math.abs(samples[index]);
-      if (magnitude > peak) peak = magnitude;
+    for (const side of meter.sides) {
+      side.getFloatTimeDomainData(samples);
+      for (let index = 0; index < samples.length; index += 1) {
+        const magnitude = Math.abs(samples[index]);
+        if (magnitude > peak) peak = magnitude;
+      }
     }
     return peak;
   }, []);
@@ -1596,7 +1629,7 @@ export function useSampleBank() {
       // Metering the returns instead would be metering the bus, which belongs to
       // every channel at once and so to none of these bars.
       gainNode.connect(
-        meterForChannel(context, channelMetersRef.current, channelId),
+        meterForChannel(context, channelMetersRef.current, channelId).splitter,
       );
 
       // Sends are tapped off the volume node rather than off the raw source, so

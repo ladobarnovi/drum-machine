@@ -26,7 +26,7 @@ type ChannelPadProps = {
 };
 
 const TOGGLE_BASE =
-  "flex-1 rounded border py-0.5 text-[10px] leading-4 font-semibold transition-colors";
+  "flex-1 rounded border py-0.5 text-[10px] leading-4 font-semibold transition-colors cursor-pointer";
 const TOGGLE_OFF = "border-edge text-muted hover:bg-raised";
 
 export default function ChannelPad({
@@ -80,7 +80,7 @@ export default function ChannelPad({
         aria-label={`Select channel ${displayName}`}
         title={`${shortcut ? `${displayName} (${shortcut})` : displayName}\nAlt+click to preview`}
         // A neutral overlay so the hover reads the same on the selected pad's tint.
-        className={`hover:bg-pad-hover flex flex-1 items-center justify-center rounded px-1 text-xs font-semibold transition-colors sm:text-sm ${isSilenced ? "opacity-40" : ""}`}
+        className={`hover:bg-pad-hover flex flex-1 cursor-pointer items-center justify-center rounded px-1 text-xs font-semibold transition-colors sm:text-sm ${isSilenced ? "opacity-40" : ""}`}
       >
         <span className="min-w-0 truncate">{displayName}</span>
       </button>

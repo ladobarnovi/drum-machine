@@ -291,7 +291,7 @@ export default function StepButton({
       // scrolling, which would swallow the swipe before it arrived. Scrolling
       // from inside the grid means starting the drag off a step, which the gaps
       // between them leave room for.
-      className={`group relative h-12 flex-1 touch-none overflow-hidden rounded border transition-colors select-none ${surface} ${border} ${playhead} ${editing}`}
+      className={`group relative h-12 flex-1 touch-none overflow-hidden rounded border transition-colors select-none cursor-pointer ${surface} ${border} ${playhead} ${editing}`}
     >
       {step.on && (
         <span

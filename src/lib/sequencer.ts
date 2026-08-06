@@ -599,29 +599,39 @@ export function formatRatio(ratio: number): string {
 /**
  * The bottom of a channel's own meter, in dB below full scale.
  *
- * Deeper than a hardware channel meter usually reads, because this one is only
- * a few pixels tall and has no scale printed beside it: what it is for is
- * seeing at a glance which pads are working and how hard, and a shallower floor
- * would leave everything that isn't the kick pinned near the top.
+ * Shallower than a hardware channel meter, which is the point: this bar is a
+ * few pixels tall with no scale printed beside it, so what matters is how much
+ * of it one hit differs from the next by. A dB scale compresses the loud end —
+ * half amplitude is only 6 dB down — so the deeper the floor, the more of the
+ * range a drum kit actually uses ends up crowded into the top of the bar. At
+ * 36 dB, 6 dB of difference is a sixth of the bar's length, which is a
+ * difference you can see across the grid at a glance.
+ *
+ * Deep enough to keep the quiet end: a step at MIN_STEP_VELOCITY sits 26 dB
+ * down, which still reads as roughly a quarter of the bar rather than as
+ * nothing at all.
  *
  * It is also what silence reads as, so nothing here ever has to carry a
  * `-Infinity` around.
  */
-export const CHANNEL_METER_FLOOR_DB = -48;
+export const CHANNEL_METER_FLOOR_DB = -36;
 
 /**
  * How fast a channel meter falls back towards the floor, in dB per second.
  *
- * The whole of the ballistics: a level meter rises instantly and falls slowly,
+ * The whole of the ballistics: a level meter rises instantly and falls back,
  * which is the opposite way up from the compressor's meter above but the same
  * trick for the same reason — a drum hit is over in a few tens of milliseconds,
  * and a bar that tracked it honestly in both directions would be a flicker.
  *
- * At this rate a full-scale hit takes a little over a second to empty, so a
- * pad's last hit is still legible while the next bar comes round at any tempo
- * the machine offers.
+ * The rate is set by what the machine plays rather than by meter convention. A
+ * 16th note at 120 BPM is 125 ms, so a bar that took much longer than that to
+ * empty would still be most of the way up when the next hit arrived, and a busy
+ * channel would sit pinned near the top reading nothing at all. At this rate a
+ * full-scale hit empties in 0.3 s: consecutive 16ths each read as their own
+ * pulse, and a hit on every beat falls all the way back in between.
  */
-export const CHANNEL_METER_FALL_DB_PER_SECOND = 36;
+export const CHANNEL_METER_FALL_DB_PER_SECOND = 120;
 
 /**
  * Where a channel starts reading as over.
