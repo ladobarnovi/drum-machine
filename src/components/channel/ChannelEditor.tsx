@@ -52,6 +52,8 @@ type SampleSectionProps = {
   /** Which way through the file the trimmed region is read. */
   onSampleReversedChange: (reversed: boolean) => void;
   onSampleTrimReset: () => void;
+  /** Where in the file this channel is being heard, for the waveform's line. */
+  getPlayhead: () => number | null;
 };
 
 /** The step grid, and the pattern and length controls under it. */
@@ -154,6 +156,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           reversed={channel.sampleReversed}
           onReversedChange={props.onSampleReversedChange}
           onReset={props.onSampleTrimReset}
+          getPlayhead={props.getPlayhead}
         />
       </Card>
     );

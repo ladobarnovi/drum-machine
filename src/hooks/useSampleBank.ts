@@ -110,6 +110,28 @@ type Voice = {
 };
 
 /**
+ * The walk a hit makes through its file, for the line the waveform draws along
+ * with it. Every voice registers one, unlike `Voice` above — the strip shows
+ * whichever channel is selected, and any of them can be.
+ *
+ * Where the source is playing from is not something Web Audio will say, so this
+ * is the schedule it was given rather than a reading off the node: the same
+ * offset, span and rate, walked forward against the audio clock. Which makes it
+ * an estimate under a pitch LFO, since that moves `detune` while the hit sounds
+ * and the line has no way to follow it.
+ */
+type Playhead = {
+  /** When the hit starts on the audio clock. */
+  startTime: number;
+  /** Where in the file it begins, as a fraction of the whole file. */
+  fromFraction: number;
+  /** Where it ends. Below `fromFraction` when the sample is reversed. */
+  toFraction: number;
+  /** How much of the file it covers each second, negative when reversed. */
+  fractionsPerSecond: number;
+};
+
+/**
  * Butterworth response: maximally flat passband, so the cutoff rolls off with
  * no resonant peak at all.
  *
@@ -235,6 +257,17 @@ const DC_BLOCKER_HZ = 10;
  * crossing the screen rather than a smear of several.
  */
 const SCOPE_FFT_SIZE = 2048;
+
+/**
+ * How many samples a channel meter reads at once — about 23 ms at 44.1 kHz.
+ *
+ * Sized against the frame rather than the eye, unlike the scope above: the
+ * meters are read once per animation frame and report the loudest sample in
+ * their window, so a window shorter than the ~17 ms between frames would leave
+ * gaps in the audio that no frame ever looks at. Percussion is almost entirely
+ * transient, so those gaps are exactly where the peaks would hide.
+ */
+const METER_FFT_SIZE = 1024;
 
 /**
  * Where a decay ramp lands before the voice is cut. An exponential curve is the
@@ -468,6 +501,33 @@ function releaseChannelLfo(
   nodes.source.stop();
   nodes.source.disconnect();
   lfos.delete(channelId);
+}
+
+/**
+ * The meter tap for a channel, made on that channel's first hit and kept for
+ * the life of the context.
+ *
+ * A tap rather than a stage in the path, the same bargain the master scope
+ * makes: an analyser with nothing connected to its output still sees everything
+ * sent to it, so metering a channel neither colours it nor adds a node every
+ * voice has to pass through.
+ *
+ * Built lazily because a channel with no sample in it can never be heard, and
+ * sixteen analysers standing by for the eleven a kit actually loads is eleven
+ * kilobytes of read buffers to no end.
+ */
+function meterForChannel(
+  context: AudioContext,
+  meters: Map<string, AnalyserNode>,
+  channelId: string,
+): AnalyserNode {
+  const existing = meters.get(channelId);
+  if (existing) return existing;
+
+  const analyser = context.createAnalyser();
+  analyser.fftSize = METER_FFT_SIZE;
+  meters.set(channelId, analyser);
+  return analyser;
 }
 
 /** The always-connected nodes every voice is summed through. */
@@ -1139,6 +1199,12 @@ export function useSampleBank() {
   const compressorRef = useRef<MasterCompressor>(DEFAULT_MASTER_COMPRESSOR);
   // The scope's read buffer, built on first use and then reused every frame.
   const waveformRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  // The meter tap of every channel that has been heard, by channel id.
+  const channelMetersRef = useRef(new Map<string, AnalyserNode>());
+  // The meters' read buffer. One for all sixteen rather than one each: they are
+  // read one after another inside a single frame and the peak is taken before
+  // the next read overwrites it, so there is never more than one in use.
+  const meterSamplesRef = useRef<Float32Array<ArrayBuffer> | null>(null);
   const volumeRef = useRef(DEFAULT_MASTER_VOLUME);
   // The sample-and-hold table, built on first use and then shared by every
   // voice: it runs to a few hundred kilobytes, and a fresh one per hit would
@@ -1150,6 +1216,10 @@ export function useSampleBank() {
   // voice removes itself as it ends, so this only ever holds what is still
   // audible and there is nothing to sweep up.
   const voicesRef = useRef(new Map<string, Set<Voice>>());
+  // Every hit currently scheduled or sounding, by channel id. Kept the same way
+  // the voices above are — each one drops itself as it ends — so a channel
+  // nobody is looking at costs an insert and a delete per hit and nothing more.
+  const playheadsRef = useRef(new Map<string, Set<Playhead>>());
 
   useEffect(() => {
     return () => {
@@ -1280,6 +1350,35 @@ export function useSampleBank() {
     ));
     chain.analyser.getByteTimeDomainData(samples);
     return samples;
+  }, []);
+
+  /**
+   * The loudest sample a channel has put out in the last window, as a linear
+   * amplitude — 0 for a channel that has never been heard, and above 1 for one
+   * whose fader is pushing it past full scale.
+   *
+   * A peak rather than an average: the whole of a drum hit is its transient, and
+   * an RMS over a window this short would read a kick and a shaker as far closer
+   * together than they sound.
+   *
+   * A getter rather than state, for the same reason the two master meters are:
+   * this is read sixteen times a frame, and no part of it belongs in a render.
+   */
+  const getChannelLevel = useCallback((channelId: string) => {
+    const analyser = channelMetersRef.current.get(channelId);
+    if (!analyser) return 0;
+
+    const samples = (meterSamplesRef.current ??= new Float32Array(
+      analyser.fftSize,
+    ));
+    analyser.getFloatTimeDomainData(samples);
+
+    let peak = 0;
+    for (let index = 0; index < samples.length; index += 1) {
+      const magnitude = Math.abs(samples[index]);
+      if (magnitude > peak) peak = magnitude;
+    }
+    return peak;
   }, []);
 
   /** Points the output fader at `volume`, creating no context of its own. */
@@ -1488,6 +1587,18 @@ export function useSampleBank() {
       // summed before the drive stage sees it.
       gainNode.connect(master.input);
 
+      // And into the channel's own meter, off the same node the sends are taken
+      // from: post-fader and post-envelope, so the bar reads what the channel is
+      // actually putting into the mix rather than what is in its sample slot.
+      //
+      // Pre-send, though, which is the one thing it cannot show — a channel
+      // drowning the mix in reverb still reads as whatever its dry level is.
+      // Metering the returns instead would be metering the bus, which belongs to
+      // every channel at once and so to none of these bars.
+      gainNode.connect(
+        meterForChannel(context, channelMetersRef.current, channelId),
+      );
+
       // Sends are tapped off the volume node rather than off the raw source, so
       // they are post-fader: they carry the channel's envelope and filters, and
       // pulling a channel down takes its share of the delay and reverb with it.
@@ -1619,11 +1730,41 @@ export function useSampleBank() {
         });
       }
 
-      if (onEnded.length > 0) {
-        source.onended = () => {
-          for (const cleanUp of onEnded) cleanUp();
-        };
+      // Where the two handles are, which is the region the hit plays and also
+      // the ends of the walk the line below makes across it.
+      const start = clampSampleStart(sampleStart, sampleEnd);
+      const end = clampSampleEnd(sampleEnd, sampleStart);
+
+      // The walk itself, in the file's own fractions — the far handle back to
+      // the near one when the sample is reversed, which is what the ear hears
+      // and so what the line has to show. Leaving it in file terms is what lets
+      // the strip mirror it the same way it mirrors the handles and the shape,
+      // rather than the two arriving at the picture by different routes.
+      const playhead: Playhead = {
+        startTime: time,
+        fromFraction: sampleReversed ? end : start,
+        toFraction: sampleReversed ? start : end,
+        fractionsPerSecond:
+          ((sampleReversed ? -1 : 1) * playbackRate) / buffer.duration,
+      };
+
+      const playheads = playheadsRef.current;
+      const walking = playheads.get(channelId);
+      if (walking) {
+        walking.add(playhead);
+      } else {
+        playheads.set(channelId, new Set([playhead]));
       }
+
+      onEnded.push(() => {
+        const live = playheads.get(channelId);
+        live?.delete(playhead);
+        if (live?.size === 0) playheads.delete(channelId);
+      });
+
+      source.onended = () => {
+        for (const cleanUp of onEnded) cleanUp();
+      };
 
       // Trimming is done by the source itself rather than by scheduling a stop:
       // the offset and the duration are read in the buffer's own frames, so the
@@ -1632,9 +1773,6 @@ export function useSampleBank() {
       // a hardware sampler does. A stop scheduled in wall-clock seconds could
       // not follow that, and a pitch LFO moves the rate while the hit sounds.
       if (isSampleTrimmed(sampleStart, sampleEnd)) {
-        const start = clampSampleStart(sampleStart, sampleEnd);
-        const end = clampSampleEnd(sampleEnd, sampleStart);
-
         // The handles are fractions of the file as it was loaded, so against a
         // reversed buffer they have to be mirrored: what was the last third of
         // the file is the first third of the copy. The span is the same either
@@ -1656,6 +1794,43 @@ export function useSampleBank() {
     },
     [],
   );
+
+  /**
+   * How far into its file `channelId` is being heard right now, as a fraction of
+   * the whole file, or null when the channel is silent.
+   *
+   * Pulled once a frame by the waveform rather than pushed at it, the same way
+   * the meters are read: a figure that moves with the audio clock cannot go
+   * through React state without re-rendering the machine sixty times a second.
+   */
+  const getSamplePosition = useCallback((channelId: string) => {
+    const context = contextRef.current;
+    const walking = playheadsRef.current.get(channelId);
+    if (!context || !walking) return null;
+
+    const now = context.currentTime;
+
+    // Hits are scheduled ahead of the clock, so the ones that have not landed
+    // yet are not being heard and have no line. Of those that have, the newest
+    // is the one showing: a retrigger takes the line off whatever it interrupts,
+    // which is the hit the ear now follows.
+    let latest: Playhead | null = null;
+    for (const playhead of walking) {
+      if (playhead.startTime > now) continue;
+      if (!latest || playhead.startTime >= latest.startTime) latest = playhead;
+    }
+    if (!latest) return null;
+
+    const position =
+      latest.fromFraction + (now - latest.startTime) * latest.fractionsPerSecond;
+
+    // A hit is only dropped from the map when `onended` reaches the main thread,
+    // which is a moment after the audio actually stopped — long enough for the
+    // line to be seen walking off the end of the region it was given.
+    return latest.fractionsPerSecond < 0
+      ? Math.max(position, latest.toFraction)
+      : Math.min(position, latest.toFraction);
+  }, []);
 
   /**
    * Cuts short whatever `channelIds` are still sounding, at `time` on the audio
@@ -1701,6 +1876,7 @@ export function useSampleBank() {
     applyMasterCompressor,
     getGainReduction,
     getWaveform,
+    getChannelLevel,
     applyMasterVolume,
     loadSample,
     loadSampleFromUrl,
@@ -1708,6 +1884,7 @@ export function useSampleBank() {
     getSampleBuffer,
     setSampleBuffer,
     trigger,
+    getSamplePosition,
     choke,
   };
 }

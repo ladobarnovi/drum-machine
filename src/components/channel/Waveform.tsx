@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useRef,
   type KeyboardEvent,
   type PointerEvent,
@@ -28,6 +29,11 @@ type WaveformProps = {
   onReversedChange: (reversed: boolean) => void;
   /** Puts both edges back to the ends of the file. */
   onReset: () => void;
+  /**
+   * Reads how far into the file this channel is being heard, as a fraction of
+   * the whole file, or null while it is silent. Called once a frame.
+   */
+  getPlayhead: () => number | null;
 };
 
 const VIEWBOX_HEIGHT = 100;
@@ -43,6 +49,21 @@ const VIEWBOX_HEIGHT = 100;
  */
 const KEY_STEP = 0.01;
 const FINE_KEY_STEP = 0.001;
+
+/**
+ * A fraction of the file as a fraction of the strip, and back again — the same
+ * flip either way, which is why one function does both directions.
+ *
+ * Reversing turns the picture round without touching the trim: `start` and
+ * `end` go on meaning the same two points of the file they always did, and the
+ * same audio goes on playing. It is only where those points *are shown* that
+ * moves, and everything drawn on the strip goes through here so that the shape,
+ * the handles and the line following the hit can never be mirrored
+ * independently of one another.
+ */
+function onStrip(fraction: number, reversed: boolean): number {
+  return reversed ? 1 - fraction : fraction;
+}
 
 /**
  * Builds a filled, centre-mirrored outline: left-to-right on top, back along
@@ -186,6 +207,70 @@ function TrimHandle({
   );
 }
 
+type WaveformPlayheadProps = {
+  getPlayhead: () => number | null;
+  reversed: boolean;
+};
+
+/**
+ * The line that walks the strip with the hit, from one handle to the other.
+ *
+ * Nothing here goes through React state, for the same reason the gain reduction
+ * meter keeps out of it: the position moves with the audio clock, and putting it
+ * through a `useState` would re-render the whole sample card — the name, the
+ * slot, the shape and both handles — sixty times a second to move one line.
+ *
+ * So the position is pulled once a frame and written straight to the node, and
+ * only when it has actually changed: a channel sitting silent between hits is a
+ * map lookup that misses and nothing else.
+ */
+function WaveformPlayhead({ getPlayhead, reversed }: WaveformPlayheadProps) {
+  const lineRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    let frame = 0;
+    let shown: string | null = null;
+
+    const tick = () => {
+      frame = requestAnimationFrame(tick);
+
+      const line = lineRef.current;
+      if (!line) return;
+
+      const position = getPlayhead();
+      // The empty string stands for silence, which is also what makes the two
+      // writes below one decision: the line is put where the hit has reached and
+      // shown, or it is cleared and hidden, and it can never be left visible at
+      // wherever the last hit happened to stop.
+      const left =
+        position === null ? "" : `${onStrip(position, reversed) * 100}%`;
+      if (left === shown) return;
+
+      shown = left;
+      line.style.left = left;
+      line.style.opacity = position === null ? "0" : "1";
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [getPlayhead, reversed]);
+
+  return (
+    // Hidden from assistive technology: it is a picture of a sound already
+    // playing, and there is nothing here to read out or to operate.
+    //
+    // `--fg`, which is the one colour in a theme guaranteed to carry against
+    // the panel behind the strip: the accent is what the shape is drawn in and
+    // `--select` is already both handles, so a line taking either would have to
+    // be read against the very thing it is crossing.
+    <span
+      ref={lineRef}
+      aria-hidden
+      className="bg-fg pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 opacity-0"
+    />
+  );
+}
+
 export default function Waveform({
   sample,
   start,
@@ -195,6 +280,7 @@ export default function Waveform({
   reversed,
   onReversedChange,
   onReset,
+  getPlayhead,
 }: WaveformProps) {
   /** The strip itself, which is what a pointer position is measured against. */
   const stripRef = useRef<HTMLDivElement | null>(null);
@@ -243,18 +329,8 @@ export default function Waveform({
   const trimmed = isSampleTrimmed(start, end);
   const spanSeconds = sampleSpanSeconds(start, end, sample.durationSeconds);
 
-  /**
-   * A fraction of the file as a fraction of the strip, and back again — the
-   * same flip either way, which is why one function does both directions.
-   *
-   * Reversing turns the picture round without touching the trim: `start` and
-   * `end` go on meaning the same two points of the file they always did, and
-   * the same audio goes on playing. It is only where those points *are shown*
-   * that moves, and everything drawn on the strip below goes through here so
-   * that the shape and the handles can never be mirrored independently of one
-   * another.
-   */
-  const onStrip = (fraction: number) => (reversed ? 1 - fraction : fraction);
+  /** This strip's flip, since every call below is for the same picture. */
+  const onThisStrip = (fraction: number) => onStrip(fraction, reversed);
 
   // Which end of the file each end of the picture is. Reversed, the hit begins
   // at the file's later edge, so the handle on the left writes `end`: the two
@@ -331,13 +407,19 @@ export default function Waveform({
           <div
             aria-hidden
             className="bg-surface/70 pointer-events-none absolute inset-y-0 left-0"
-            style={{ width: `${onStrip(leading) * 100}%` }}
+            style={{ width: `${onThisStrip(leading) * 100}%` }}
           />
           <div
             aria-hidden
             className="bg-surface/70 pointer-events-none absolute inset-y-0 right-0"
-            style={{ width: `${(1 - onStrip(trailing)) * 100}%` }}
+            style={{ width: `${(1 - onThisStrip(trailing)) * 100}%` }}
           />
+
+          {/* After the wash, so the line stays at full strength as it crosses
+              the region — and inside the strip, which clips it: unlike a handle
+              it never sits at the very edge, since it only exists between the
+              two of them. */}
+          <WaveformPlayhead getPlayhead={getPlayhead} reversed={reversed} />
 
           {/* How long the channel now plays for, which is the trimmed span
               rather than the file's own length. Never in the way of a handle:
@@ -354,17 +436,17 @@ export default function Waveform({
             way round the file is being read. */}
         <TrimHandle
           edge="start"
-          position={onStrip(leading)}
-          seconds={onStrip(leading) * sample.durationSeconds}
-          onChange={(fraction) => onLeadingChange(onStrip(fraction))}
+          position={onThisStrip(leading)}
+          seconds={onThisStrip(leading) * sample.durationSeconds}
+          onChange={(fraction) => onLeadingChange(onThisStrip(fraction))}
           fractionAt={fractionAt}
         />
 
         <TrimHandle
           edge="end"
-          position={onStrip(trailing)}
-          seconds={onStrip(trailing) * sample.durationSeconds}
-          onChange={(fraction) => onTrailingChange(onStrip(fraction))}
+          position={onThisStrip(trailing)}
+          seconds={onThisStrip(trailing) * sample.durationSeconds}
+          onChange={(fraction) => onTrailingChange(onThisStrip(fraction))}
           fractionAt={fractionAt}
         />
       </div>
@@ -378,8 +460,8 @@ export default function Waveform({
               right the way they sit — which on a reversed sample is the file
               counted from its far end. */}
           <span className="text-muted tabular-nums">
-            {formatSeconds(onStrip(leading) * sample.durationSeconds)} –{" "}
-            {formatSeconds(onStrip(trailing) * sample.durationSeconds)} of{" "}
+            {formatSeconds(onThisStrip(leading) * sample.durationSeconds)} –{" "}
+            {formatSeconds(onThisStrip(trailing) * sample.durationSeconds)} of{" "}
             {formatSeconds(sample.durationSeconds)}
           </span>
 

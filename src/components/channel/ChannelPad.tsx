@@ -14,6 +14,8 @@ type ChannelPadProps = {
   isSilenced: boolean;
   /** True for a moment after one of this channel's hits is heard. */
   isTriggered: boolean;
+  /** Hands the level bar to the loop that drives it; see `useChannelMeters`. */
+  meterRef: (element: HTMLElement | null) => void;
   onSelect: () => void;
   /** Plays the channel's sample once, independently of the transport. */
   onPreview: () => void;
@@ -33,6 +35,7 @@ export default function ChannelPad({
   isSelected,
   isSilenced,
   isTriggered,
+  meterRef,
   onSelect,
   onPreview,
   onToggleMute,
@@ -81,6 +84,26 @@ export default function ChannelPad({
       >
         <span className="min-w-0 truncate">{displayName}</span>
       </button>
+
+      {/* Between the name and the toggles, which is the order a mixer strip
+          reads in: what the channel is, how hard it is going, what it is doing.
+
+          Hidden from assistive technology outright, like the master meters: a
+          bar that moves sixty times a second cannot be read out usefully, and a
+          channel that is or isn't sounding is already said by its mute and solo
+          buttons below. */}
+      <span
+        aria-hidden
+        className="bg-field border-edge relative block h-1.5 overflow-hidden rounded-full border"
+      >
+        <span
+          ref={meterRef}
+          // Owned by the meter loop from here on, and set once here so a pad
+          // that has never been heard starts empty rather than full.
+          style={{ transform: "scaleX(0)" }}
+          className="bg-accent data-[over=true]:bg-danger absolute inset-0 origin-left"
+        />
+      </span>
 
       <div className="flex gap-1">
         <button

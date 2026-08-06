@@ -1,6 +1,7 @@
 "use client";
 
 import ChannelPad from "./ChannelPad";
+import { useChannelMeters } from "@/hooks/useChannelMeters";
 import {
   hasSoloedChannel,
   isChannelAudible,
@@ -12,6 +13,8 @@ type ChannelGridProps = {
   selectedChannelId: string;
   /** Channels heard within the last instant, lit while they ring. */
   flashedChannelIds: ReadonlySet<string>;
+  /** Reads a channel's current output level, for its meter. */
+  getChannelLevel: (channelId: string) => number;
   onSelectChannel: (channelId: string) => void;
   onPreviewChannel: (channelId: string) => void;
   onToggleMute: (channelId: string) => void;
@@ -23,6 +26,7 @@ export default function ChannelGrid({
   channels,
   selectedChannelId,
   flashedChannelIds,
+  getChannelLevel,
   onSelectChannel,
   onPreviewChannel,
   onToggleMute,
@@ -30,6 +34,10 @@ export default function ChannelGrid({
   onChannelContextMenu,
 }: ChannelGridProps) {
   const soloActive = hasSoloedChannel(channels);
+
+  // The loop lives with the pads it drives rather than up in the machine, which
+  // has no other use for it and re-renders on every step as it is.
+  const registerMeter = useChannelMeters({ getChannelLevel });
 
   return (
     <div
@@ -45,6 +53,7 @@ export default function ChannelGrid({
           isSelected={channel.id === selectedChannelId}
           isSilenced={!isChannelAudible(channel, soloActive)}
           isTriggered={flashedChannelIds.has(channel.id)}
+          meterRef={registerMeter(channel.id)}
           onSelect={() => onSelectChannel(channel.id)}
           onPreview={() => onPreviewChannel(channel.id)}
           onToggleMute={() => onToggleMute(channel.id)}

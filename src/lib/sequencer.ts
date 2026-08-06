@@ -597,6 +597,98 @@ export function formatRatio(ratio: number): string {
 }
 
 /**
+ * The bottom of a channel's own meter, in dB below full scale.
+ *
+ * Deeper than a hardware channel meter usually reads, because this one is only
+ * a few pixels tall and has no scale printed beside it: what it is for is
+ * seeing at a glance which pads are working and how hard, and a shallower floor
+ * would leave everything that isn't the kick pinned near the top.
+ *
+ * It is also what silence reads as, so nothing here ever has to carry a
+ * `-Infinity` around.
+ */
+export const CHANNEL_METER_FLOOR_DB = -48;
+
+/**
+ * How fast a channel meter falls back towards the floor, in dB per second.
+ *
+ * The whole of the ballistics: a level meter rises instantly and falls slowly,
+ * which is the opposite way up from the compressor's meter above but the same
+ * trick for the same reason — a drum hit is over in a few tens of milliseconds,
+ * and a bar that tracked it honestly in both directions would be a flicker.
+ *
+ * At this rate a full-scale hit takes a little over a second to empty, so a
+ * pad's last hit is still legible while the next bar comes round at any tempo
+ * the machine offers.
+ */
+export const CHANNEL_METER_FALL_DB_PER_SECOND = 36;
+
+/**
+ * Where a channel starts reading as over.
+ *
+ * A hair above full scale rather than at it, and that margin is the whole
+ * point: a normalised sample peaks at exactly 0 dBFS by definition, so a kit of
+ * them played at unity would sit permanently in the red saying nothing at all.
+ * Above this the channel is being pushed past full scale by its own volume —
+ * which the fader allows, since MAX_VOLUME is 1.5 — and that is worth knowing,
+ * because it is the mix hitting the master stages hot rather than the sample
+ * simply being loud.
+ */
+export const CHANNEL_METER_OVER_DB = 0.5;
+
+/**
+ * A linear peak amplitude as dB below full scale, floored rather than allowed
+ * to run off to `-Infinity` at silence.
+ *
+ * Not clamped at the top: a channel can legitimately read above 0 dBFS here,
+ * and hiding that is exactly what the meter exists not to do.
+ */
+export function amplitudeToDecibels(peak: number): number {
+  if (!Number.isFinite(peak) || peak <= 0) return CHANNEL_METER_FLOOR_DB;
+  return Math.max(20 * Math.log10(peak), CHANNEL_METER_FLOOR_DB);
+}
+
+/**
+ * How far along a channel meter a level reads, as a fraction of its width.
+ *
+ * The scale is in dB rather than in amplitude. A linear bar would spend a drum
+ * kit's entire dynamic range in its top fifth — half scale is only 6 dB down —
+ * and the quiet end, where ghost notes and tails live, would be indistinguishable
+ * from silence.
+ */
+export function levelToMeter(db: number): number {
+  if (!Number.isFinite(db)) return 0;
+  const aboveFloor = db - CHANNEL_METER_FLOOR_DB;
+  return Math.min(1, Math.max(0, aboveFloor / -CHANNEL_METER_FLOOR_DB));
+}
+
+/**
+ * Where the bar has fallen to by now, given where it was.
+ *
+ * The mirror of `decayReduction`: that one drops instantly and climbs back,
+ * this one rises instantly and falls back, because a level and the reduction
+ * taken off it move in opposite directions.
+ */
+export function decayChannelLevel(
+  displayedDb: number,
+  levelDb: number,
+  elapsedSeconds: number,
+): number {
+  const fallen = Math.max(
+    CHANNEL_METER_FLOOR_DB,
+    displayedDb -
+      CHANNEL_METER_FALL_DB_PER_SECOND * Math.max(0, elapsedSeconds),
+  );
+  // Whichever is louder wins, so a new hit takes the bar up at once.
+  return Math.max(fallen, levelDb);
+}
+
+/** True while a channel is reading past full scale; see CHANNEL_METER_OVER_DB. */
+export function isChannelMeterOver(db: number): boolean {
+  return db >= CHANNEL_METER_OVER_DB;
+}
+
+/**
  * The output fader, last in the chain and the only master control with no
  * bypass — switching a volume off is what pulling it to zero already does.
  *

@@ -280,6 +280,7 @@ export default function DrumMachine() {
     applyMasterCompressor,
     getGainReduction,
     getWaveform,
+    getChannelLevel,
     applyMasterVolume,
     loadSample,
     loadSampleFromUrl,
@@ -287,8 +288,18 @@ export default function DrumMachine() {
     getSampleBuffer,
     setSampleBuffer,
     trigger,
+    getSamplePosition,
     choke,
   } = useSampleBank();
+
+  // Bound to the selected channel here rather than in the editor, which is the
+  // one place that knows whose sample is on the strip. Stable while the
+  // selection is, so the waveform's own frame loop is never restarted by a
+  // render it had no interest in.
+  const getSelectedPlayhead = useCallback(
+    () => getSamplePosition(selectedChannel.id),
+    [getSamplePosition, selectedChannel.id],
+  );
 
   // The master stages are persistent nodes rather than per-hit ones, so they
   // are pushed across on change instead of being read at trigger time.
@@ -1385,12 +1396,14 @@ export default function DrumMachine() {
               onSampleTrimReset={() =>
                 handleSampleTrimReset(selectedChannel.id)
               }
+              getPlayhead={getSelectedPlayhead}
             />
 
             <ChannelGrid
               channels={channels}
               selectedChannelId={selectedChannel.id}
               flashedChannelIds={flashedChannelIds}
+              getChannelLevel={getChannelLevel}
               onSelectChannel={handleSelectChannel}
               onPreviewChannel={handlePreviewChannel}
               onToggleMute={handleToggleMute}
