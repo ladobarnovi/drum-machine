@@ -101,6 +101,7 @@ export default function SequencerTabsSection({
             label: "Patterns",
             panel: (
               <PatternGrid
+                bankIndex={selectedBankIndex}
                 bank={banks[selectedBankIndex]}
                 activePatternIndex={activePatternIndex}
                 onLoad={onLoadPattern}

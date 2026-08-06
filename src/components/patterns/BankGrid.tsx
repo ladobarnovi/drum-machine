@@ -1,7 +1,7 @@
 "use client";
 
 import SlotButton from "./SlotButton";
-import { isBankEmpty, type Bank } from "@/lib/patterns";
+import { bankLetter, isBankEmpty, type Bank } from "@/lib/patterns";
 
 type BankGridProps = {
   banks: Bank[];
@@ -25,11 +25,11 @@ export default function BankGrid({
       {banks.map((bank, index) => (
         <SlotButton
           key={index}
-          index={index}
+          displayText={bankLetter(index)}
           variant="bank"
           filled={!isBankEmpty(bank)}
           active={selectedBankIndex === index}
-          label={`Bank ${index + 1}`}
+          label={`Bank ${bankLetter(index)}`}
           onClick={() => onSelect(index)}
         />
       ))}

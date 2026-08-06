@@ -3,8 +3,8 @@
 import type { MouseEvent } from "react";
 
 type SlotButtonProps = {
-  /** 0-based position in the grid; shown as a 1-based number. */
-  index: number;
+  /** What's shown inside the slot itself — a bank's letter, or "A-1" for a pattern. */
+  displayText: string;
   /** Which color token fills the slot once it holds something. */
   variant: "pattern" | "bank";
   /** Whether the slot holds a saved pattern (or, for a bank, any pattern at all). */
@@ -32,7 +32,7 @@ const FILL_CLASS: Record<SlotButtonProps["variant"], string> = {
  * the fill rather than replacing it, so both facts stay visible at once.
  */
 export default function SlotButton({
-  index,
+  displayText,
   variant,
   filled,
   active,
@@ -66,7 +66,7 @@ export default function SlotButton({
         title={label}
         className="hover:bg-pad-hover flex h-full w-full cursor-pointer items-center justify-center rounded text-xs font-semibold transition-colors"
       >
-        {index + 1}
+        {displayText}
       </button>
     </div>
   );

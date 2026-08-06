@@ -8,6 +8,19 @@ import {
 export const PATTERN_COUNT = 16;
 export const BANK_COUNT = 16;
 
+/** One letter per bank, A through P — BANK_COUNT of them, in order. */
+const BANK_LETTERS = "ABCDEFGHIJKLMNOP";
+
+/** How a bank is named wherever one is shown: A, B, C… */
+export function bankLetter(bankIndex: number): string {
+  return BANK_LETTERS.charAt(bankIndex);
+}
+
+/** How a pattern slot is named wherever one is shown: A-1, A-2… P-16. */
+export function patternLabel(bankIndex: number, patternIndex: number): string {
+  return `${bankLetter(bankIndex)}-${patternIndex + 1}`;
+}
+
 /** Follows `THEME_STORAGE_KEY`'s naming in `lib/themes.ts`. */
 export const BANKS_STORAGE_KEY = "drum-machine-banks";
 

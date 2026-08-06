@@ -1,9 +1,11 @@
 "use client";
 
 import SlotButton from "./SlotButton";
-import type { Bank } from "@/lib/patterns";
+import { patternLabel, type Bank } from "@/lib/patterns";
 
 type PatternGridProps = {
+  /** Position of the bank being browsed, for the A-1, A-2… labels. */
+  bankIndex: number;
   /** The bank currently being browsed. */
   bank: Bank;
   /** Which slot of this bank is currently loaded, or null if none is. */
@@ -14,6 +16,7 @@ type PatternGridProps = {
 
 /** The sixteen pattern slots of the browsed bank. */
 export default function PatternGrid({
+  bankIndex,
   bank,
   activePatternIndex,
   onLoad,
@@ -28,11 +31,11 @@ export default function PatternGrid({
       {bank.patterns.map((pattern, index) => (
         <SlotButton
           key={index}
-          index={index}
+          displayText={patternLabel(bankIndex, index)}
           variant="pattern"
           filled={pattern !== null}
           active={activePatternIndex === index}
-          label={`Pattern ${index + 1}`}
+          label={`Pattern ${patternLabel(bankIndex, index)}`}
           // Nothing to load out of an empty slot; right click still opens the
           // menu that can save one there.
           onClick={() => {
