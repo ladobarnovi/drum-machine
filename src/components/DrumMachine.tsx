@@ -1399,18 +1399,6 @@ export default function DrumMachine() {
               getPlayhead={getSelectedPlayhead}
             />
 
-            <ChannelGrid
-              channels={channels}
-              selectedChannelId={selectedChannel.id}
-              flashedChannelIds={flashedChannelIds}
-              getChannelLevel={getChannelLevel}
-              onSelectChannel={handleSelectChannel}
-              onPreviewChannel={handlePreviewChannel}
-              onToggleMute={handleToggleMute}
-              onToggleSolo={handleToggleSolo}
-              onChannelContextMenu={handleChannelContextMenu}
-            />
-
             <ChannelEditor
               channel={selectedChannel}
               currentStep={currentStep}
@@ -1431,6 +1419,18 @@ export default function DrumMachine() {
               onLengthChange={(length) =>
                 handleLengthChange(selectedChannel.id, length)
               }
+            />
+
+            <ChannelGrid
+              channels={channels}
+              selectedChannelId={selectedChannel.id}
+              flashedChannelIds={flashedChannelIds}
+              getChannelLevel={getChannelLevel}
+              onSelectChannel={handleSelectChannel}
+              onPreviewChannel={handlePreviewChannel}
+              onToggleMute={handleToggleMute}
+              onToggleSolo={handleToggleSolo}
+              onChannelContextMenu={handleChannelContextMenu}
             />
 
             <ChannelEditor

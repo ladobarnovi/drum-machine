@@ -165,6 +165,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   if (props.showSequencerOnly) {
     return (
       <Card>
+        <h3 className="text-xs font-semibold">Sequencer</h3>
         <StepGrid
           channelLabel={displayName}
           steps={channel.steps}
@@ -203,7 +204,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   const { settings } = props;
 
   return (
-    <Card>
+    <>
       <ChannelControls
         volume={settings.volume}
         pan={settings.pan}
@@ -232,6 +233,6 @@ export default function ChannelEditor(props: ChannelEditorProps) {
       />
 
       <ChannelLfoControls lfo={channel.lfo} onChange={props.onLfoChange} />
-    </Card>
+    </>
   );
 }
