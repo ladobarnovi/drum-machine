@@ -15,8 +15,13 @@ import StepPatternControls from "./steps/StepPatternControls";
 import Accordion from "@/components/ui/Accordion";
 import {
   channelDisplayName,
+  isSliced,
+  resolveSwipeTarget,
+  swipeTargetsFor,
   type Channel,
   type ChannelLfo,
+  type SampleMode,
+  type SliceCount,
   type StepFill,
   type SwipeTarget,
 } from "@/lib/sequencer";
@@ -52,6 +57,14 @@ type SampleSectionProps = {
   onSampleEndChange: (fraction: number) => void;
   /** Which way through the file the trimmed region is read. */
   onSampleReversedChange: (reversed: boolean) => void;
+  /** Whether a hit plays that region whole, or one slice of it. */
+  onSampleModeChange: (mode: SampleMode) => void;
+  onSliceCountChange: (sliceCount: SliceCount) => void;
+  /**
+   * The slice the step open for editing fires, so the strip can show which part
+   * of the file the Position slider is pointed at. Null while no step is open.
+   */
+  highlightSlice: number | null;
   onSampleTrimReset: () => void;
   /** Where in the file this channel is being heard, for the waveform's line. */
   getPlayhead: () => number | null;
@@ -71,6 +84,7 @@ type SequencerSectionProps = {
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
   onStepPitchChange: (stepIndex: number, semitones: number) => void;
+  onStepSliceChange: (stepIndex: number, slice: number) => void;
   onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
   onSwipeTargetChange: (target: SwipeTarget) => void;
   onApplyStepFill: (fill: StepFill) => void;
@@ -156,6 +170,11 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onEndChange={props.onSampleEndChange}
           reversed={channel.sampleReversed}
           onReversedChange={props.onSampleReversedChange}
+          mode={channel.sampleMode}
+          onModeChange={props.onSampleModeChange}
+          sliceCount={channel.sliceCount}
+          onSliceCountChange={props.onSliceCountChange}
+          highlightSlice={props.highlightSlice}
           onReset={props.onSampleTrimReset}
           getPlayhead={props.getPlayhead}
         />
@@ -164,6 +183,21 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   }
 
   if (props.showSequencerOnly) {
+    // What this channel's grid can be pointed at, and what it is pointed at
+    // now. Resolved here rather than by the machine above, because the answer
+    // comes from the sample in the slot — which this already has in hand —
+    // while the target the machine holds is deliberately not a channel's to
+    // own: it says what you are doing, not what this channel is.
+    const swipeTargets = swipeTargetsFor(channel.sampleMode);
+    const swipeTarget = resolveSwipeTarget(
+      props.swipeTarget,
+      channel.sampleMode,
+    );
+
+    // Null on a one shot, which is the whole of what takes the position off
+    // the step buttons — there are no parts for a hit to be at.
+    const sliceCount = isSliced(channel.sampleMode) ? channel.sliceCount : null;
+
     // No `Card` here, unlike the other two sections: this one shares its card
     // with the Patterns and Banks tabs it sits alongside, and that wrapper —
     // along with the tab strip that used to be this section's own "Sequencer"
@@ -174,7 +208,8 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           channelLabel={displayName}
           steps={channel.steps}
           channelPitch={channel.pitch}
-          swipeTarget={props.swipeTarget}
+          sliceCount={sliceCount}
+          swipeTarget={swipeTarget}
           length={channel.length}
           currentStep={props.currentStep}
           editingStep={props.editingStep}
@@ -182,13 +217,15 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onStepHold={props.onStepHold}
           onStepVelocityChange={props.onStepVelocityChange}
           onStepPitchChange={props.onStepPitchChange}
+          onStepSliceChange={props.onStepSliceChange}
           onStepContextMenu={props.onStepContextMenu}
         />
 
         <StepPatternControls
           steps={channel.steps}
           length={channel.length}
-          swipeTarget={props.swipeTarget}
+          swipeTarget={swipeTarget}
+          swipeTargets={swipeTargets}
           onApplyFill={props.onApplyStepFill}
           onNudge={props.onNudgeSteps}
           onClear={props.onClearSteps}

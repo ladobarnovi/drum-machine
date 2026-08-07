@@ -904,6 +904,130 @@ export function sampleSpanSeconds(
   );
 }
 
+/**
+ * How a loaded sample is read.
+ *
+ * One shot is what a drum machine does before it does anything else: every hit
+ * plays the whole trimmed region. Slicer divides that same region into equal
+ * parts and hands the choice of which one to the pattern, so a single loaded
+ * break can be re-ordered step by step rather than only re-triggered.
+ *
+ * A mode of its own rather than a slice count of one, because the two are
+ * different things to the pattern above: in one shot a step's position means
+ * nothing at all, and a count standing in for "not sliced" would leave every
+ * step carrying a parameter that sometimes does nothing.
+ */
+export const SAMPLE_MODES = ["oneshot", "slicer"] as const;
+
+export type SampleMode = (typeof SAMPLE_MODES)[number];
+
+/** What a sample already is until it is asked to be something else. */
+export const DEFAULT_SAMPLE_MODE: SampleMode = "oneshot";
+
+export const SAMPLE_MODE_LABELS: Record<SampleMode, string> = {
+  oneshot: "One shot",
+  slicer: "Slicer",
+};
+
+/**
+ * How many parts the region can be cut into.
+ *
+ * Doublings up to 16, which is the grid's own resolution — at that count a bar
+ * of a break lands a slice on every 16th note, which is the chop a sliced
+ * sample is nearly always reached for. 24 sits on the end for the triplet case:
+ * a bar of 16th triplets, and the one useful count that is not a doubling.
+ *
+ * A short list rather than a slider, for the same reason the step lengths are
+ * one: what these are for is dividing a bar, and the counts in between divide
+ * nothing in particular.
+ */
+export const SLICE_COUNTS = [4, 8, 16, 24] as const;
+
+export type SliceCount = (typeof SLICE_COUNTS)[number];
+
+/** One slice per step of a 16-step channel — a bar cut into 16th notes. */
+export const DEFAULT_SLICE_COUNT: SliceCount = 16;
+
+/** Which slice a step fires, counted from 0: the first, until it is moved. */
+export const DEFAULT_STEP_SLICE = 0;
+
+/** Narrows the raw value a button hands back to a count that is on offer. */
+export function clampSliceCount(value: number): SliceCount {
+  const count = Number(value) as SliceCount;
+  return SLICE_COUNTS.includes(count) ? count : DEFAULT_SLICE_COUNT;
+}
+
+/**
+ * Which slice a step actually plays, given how many there are.
+ *
+ * Clamped on the way out rather than rewritten into the step when the count
+ * changes, exactly as steps past a channel's `length` are left alone: dropping
+ * from 24 slices to 8 and going back hands every step the position it was
+ * given, and only what is out of reach in between is pulled in to the last one.
+ */
+export function clampStepSlice(value: number, sliceCount: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_STEP_SLICE;
+  const count = clampSliceCount(sliceCount);
+  return Math.min(Math.max(Math.round(value), DEFAULT_STEP_SLICE), count - 1);
+}
+
+/** Counted from 1 wherever it is shown, the way a part of something is. */
+export function formatStepSlice(slice: number, sliceCount: number): string {
+  const count = clampSliceCount(sliceCount);
+  return `${clampStepSlice(slice, count) + 1} / ${count}`;
+}
+
+/** True while a channel's sample is cut up rather than played whole. */
+export function isSliced(mode: SampleMode): boolean {
+  return mode === "slicer";
+}
+
+/** A stretch of a loaded file, as fractions of the whole of it. */
+export type SampleRegion = { start: number; end: number };
+
+/**
+ * Where one slice sits in the file.
+ *
+ * The cuts divide the *trimmed* region rather than the whole file, which is
+ * what makes trimming and slicing compose: the handles take the silence off the
+ * front of a break, and the slices then land on the bar that is left instead of
+ * being thrown out of step by whatever was in front of it.
+ */
+export function sliceRegion(
+  start: number,
+  end: number,
+  sliceCount: number,
+  slice: number,
+): SampleRegion {
+  const from = clampSampleStart(start, end);
+  const to = clampSampleEnd(end, start);
+  const count = clampSliceCount(sliceCount);
+  const width = (to - from) / count;
+  const index = clampStepSlice(slice, count);
+
+  return { start: from + index * width, end: from + (index + 1) * width };
+}
+
+/**
+ * Where the cuts fall inside the trimmed region, for the marks the waveform
+ * draws. The outer two are left out: those are the trim handles, which the
+ * strip already has its own way of showing.
+ */
+export function sliceBoundaries(
+  start: number,
+  end: number,
+  sliceCount: number,
+): number[] {
+  const from = clampSampleStart(start, end);
+  const to = clampSampleEnd(end, start);
+  const count = clampSliceCount(sliceCount);
+
+  return Array.from(
+    { length: count - 1 },
+    (_, index) => from + ((index + 1) / count) * (to - from),
+  );
+}
+
 export const MAX_CHANNEL_NAME_LENGTH = 24;
 
 /**
@@ -1008,6 +1132,15 @@ export type Step = {
   /** How many times this step retriggers within its own duration. */
   repeatCount: number;
   /**
+   * Which slice of the sample this step fires, counted from 0.
+   *
+   * Meaningless while the channel is a one shot — nothing reads it there — and
+   * kept anyway, for the same reason a switched-off step keeps its velocity:
+   * turning slicing off and on again hands back the chop that was written
+   * rather than a flattened copy of it.
+   */
+  slice: number;
+  /**
    * What this step overrides, or undefined for a step that plays the channel as
    * its sliders show it. Left off rather than held as an empty object, since
    * most steps lock nothing and 64 of them across 16 channels is a thousand
@@ -1022,6 +1155,7 @@ export function createStep(): Step {
     velocity: DEFAULT_STEP_VELOCITY,
     probability: DEFAULT_STEP_PROBABILITY,
     repeatCount: DEFAULT_STEP_REPEAT,
+    slice: DEFAULT_STEP_SLICE,
   };
 }
 
@@ -1074,7 +1208,7 @@ export function formatStepRepeat(value: number): string {
  * switch itself the honest place to say what the grid is currently for —
  * knocking out a rhythm, or writing a line.
  */
-export const SWIPE_TARGETS = ["velocity", "pitch"] as const;
+export const SWIPE_TARGETS = ["velocity", "pitch", "slice"] as const;
 
 export type SwipeTarget = (typeof SWIPE_TARGETS)[number];
 
@@ -1084,7 +1218,35 @@ export const DEFAULT_SWIPE_TARGET: SwipeTarget = "velocity";
 export const SWIPE_TARGET_LABELS: Record<SwipeTarget, string> = {
   velocity: "Velocity",
   pitch: "Pitch",
+  slice: "Position",
 };
+
+/**
+ * Which targets a channel actually offers.
+ *
+ * Position is the one that depends on the sample rather than on the step: a one
+ * shot has no parts to move a hit between, so it is left off the switch
+ * entirely rather than offered and then quietly doing nothing.
+ */
+export function swipeTargetsFor(mode: SampleMode): SwipeTarget[] {
+  return SWIPE_TARGETS.filter((target) => target !== "slice" || isSliced(mode));
+}
+
+/**
+ * What a swipe on this channel's grid writes, given what its sample is.
+ *
+ * The target is held by the machine rather than by the channel — it is a choice
+ * about what you are doing right now — so selecting a one shot while the grid is
+ * pointed at Position leaves it aimed at something that channel hasn't got. It
+ * falls back rather than sticking, and switching back to a sliced channel finds
+ * Position still chosen.
+ */
+export function resolveSwipeTarget(
+  target: SwipeTarget,
+  mode: SampleMode,
+): SwipeTarget {
+  return swipeTargetsFor(mode).includes(target) ? target : DEFAULT_SWIPE_TARGET;
+}
 
 /**
  * What pitch a step actually plays at: its own lock, or the channel's pitch
@@ -1164,6 +1326,14 @@ export type Channel = {
    * the swell a reversed sample is wanted for.
    */
   sampleReversed: boolean;
+  /**
+   * Whether a hit plays the trimmed region whole, or one slice of it. In slicer
+   * mode which slice is the step's to choose; everything else about the sample —
+   * the trim, the direction, and the count below — stays the channel's.
+   */
+  sampleMode: SampleMode;
+  /** How many parts the trimmed region is divided into while slicing. */
+  sliceCount: SliceCount;
 };
 
 export function channelIdForIndex(index: number): string {
@@ -1200,6 +1370,9 @@ export function createInitialChannels(): Channel[] {
     sampleStart: DEFAULT_SAMPLE_START,
     sampleEnd: DEFAULT_SAMPLE_END,
     sampleReversed: DEFAULT_SAMPLE_REVERSED,
+    // Whole hits, which is what a drum machine plays until it is told to chop.
+    sampleMode: DEFAULT_SAMPLE_MODE,
+    sliceCount: DEFAULT_SLICE_COUNT,
   }));
 }
 
@@ -1227,6 +1400,10 @@ export function emptyChannel(channel: Channel): Channel {
     sampleStart: DEFAULT_SAMPLE_START,
     sampleEnd: DEFAULT_SAMPLE_END,
     sampleReversed: DEFAULT_SAMPLE_REVERSED,
+    // How the sample was cut up goes with the sample, like the trim: the slices
+    // divided a file that is no longer in the slot.
+    sampleMode: DEFAULT_SAMPLE_MODE,
+    sliceCount: DEFAULT_SLICE_COUNT,
   };
 }
 
@@ -1345,6 +1522,38 @@ export function channelSettingsForStep(
 }
 
 /**
+ * The stretch of the file one hit reads, or undefined when that is the whole of
+ * it and the source can simply be started.
+ *
+ * A sliced channel always has one: every slice is a fraction of the file by
+ * definition, so there is no case where slicing plays everything.
+ */
+export function sampleRegionForStep(
+  channel: Channel,
+  step?: Step,
+): SampleRegion | undefined {
+  if (isSliced(channel.sampleMode)) {
+    return sliceRegion(
+      channel.sampleStart,
+      channel.sampleEnd,
+      channel.sliceCount,
+      // A preview passes no step, and hears what a step with nothing dialled
+      // into it would: the first slice.
+      step?.slice ?? DEFAULT_STEP_SLICE,
+    );
+  }
+
+  if (!isSampleTrimmed(channel.sampleStart, channel.sampleEnd)) {
+    return undefined;
+  }
+
+  return {
+    start: clampSampleStart(channel.sampleStart, channel.sampleEnd),
+    end: clampSampleEnd(channel.sampleEnd, channel.sampleStart),
+  };
+}
+
+/**
  * The per-hit audio settings a channel plays with. Shared by the scheduler and
  * by one-off previews so an audition sounds exactly like the sequenced hit.
  *
@@ -1361,10 +1570,12 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
   // Dropped when it would move nothing, so a switched-off LFO costs no nodes.
   const lfo = isLfoBypassed(settings.lfo) ? undefined : settings.lfo;
 
-  // Read off the channel rather than the resolved settings: the trim belongs to
-  // the sample sitting in the slot, not to how one step of the pattern sounds,
-  // so it is not among the parameters a step is allowed to lock.
-  const trimmed = isSampleTrimmed(channel.sampleStart, channel.sampleEnd);
+  // Read off the channel rather than the resolved settings: what is in the slot
+  // — the trim, the direction, and how the file is cut up — belongs to the
+  // sample rather than to how one step of the pattern sounds, so none of it is
+  // among the parameters a step is allowed to lock. A sliced step has its say
+  // through `slice`, which picks one of those parts rather than moving them.
+  const region = sampleRegionForStep(channel, step);
 
   return {
     // Velocity only attenuates, so this keeps the ceiling the channel volume
@@ -1404,14 +1615,10 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
     // A voice only needs the node a choke fades when something can actually
     // choke it, so an unrouted channel costs nothing.
     chokeable: settings.chokedBy !== null,
-    // Left off while the handles are at the ends of the file, so an untrimmed
-    // channel schedules exactly the plain `start(time)` it always did.
-    sampleStart: trimmed
-      ? clampSampleStart(channel.sampleStart, channel.sampleEnd)
-      : undefined,
-    sampleEnd: trimmed
-      ? clampSampleEnd(channel.sampleEnd, channel.sampleStart)
-      : undefined,
+    // Left off while the whole file is played, so an untrimmed one shot
+    // schedules exactly the plain `start(time)` it always did.
+    sampleStart: region?.start,
+    sampleEnd: region?.end,
     // Off the channel too, and for the same reason: which way the file is read
     // is a property of the sample in the slot, not of one hit in the pattern.
     sampleReversed: channel.sampleReversed,
@@ -1733,6 +1940,24 @@ export function setStepRepeatAt(
   }));
 }
 
+/**
+ * Points a step at one slice of the sample, switching it on if it wasn't — the
+ * same reasoning as the three above: choosing which part of a break to hear is
+ * a request to hear it.
+ */
+export function setStepSliceAt(
+  steps: Step[],
+  index: number,
+  slice: number,
+  sliceCount: number,
+): Step[] {
+  return withStep(steps, index, (step) => ({
+    ...step,
+    on: true,
+    slice: clampStepSlice(slice, sliceCount),
+  }));
+}
+
 /** Overrides one of the channel's parameters on one step. */
 export function setStepLockAt(
   steps: Step[],
@@ -1793,6 +2018,7 @@ export function isStepCleared(step: Step): boolean {
     step.velocity === DEFAULT_STEP_VELOCITY &&
     step.probability === DEFAULT_STEP_PROBABILITY &&
     step.repeatCount === DEFAULT_STEP_REPEAT &&
+    step.slice === DEFAULT_STEP_SLICE &&
     !hasStepLocks(step)
   );
 }
@@ -1812,6 +2038,7 @@ export function pasteStepAt(
     velocity: source.velocity,
     probability: source.probability,
     repeatCount: source.repeatCount,
+    slice: source.slice,
     ...(source.locks ? { locks: { ...source.locks } } : {}),
   }));
 }

@@ -9,12 +9,15 @@ import {
 } from "react";
 
 import {
+  DEFAULT_STEP_SLICE,
   MAX_STEP_PROBABILITY,
   MIN_STEP_REPEAT,
+  clampStepSlice,
   clampStepVelocity,
   formatPitch,
   formatProbability,
   formatStepRepeat,
+  formatStepSlice,
   formatVelocity,
   hasStepLocks,
   stepPitch,
@@ -39,16 +42,23 @@ const DRAG_SLOP_PX = 6;
  * Ten pixels apiece puts the full two octaves at a long, deliberate drag while
  * leaving a single semitone easy to stop on — which is what melodic writing
  * spends nearly all its time doing.
+ *
+ * Position is counted in slices, and takes pitch's number for the same reason:
+ * both are a discrete index you have to land exactly on rather than a level you
+ * sweep to taste, and at ten pixels a part even the longest chop on offer — 24
+ * of them — is one deliberate drag from end to end.
  */
 const SWIPE_TRAVEL_PX: Record<SwipeTarget, number> = {
   velocity: 120,
   pitch: 10,
+  slice: 10,
 };
 
 /** How far one press of an arrow key moves each target. */
 const SWIPE_KEY_STEP: Record<SwipeTarget, number> = {
   velocity: 1 / 8,
   pitch: 1,
+  slice: 1,
 };
 
 /** A press in progress, from `pointerdown` until the pointer is let go. */
@@ -66,6 +76,11 @@ type StepButtonProps = {
   step: Step;
   /** The channel's own pitch, which a step plays at unless it locks its own. */
   channelPitch: number;
+  /**
+   * How many slices this step is choosing between, or null while the channel is
+   * a one shot — which is the whole of what takes the position off the button.
+   */
+  sliceCount: number | null;
   /** Which parameter a vertical swipe on this grid is currently writing. */
   swipeTarget: SwipeTarget;
   isCurrent: boolean;
@@ -79,6 +94,7 @@ type StepButtonProps = {
   onHold: () => void;
   onVelocityChange: (velocity: number) => void;
   onPitchChange: (semitones: number) => void;
+  onSliceChange: (slice: number) => void;
   /** A right click: raises the step's action menu at the pointer. */
   onContextMenu: (x: number, y: number) => void;
 };
@@ -96,6 +112,7 @@ type StepButtonProps = {
 export default function StepButton({
   step,
   channelPitch,
+  sliceCount,
   swipeTarget,
   isCurrent,
   isDownbeat,
@@ -105,6 +122,7 @@ export default function StepButton({
   onHold,
   onVelocityChange,
   onPitchChange,
+  onSliceChange,
   onContextMenu,
 }: StepButtonProps) {
   const gestureRef = useRef<Gesture | null>(null);
@@ -118,12 +136,33 @@ export default function StepButton({
 
   const pitch = stepPitch(step, channelPitch);
 
-  // What the swipe is currently holding. Read fresh on every render rather than
-  // captured, so flipping the switch mid-session changes what the next gesture
-  // writes without anything having to be torn down.
-  const swipeValue = swipeTarget === "pitch" ? pitch : step.velocity;
-  const onSwipeChange =
-    swipeTarget === "pitch" ? onPitchChange : onVelocityChange;
+  // Resolved against the count in force rather than taken as stored, the same
+  // way the Position slider resolves it: a step written past the current count
+  // plays the last slice, and has to read as the one it plays.
+  const slice =
+    sliceCount === null
+      ? DEFAULT_STEP_SLICE
+      : clampStepSlice(step.slice, sliceCount);
+
+  // What the swipe is currently holding, and where it goes. Read fresh on every
+  // render rather than captured, so flipping the switch mid-session changes what
+  // the next gesture writes without anything having to be torn down.
+  //
+  // Tables rather than a chain of ternaries, matching the two above: every
+  // target is one row across all four, so adding one can't be half done.
+  const swipeValues: Record<SwipeTarget, number> = {
+    velocity: step.velocity,
+    pitch,
+    slice,
+  };
+  const swipeHandlers: Record<SwipeTarget, (value: number) => void> = {
+    velocity: onVelocityChange,
+    pitch: onPitchChange,
+    slice: onSliceChange,
+  };
+
+  const swipeValue = swipeValues[swipeTarget];
+  const onSwipeChange = swipeHandlers[swipeTarget];
 
   const engage = useCallback(() => {
     const gesture = gestureRef.current;
@@ -245,6 +284,23 @@ export default function StepButton({
   // a number on all sixteen of them would be noise over the top of it.
   const showPitch = swipeTarget === "pitch" && step.on && pitch !== 0;
 
+  /*
+   * Shown on every hit of a sliced channel, whatever the grid is currently
+   * writing — unlike the pitch above, and unlike it in both halves of the rule.
+   *
+   * Not mode-dependent, because a chop is only legible as a sequence: reading
+   * which part follows which is the whole of what the grid is for once a sample
+   * is in pieces, and hiding it outside one switch position would put that
+   * behind a mode nobody would think to look in.
+   *
+   * And not hidden at the first slice either, where pitch hides at 0. A step
+   * with no pitch of its own is playing the channel's, so the number would be
+   * saying nothing; there is no such thing as a hit with no position, so a gap
+   * in the row would read as a step that isn't sliced rather than as one at the
+   * top of the file.
+   */
+  const showSlice = sliceCount !== null && step.on;
+
   const surface = isDownbeat
     ? "bg-step-beat hover:bg-step-beat-hover"
     : "bg-step hover:bg-step-hover";
@@ -278,7 +334,7 @@ export default function StepButton({
         step.repeatCount > MIN_STEP_REPEAT
           ? `, repeats ${formatStepRepeat(step.repeatCount)}`
           : ""
-      }`}
+      }${showSlice ? `, position ${formatStepSlice(slice, sliceCount)}` : ""}`}
       aria-pressed={step.on}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -291,7 +347,7 @@ export default function StepButton({
       // scrolling, which would swallow the swipe before it arrived. Scrolling
       // from inside the grid means starting the drag off a step, which the gaps
       // between them leave room for.
-      className={`group relative h-12 flex-1 touch-none overflow-hidden rounded border transition-colors select-none cursor-pointer ${surface} ${border} ${playhead} ${editing}`}
+      className={`group relative h-12 flex-1 cursor-pointer touch-none overflow-hidden rounded border transition-colors select-none ${surface} ${border} ${playhead} ${editing}`}
     >
       {step.on && (
         <span
@@ -312,6 +368,24 @@ export default function StepButton({
           className="bg-surface text-fg absolute inset-x-0 bottom-1 mx-auto w-fit rounded px-1 text-[10px] leading-tight font-semibold tabular-nums"
         >
           {pitch > 0 ? `+${pitch}` : pitch}
+        </span>
+      )}
+
+      {showSlice && (
+        // Dead centre, which is the one part of the button nothing else claims:
+        // the two dots have the top corners, the pitch chip has the bottom, and
+        // the fill sweeps up through the middle behind it. On its own opaque
+        // chip for the same reason the pitch one is — the fill is a different
+        // colour at every height and in every theme.
+        //
+        // Counted from 1, matching the Position slider: the row of numbers and
+        // the readout under the sliders are the same figure read two ways, and
+        // a grid saying 0 where the panel says "1 / 16" would be two answers.
+        <span
+          aria-hidden
+          className="bg-surface text-fg absolute inset-0 m-auto h-fit w-fit rounded px-1 text-[10px] leading-tight font-semibold tabular-nums"
+        >
+          {slice + 1}
         </span>
       )}
 

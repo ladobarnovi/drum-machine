@@ -14,6 +14,8 @@ type StepBeatProps = {
   steps: Step[];
   /** The channel's own pitch, which a step plays at unless it locks its own. */
   channelPitch: number;
+  /** How many slices a step chooses between, or null on a one-shot channel. */
+  sliceCount: number | null;
   /** Which parameter a vertical swipe on the grid is currently writing. */
   swipeTarget: SwipeTarget;
   /** Index of this beat's first step within the whole pattern. */
@@ -25,6 +27,7 @@ type StepBeatProps = {
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
   onStepPitchChange: (stepIndex: number, semitones: number) => void;
+  onStepSliceChange: (stepIndex: number, slice: number) => void;
   onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
 };
 
@@ -37,6 +40,7 @@ export default function StepBeat({
   channelLabel,
   steps,
   channelPitch,
+  sliceCount,
   swipeTarget,
   offset,
   currentStep,
@@ -45,6 +49,7 @@ export default function StepBeat({
   onStepHold,
   onStepVelocityChange,
   onStepPitchChange,
+  onStepSliceChange,
   onStepContextMenu,
 }: StepBeatProps) {
   return (
@@ -60,6 +65,7 @@ export default function StepBeat({
             key={slot}
             step={steps[slot]}
             channelPitch={channelPitch}
+            sliceCount={sliceCount}
             swipeTarget={swipeTarget}
             isCurrent={currentStep === stepIndex}
             isDownbeat={isDownbeat(stepIndex)}
@@ -73,6 +79,7 @@ export default function StepBeat({
             onPitchChange={(semitones) =>
               onStepPitchChange(stepIndex, semitones)
             }
+            onSliceChange={(slice) => onStepSliceChange(stepIndex, slice)}
             onContextMenu={(x, y) => onStepContextMenu(stepIndex, x, y)}
           />
         );

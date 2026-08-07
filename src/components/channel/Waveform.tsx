@@ -9,10 +9,18 @@ import {
 } from "react";
 
 import {
+  SAMPLE_MODES,
+  SAMPLE_MODE_LABELS,
+  SLICE_COUNTS,
   formatSeconds,
   isSampleTrimmed,
+  isSliced,
   sampleSpanSeconds,
+  sliceBoundaries,
+  sliceRegion,
+  type SampleMode,
   type SampleState,
+  type SliceCount,
 } from "@/lib/sequencer";
 
 type WaveformProps = {
@@ -27,6 +35,17 @@ type WaveformProps = {
   /** Whether the region between the handles is read back to front. */
   reversed: boolean;
   onReversedChange: (reversed: boolean) => void;
+  /** Whether a hit plays the whole trimmed region or one slice of it. */
+  mode: SampleMode;
+  onModeChange: (mode: SampleMode) => void;
+  /** How many parts the region is divided into while slicing. */
+  sliceCount: SliceCount;
+  onSliceCountChange: (sliceCount: SliceCount) => void;
+  /**
+   * The slice the step open for editing fires, or null while no step is open —
+   * which is also every moment the channel is a one shot.
+   */
+  highlightSlice: number | null;
   /** Puts both edges back to the ends of the file. */
   onReset: () => void;
   /**
@@ -279,6 +298,11 @@ export default function Waveform({
   onEndChange,
   reversed,
   onReversedChange,
+  mode,
+  onModeChange,
+  sliceCount,
+  onSliceCountChange,
+  highlightSlice,
   onReset,
   getPlayhead,
 }: WaveformProps) {
@@ -328,9 +352,39 @@ export default function Waveform({
 
   const trimmed = isSampleTrimmed(start, end);
   const spanSeconds = sampleSpanSeconds(start, end, sample.durationSeconds);
+  const slicing = isSliced(mode);
 
   /** This strip's flip, since every call below is for the same picture. */
   const onThisStrip = (fraction: number) => onStrip(fraction, reversed);
+
+  /**
+   * A region of the file as a band on the strip. The two ends swap over when
+   * the picture is mirrored, so which is the left edge is decided here rather
+   * than assumed — a negative width would simply draw nothing.
+   */
+  const bandStyle = (from: number, to: number) => {
+    const left = Math.min(onThisStrip(from), onThisStrip(to));
+    const right = Math.max(onThisStrip(from), onThisStrip(to));
+    return { left: `${left * 100}%`, width: `${(right - left) * 100}%` };
+  };
+
+  // The slice the open step fires, so the Position slider in the controls panel
+  // has something to point at. Only ever set while slicing, but read through
+  // the mode as well so a stale value can't outlive a switch back to one shot.
+  const highlighted =
+    slicing && highlightSlice !== null
+      ? sliceRegion(start, end, sliceCount, highlightSlice)
+      : null;
+
+  // Shared by the mode pair and the slice counts, and the same shape the
+  // Reverse button below already had: these are all toggles that stay lit
+  // while they are what the sample is set to.
+  const toggleClass = (isActive: boolean) =>
+    `rounded border px-2 py-0.5 font-medium transition-colors ${
+      isActive
+        ? "border-accent bg-accent text-on-accent"
+        : "border-edge hover:bg-raised"
+    }`;
 
   // Which end of the file each end of the picture is. Reversed, the hit begins
   // at the file's later edge, so the handle on the left writes `end`: the two
@@ -353,17 +407,56 @@ export default function Waveform({
         turns round with it, but a shape alone cannot say which way round it
         was to begin with — the light is what makes that readable at a glance.
       */}
-      <div className="flex items-center text-[10px]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px]">
+        {/*
+          What a hit is: the whole region, or one part of it. First in the row
+          because it decides whether the rest of the row — and the marks on the
+          strip below — mean anything at all.
+        */}
+        <div className="flex gap-1.5">
+          {SAMPLE_MODES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onModeChange(option)}
+              aria-pressed={mode === option}
+              className={toggleClass(mode === option)}
+            >
+              {SAMPLE_MODE_LABELS[option]}
+            </button>
+          ))}
+        </div>
+
+        {/* Only alongside the mode that has parts to count, rather than greyed
+            out under a one shot where the number would decide nothing. */}
+        {slicing && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted">Parts</span>
+
+            {SLICE_COUNTS.map((count) => (
+              <button
+                key={count}
+                type="button"
+                onClick={() => onSliceCountChange(count)}
+                aria-pressed={sliceCount === count}
+                aria-label={`${count} slices`}
+                className={`w-7 ${toggleClass(sliceCount === count)}`}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Pushed to the far edge: it applies to a hit whichever mode the
+            sample is in — a slice is read back to front exactly as a whole
+            one shot is — so it belongs beside the pair rather than within it. */}
         <button
           type="button"
           onClick={() => onReversedChange(!reversed)}
           aria-pressed={reversed}
           aria-label="Play sample in reverse"
-          className={`rounded border px-2 py-0.5 font-medium transition-colors ${
-            reversed
-              ? "border-accent bg-accent text-on-accent"
-              : "border-edge hover:bg-raised"
-          }`}
+          className={`ml-auto ${toggleClass(reversed)}`}
         >
           Reverse
         </button>
@@ -415,6 +508,38 @@ export default function Waveform({
             style={{ width: `${(1 - onThisStrip(trailing)) * 100}%` }}
           />
 
+          {/*
+            The slice the open step fires, lit behind the shape so the Position
+            slider in the controls panel has something on screen to mean. In
+            `--select`, the colour of whatever is being looked at, and washed
+            right down: it sits under the whole waveform rather than beside it,
+            so anything stronger would recolour the shape it is meant to locate.
+          */}
+          {highlighted && (
+            <div
+              aria-hidden
+              className="bg-select/20 pointer-events-none absolute inset-y-0"
+              style={bandStyle(highlighted.start, highlighted.end)}
+            />
+          )}
+
+          {/*
+            Where the cuts fall. Hairlines in the foreground colour rather than
+            in either of the two colours already on the strip: the accent is the
+            waveform itself and `--select` is the handles and the band above, so
+            a divider taking either would read as one of those rather than as
+            the grid the slices are counted on.
+          */}
+          {slicing &&
+            sliceBoundaries(start, end, sliceCount).map((boundary) => (
+              <span
+                key={boundary}
+                aria-hidden
+                className="bg-fg/30 pointer-events-none absolute inset-y-0 w-px"
+                style={{ left: `${onThisStrip(boundary) * 100}%` }}
+              />
+            ))}
+
           {/* After the wash, so the line stays at full strength as it crosses
               the region — and inside the strip, which clips it: unlike a handle
               it never sits at the very edge, since it only exists between the
@@ -422,12 +547,16 @@ export default function Waveform({
           <WaveformPlayhead getPlayhead={getPlayhead} reversed={reversed} />
 
           {/* How long the channel now plays for, which is the trimmed span
-              rather than the file's own length. Never in the way of a handle:
+              rather than the file's own length — or, once it is sliced, how
+              long one of those parts lasts and how many there are, since that
+              is what a hit is from then on. Never in the way of a handle:
               nothing here takes the pointer. Read in the same unit as the
               envelope times, so a hit cut to a few milliseconds says so rather
               than rounding away to nothing. */}
           <span className="bg-surface/70 text-muted pointer-events-none absolute right-1.5 bottom-1 rounded px-1 text-[10px] tabular-nums">
-            {formatSeconds(spanSeconds)}
+            {slicing
+              ? `${formatSeconds(spanSeconds / sliceCount)} × ${sliceCount}`
+              : formatSeconds(spanSeconds)}
           </span>
         </div>
 

@@ -46,8 +46,10 @@ import {
   DEFAULT_MASTER_REVERB,
   DEFAULT_MASTER_VOLUME,
   DEFAULT_SAMPLE_END,
+  DEFAULT_SAMPLE_MODE,
   DEFAULT_SAMPLE_REVERSED,
   DEFAULT_SAMPLE_START,
+  DEFAULT_SLICE_COUNT,
   DEFAULT_SWING,
   DEFAULT_SWIPE_TARGET,
   applyChannelSnapshots,
@@ -79,6 +81,7 @@ import {
   humanizeSteps,
   invertSteps,
   isChannelAudible,
+  isSliced,
   isStepCleared,
   nudgeSteps,
   pasteStepAt,
@@ -87,6 +90,7 @@ import {
   setStepLockAt,
   setStepProbabilityAt,
   setStepRepeatAt,
+  setStepSliceAt,
   setStepVelocityAt,
   stepFires,
   toggleStepAt,
@@ -101,7 +105,9 @@ import {
   type MasterPhaser,
   type MasterReverb,
   type ParameterSnapshot,
+  type SampleMode,
   type SampleState,
+  type SliceCount,
   type Step,
   type StepFill,
   type SwipeTarget,
@@ -127,13 +133,16 @@ const UNTRIMMED = {
  * start point two thirds of the way through the old file means nothing in the
  * new one, and would quietly hand back a hit that is mostly silence.
  *
- * The direction goes with them, unlike on a trim reset — that button is about
- * the handles alone, where a new file arriving to find itself already playing
- * backwards would be a surprise nothing on screen accounts for.
+ * The direction and the slicing go with them, unlike on a trim reset — that
+ * button is about the handles alone, where a new file arriving to find itself
+ * already playing backwards, or already cut into 24 parts of which the pattern
+ * only asks for a few, would be a surprise nothing on screen accounts for.
  */
 const UNEDITED = {
   ...UNTRIMMED,
   sampleReversed: DEFAULT_SAMPLE_REVERSED,
+  sampleMode: DEFAULT_SAMPLE_MODE,
+  sliceCount: DEFAULT_SLICE_COUNT,
 } as const;
 
 export default function DrumMachine() {
@@ -218,6 +227,9 @@ export default function DrumMachine() {
     end: number;
     /** Whether it was playing backwards when it was copied. */
     reversed: boolean;
+    /** And how it was cut up, if it was. */
+    mode: SampleMode;
+    sliceCount: SliceCount;
   } | null>(null);
 
   /**
@@ -556,6 +568,20 @@ export default function DrumMachine() {
   );
 
   /**
+   * Points one step at a slice of the sample. Clamped against the channel's own
+   * count on the way in, so the grid can never hold a position that the sample
+   * as it is currently cut has no part for.
+   */
+  const handleStepSliceChange = useCallback(
+    (stepIndex: number, slice: number) => {
+      updateSelectedSteps((steps) =>
+        setStepSliceAt(steps, stepIndex, slice, selectedChannel.sliceCount),
+      );
+    },
+    [selectedChannel.sliceCount, updateSelectedSteps],
+  );
+
+  /**
    * Tunes one step, which — unlike its velocity — means writing a lock: pitch
    * belongs to the channel until a step says otherwise. Clamped on the way in,
    * so a swipe lands on whole semitones rather than between them.
@@ -685,6 +711,34 @@ export default function DrumMachine() {
   const handleSampleReversedChange = useCallback(
     (channelId: string, reversed: boolean) => {
       updateChannel(channelId, { sampleReversed: reversed });
+    },
+    [updateChannel],
+  );
+
+  /**
+   * Switches the sample between playing whole and playing in parts.
+   *
+   * Nothing is written into the pattern either way: a step's position is left
+   * exactly where it was, so a chop survives being auditioned as a one shot and
+   * switched back — the same promise a switched-off step's velocity makes.
+   */
+  const handleSampleModeChange = useCallback(
+    (channelId: string, mode: SampleMode) => {
+      updateChannel(channelId, { sampleMode: mode });
+    },
+    [updateChannel],
+  );
+
+  /**
+   * Re-cuts the sample into a different number of parts.
+   *
+   * The steps are again left alone. A position past the new count is clamped
+   * where it is read rather than rewritten here, so cutting a 24-part chop down
+   * to 8 and back hands the pattern back rather than a flattened copy of it.
+   */
+  const handleSliceCountChange = useCallback(
+    (channelId: string, sliceCount: SliceCount) => {
+      updateChannel(channelId, { sliceCount });
     },
     [updateChannel],
   );
@@ -872,16 +926,18 @@ export default function DrumMachine() {
       const buffer = getSampleBuffer(channelId);
       if (!buffer) return;
 
-      // The trim and the direction go with it: both are part of what was
-      // dialled into that sample, and pasting a hit that was cut down to its
-      // transient only to hear the whole file again — the right way round —
-      // would be the wrong answer to "copy".
+      // The trim, the direction and the slicing go with it: all of them are
+      // part of what was dialled into that sample, and pasting a hit that was
+      // cut down to its transient only to hear the whole file again — the right
+      // way round, and in one piece — would be the wrong answer to "copy".
       setClipboardSample({
         buffer,
         sample: channel.sample,
         start: channel.sampleStart,
         end: channel.sampleEnd,
         reversed: channel.sampleReversed,
+        mode: channel.sampleMode,
+        sliceCount: channel.sliceCount,
       });
     },
     [channels, getSampleBuffer],
@@ -896,6 +952,8 @@ export default function DrumMachine() {
         sampleStart: clipboardSample.start,
         sampleEnd: clipboardSample.end,
         sampleReversed: clipboardSample.reversed,
+        sampleMode: clipboardSample.mode,
+        sliceCount: clipboardSample.sliceCount,
       });
     },
     [clipboardSample, setSampleBuffer, updateChannel],
@@ -1426,10 +1484,10 @@ export default function DrumMachine() {
           the overflow would push the column past the viewport instead of
           scrolling here.
         */}
-        <div className="quiet-scrollbar overflow-y-auto flex-1 min-h-0 flex">
+        <div className="quiet-scrollbar flex min-h-0 flex-1 overflow-y-auto">
           <div
             id="drum-main-content"
-            className="mx-auto flex w-full max-w-5xl flex-col gap-6  p-6"
+            className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6"
           >
             <ChannelGrid
               channels={channels}
@@ -1467,6 +1525,20 @@ export default function DrumMachine() {
               onSampleReversedChange={(reversed) =>
                 handleSampleReversedChange(selectedChannel.id, reversed)
               }
+              onSampleModeChange={(mode) =>
+                handleSampleModeChange(selectedChannel.id, mode)
+              }
+              onSliceCountChange={(sliceCount) =>
+                handleSliceCountChange(selectedChannel.id, sliceCount)
+              }
+              // Only while a step is open, and only while the sample is in
+              // parts: the band marks the slice the Position slider is pointed
+              // at, so with no slider on screen there is nothing for it to mark.
+              highlightSlice={
+                editingStep && isSliced(selectedChannel.sampleMode)
+                  ? editingStep.slice
+                  : null
+              }
               onSampleTrimReset={() =>
                 handleSampleTrimReset(selectedChannel.id)
               }
@@ -1482,6 +1554,7 @@ export default function DrumMachine() {
               onStepHold={handleStepHold}
               onStepVelocityChange={handleStepVelocityChange}
               onStepPitchChange={handleStepPitchChange}
+              onStepSliceChange={handleStepSliceChange}
               onStepContextMenu={handleStepContextMenu}
               onSwipeTargetChange={setSwipeTarget}
               onApplyStepFill={handleApplyStepFill}
@@ -1517,6 +1590,13 @@ export default function DrumMachine() {
                       velocity: editingStep.velocity,
                       probability: editingStep.probability,
                       repeatCount: editingStep.repeatCount,
+                      slice: editingStep.slice,
+                      // Null is what takes the Position row off the panel, so
+                      // the mode is read here rather than in the panel itself:
+                      // a one shot has no parts to choose between.
+                      sliceCount: isSliced(selectedChannel.sampleMode)
+                        ? selectedChannel.sliceCount
+                        : null,
                       locks: editingStep.locks ?? {},
                       onVelocityChange: (velocity) =>
                         handleStepVelocityChange(editingStepIndex, velocity),
@@ -1527,6 +1607,8 @@ export default function DrumMachine() {
                         ),
                       onRepeatChange: (repeatCount) =>
                         handleStepRepeatChange(editingStepIndex, repeatCount),
+                      onSliceChange: (slice) =>
+                        handleStepSliceChange(editingStepIndex, slice),
                       onClearLock: handleClearStepLock,
                       onClearLocks: handleClearStepLocks,
                     }
@@ -1603,7 +1685,9 @@ export default function DrumMachine() {
           x={contextMenuPattern.x}
           y={contextMenuPattern.y}
           onClose={closePatternContextMenu}
-          onSavePattern={() => handleSavePatternFromMenu(contextMenuPattern.index)}
+          onSavePattern={() =>
+            handleSavePatternFromMenu(contextMenuPattern.index)
+          }
           deleteDisabled={getPattern(contextMenuPattern.index) === null}
           onDeletePattern={() =>
             handleDeletePatternFromMenu(contextMenuPattern.index)

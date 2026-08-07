@@ -4,6 +4,7 @@ import ControlSlider from "@/components/ui/ControlSlider";
 import {
   DEFAULT_STEP_PROBABILITY,
   DEFAULT_STEP_REPEAT,
+  DEFAULT_STEP_SLICE,
   DEFAULT_STEP_VELOCITY,
   MAX_PAN,
   MAX_PITCH,
@@ -23,6 +24,7 @@ import {
   clampPan,
   clampPitch,
   clampSend,
+  clampStepSlice,
   clampVolume,
   decayToSlider,
   formatFrequency,
@@ -31,6 +33,7 @@ import {
   formatProbability,
   formatSeconds,
   formatStepRepeat,
+  formatStepSlice,
   formatVelocity,
   frequencyToSlider,
   isAttackBypassed,
@@ -63,11 +66,20 @@ export type StepEdit = {
   probability: number;
   /** How many times this step retriggers within its own duration. */
   repeatCount: number;
+  /** Which slice of the sample this step fires, counted from 0. */
+  slice: number;
+  /**
+   * How many slices there are to choose between, or null while the channel is a
+   * one shot — which is what takes the Position row off the panel entirely,
+   * since there is nothing to position a hit within.
+   */
+  sliceCount: number | null;
   /** Which of the parameters this step overrides. */
   locks: StepLocks;
   onVelocityChange: (velocity: number) => void;
   onProbabilityChange: (probability: number) => void;
   onRepeatChange: (repeatCount: number) => void;
+  onSliceChange: (slice: number) => void;
   onClearLock: (key: LockableParameter) => void;
   onClearLocks: () => void;
 };
@@ -155,6 +167,24 @@ export default function ChannelControls({
 
   const hasLocks =
     stepEdit !== undefined && Object.keys(stepEdit.locks).length > 0;
+
+  /**
+   * Where the open step sits among the slices, or null while the channel is a
+   * one shot and there are none.
+   *
+   * The position is resolved here against the count currently in force rather
+   * than trusted as stored: a step written at slice 20 of 24 and then cut to 8
+   * keeps that 20 — so switching back returns it — but there is no such part to
+   * show or to play meanwhile, and the row has to say the same thing the hit
+   * does.
+   */
+  const slicing =
+    stepEdit && stepEdit.sliceCount !== null
+      ? {
+          count: stepEdit.sliceCount,
+          slice: clampStepSlice(stepEdit.slice, stepEdit.sliceCount),
+        }
+      : null;
 
   // Each group is a labelled band of sliders rather than one undifferentiated
   // grid, so a control's row says something about what kind of thing it is —
@@ -255,6 +285,30 @@ export default function ChannelControls({
                 locked={stepEdit.repeatCount > MIN_STEP_REPEAT}
                 onClearLock={() => stepEdit.onRepeatChange(DEFAULT_STEP_REPEAT)}
               />
+
+              {/*
+                Which part of a sliced sample the step fires — the row that
+                turns one loaded break into a pattern rather than a hit.
+
+                Only here at all while the channel is slicing, and counted from
+                1 on the way in and out: the slices are held from 0 like any
+                index, but a part of something is the first, second, third, and
+                a slider reading "0 / 16" would be arithmetic rather than a
+                position.
+              */}
+              {slicing && (
+                <ControlSlider
+                  label="Position"
+                  min={1}
+                  max={slicing.count}
+                  step={1}
+                  value={slicing.slice + 1}
+                  readout={formatStepSlice(slicing.slice, slicing.count)}
+                  onChange={(value) => stepEdit.onSliceChange(value - 1)}
+                  locked={slicing.slice > DEFAULT_STEP_SLICE}
+                  onClearLock={() => stepEdit.onSliceChange(DEFAULT_STEP_SLICE)}
+                />
+              )}
             </div>
           </div>
         )}

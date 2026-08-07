@@ -6,7 +6,6 @@ import {
   HUMANIZE_VELOCITY_AMOUNT,
   STEP_FILLS,
   STEP_LENGTH_PRESETS,
-  SWIPE_TARGETS,
   SWIPE_TARGET_LABELS,
   hasActiveSteps,
   matchesStepFill,
@@ -21,6 +20,12 @@ type StepPatternControlsProps = {
   length: number;
   /** Which parameter a vertical swipe on the grid above is currently writing. */
   swipeTarget: SwipeTarget;
+  /**
+   * The targets this channel offers. Not the whole list: Position only exists
+   * once the sample is in parts, so the switch is built from what the caller
+   * says is reachable rather than from every target there is.
+   */
+  swipeTargets: SwipeTarget[];
   onApplyFill: (fill: StepFill) => void;
   /** Steps to slide the pattern by: positive later, negative earlier. */
   onNudge: (offset: number) => void;
@@ -60,6 +65,7 @@ export default function StepPatternControls({
   steps,
   length,
   swipeTarget,
+  swipeTargets,
   onApplyFill,
   onNudge,
   onClear,
@@ -225,7 +231,7 @@ export default function StepPatternControls({
         </p>
 
         <div className="flex flex-wrap gap-2">
-          {SWIPE_TARGETS.map((target) => (
+          {swipeTargets.map((target) => (
             <button
               key={target}
               type="button"

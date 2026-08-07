@@ -9,6 +9,8 @@ type StepGridProps = {
   steps: Step[];
   /** The channel's own pitch, which a step plays at unless it locks its own. */
   channelPitch: number;
+  /** How many slices a step chooses between, or null on a one-shot channel. */
+  sliceCount: number | null;
   /** Which parameter a vertical swipe on the grid is currently writing. */
   swipeTarget: SwipeTarget;
   length: number;
@@ -19,6 +21,7 @@ type StepGridProps = {
   onStepHold: (stepIndex: number) => void;
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
   onStepPitchChange: (stepIndex: number, semitones: number) => void;
+  onStepSliceChange: (stepIndex: number, slice: number) => void;
   onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
 };
 
@@ -33,6 +36,7 @@ export default function StepGrid({
   channelLabel,
   steps,
   channelPitch,
+  sliceCount,
   swipeTarget,
   length,
   currentStep,
@@ -41,6 +45,7 @@ export default function StepGrid({
   onStepHold,
   onStepVelocityChange,
   onStepPitchChange,
+  onStepSliceChange,
   onStepContextMenu,
 }: StepGridProps) {
   const visible = steps.slice(0, length);
@@ -56,6 +61,7 @@ export default function StepGrid({
             channelLabel={channelLabel}
             steps={visible.slice(offset, offset + STEPS_PER_BEAT)}
             channelPitch={channelPitch}
+            sliceCount={sliceCount}
             swipeTarget={swipeTarget}
             offset={offset}
             currentStep={currentStep}
@@ -64,6 +70,7 @@ export default function StepGrid({
             onStepHold={onStepHold}
             onStepVelocityChange={onStepVelocityChange}
             onStepPitchChange={onStepPitchChange}
+            onStepSliceChange={onStepSliceChange}
             onStepContextMenu={onStepContextMenu}
           />
         );
