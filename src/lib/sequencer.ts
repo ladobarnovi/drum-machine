@@ -287,6 +287,13 @@ export type MasterDelay = {
   timeSeconds: number;
   /** How much of each repeat feeds the next one. */
   feedback: number;
+  /**
+   * When set, each repeat lands on the opposite side to the one before it. The
+   * bus is also fed in mono and placed hard left to start it off, because a
+   * centred source swapped with itself is still centred — so this trades the
+   * panning the sends arrive with for the alternation, rather than adding to it.
+   */
+  pingPong: boolean;
   /** Lowpass cutoff on the repeats; at MAX_FILTER_HZ they are undamped. */
   toneHz: number;
   /** Return level, on the same scale as a channel's volume. */
@@ -313,6 +320,9 @@ export const DEFAULT_MASTER_DELAY: MasterDelay = {
   division: DEFAULT_DELAY_DIVISION,
   timeSeconds: DEFAULT_DELAY_SECONDS,
   feedback: DEFAULT_FEEDBACK,
+  // Straight by default, so the repeats stay where the channels that sent them
+  // are panned until the alternation is asked for.
+  pingPong: false,
   toneHz: DEFAULT_DELAY_TONE_HZ,
   level: DEFAULT_VOLUME,
   // Closed, like a channel's sends: the delay is dry until it is asked not to be.

@@ -604,10 +604,24 @@ type MasterChain = {
 
   /** Where channel delay sends land. */
   delayBus: GainNode;
+  /** The straight way into the line, open unless the delay is ping-ponging. */
+  delayInputStereo: GainNode;
+  /** The ping-pong way in, summed to mono by the merger it feeds. */
+  delayInputLeft: GainNode;
+  /** Places that mono sum hard left, which is where a ping-pong starts. */
+  delayInputMerger: ChannelMergerNode;
   delayLine: DelayNode;
   feedback: GainNode;
   /** Damping inside the feedback loop, so each repeat is darker than the last. */
   delayTone: BiquadFilterNode;
+  /**
+   * The two ways back round the loop — straight in, or with the sides
+   * exchanged. Exactly one is open at a time, and which one is the mode.
+   */
+  delayFeedbackStraight: GainNode;
+  delayFeedbackCrossed: GainNode;
+  delayFeedbackSplitter: ChannelSplitterNode;
+  delayFeedbackMerger: ChannelMergerNode;
   /** The delay's return level, and its whole bypass. */
   delayLevel: GainNode;
   /** How much of the delay's return is passed on to the reverb bus. */
@@ -777,9 +791,16 @@ function createMasterChain(context: AudioContext): MasterChain {
   const analyser = context.createAnalyser();
   const output = context.createGain();
   const delayBus = context.createGain();
+  const delayInputStereo = context.createGain();
+  const delayInputLeft = context.createGain();
+  const delayInputMerger = context.createChannelMerger(2);
   const delayLine = context.createDelay(MAX_DELAY_LINE_SECONDS);
   const feedback = context.createGain();
   const delayTone = createCutFilter(context, "lowpass", DEFAULT_DELAY_TONE_HZ);
+  const delayFeedbackStraight = context.createGain();
+  const delayFeedbackCrossed = context.createGain();
+  const delayFeedbackSplitter = context.createChannelSplitter(2);
+  const delayFeedbackMerger = context.createChannelMerger(2);
   const delayLevel = context.createGain();
   const delayToReverb = context.createGain();
   const reverbBus = context.createGain();
@@ -875,11 +896,40 @@ function createMasterChain(context: AudioContext): MasterChain {
   // is a Butterworth, so it has no resonant peak and no frequency ever sees a
   // loop gain above `feedback` — a filter that peaked could push the loop past
   // unity at its resonance while the slider still read well under it.
-  delayBus.connect(delayLine);
+  //
+  // There are two ways in and two ways round, and both pairs crossfade together
+  // as the mode: straight, where the bus arrives as it was panned and comes back
+  // the same way, or ping-pong, where it is placed on one side and swapped on
+  // every trip so the repeats alternate across the speakers.
+  //
+  // A merger input takes a single channel, so connecting the stereo bus to one
+  // sums the sides; connecting only input 0 then leaves that sum hard left.
+  // Feeding the line off-centre is what makes a ping-pong audible at all — most
+  // of a kit is panned near the middle, and a centred signal swapped with itself
+  // is still centred, so the crossing alone would do nothing to it.
+  delayBus.connect(delayInputStereo);
+  delayInputStereo.connect(delayLine);
+  delayBus.connect(delayInputLeft);
+  delayInputLeft.connect(delayInputMerger, 0, 0);
+  delayInputMerger.connect(delayLine);
+
   delayLine.connect(delayTone);
   delayTone.connect(feedback);
-  feedback.connect(delayLine);
   delayTone.connect(delayLevel);
+
+  // The loop is scaled before it forks, so `feedback` means the same thing in
+  // either mode and the fork is only about which side the repeat comes back on.
+  // The crossed path splits the repeat and merges it back with the channels
+  // exchanged; the return is tapped ahead of that, so what is heard is left,
+  // right, left rather than the swap already applied.
+  feedback.connect(delayFeedbackStraight);
+  delayFeedbackStraight.connect(delayLine);
+
+  feedback.connect(delayFeedbackCrossed);
+  delayFeedbackCrossed.connect(delayFeedbackSplitter);
+  delayFeedbackSplitter.connect(delayFeedbackMerger, 0, 1);
+  delayFeedbackSplitter.connect(delayFeedbackMerger, 1, 0);
+  delayFeedbackMerger.connect(delayLine);
 
   // Damping sits after the convolver rather than before it, so it darkens the
   // tail itself instead of just the signal being fed into the room.
@@ -959,6 +1009,12 @@ function createMasterChain(context: AudioContext): MasterChain {
   unfiltered.gain.value = 1;
   compressed.gain.value = 0;
   uncompressed.gain.value = 1;
+  // Straight in and straight round, matching the default mode. Both pairs are
+  // set explicitly so the first ramp has a side to come from either way.
+  delayInputStereo.gain.value = 1;
+  delayInputLeft.gain.value = 0;
+  delayFeedbackStraight.gain.value = 1;
+  delayFeedbackCrossed.gain.value = 0;
   // Sends are parallel, so silencing the return *is* the bypass.
   delayLevel.gain.value = 0;
   reverbLevel.gain.value = 0;
@@ -991,9 +1047,16 @@ function createMasterChain(context: AudioContext): MasterChain {
     analyser,
     output,
     delayBus,
+    delayInputStereo,
+    delayInputLeft,
+    delayInputMerger,
     delayLine,
     feedback,
     delayTone,
+    delayFeedbackStraight,
+    delayFeedbackCrossed,
+    delayFeedbackSplitter,
+    delayFeedbackMerger,
     delayLevel,
     delayToReverb,
     reverbBus,
@@ -1088,6 +1151,17 @@ function applyDelay(
     DELAY_TIME_RAMP_SECONDS,
   );
   rampTo(chain.feedback.gain, clampFeedback(delay.feedback), now);
+
+  // The mode is a crossfade like every other switch on this rail, so changing it
+  // while the delay is sounding walks what is already in the line across instead
+  // of reconnecting under it. Half open, the two feedback paths hand the line
+  // half of each side rather than a copy of both, so the crossfade can never
+  // take the loop past the gain `feedback` is set to.
+  rampTo(chain.delayInputStereo.gain, delay.pingPong ? 0 : 1, now);
+  rampTo(chain.delayInputLeft.gain, delay.pingPong ? 1 : 0, now);
+  rampTo(chain.delayFeedbackStraight.gain, delay.pingPong ? 0 : 1, now);
+  rampTo(chain.delayFeedbackCrossed.gain, delay.pingPong ? 1 : 0, now);
+
   rampTo(chain.delayTone.frequency, clampFrequency(delay.toneHz), now);
   rampTo(
     chain.delayLevel.gain,
