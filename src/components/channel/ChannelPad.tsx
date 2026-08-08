@@ -14,6 +14,8 @@ type ChannelPadProps = {
   isSilenced: boolean;
   /** True for a moment after one of this channel's hits is heard. */
   isTriggered: boolean;
+  /** Half-size pad with the mute/solo row dropped, for the phone grid's compact view. */
+  isCompact: boolean;
   /** Hands the level bar to the loop that drives it; see `useChannelMeters`. */
   meterRef: (element: HTMLElement | null) => void;
   onSelect: () => void;
@@ -35,6 +37,7 @@ export default function ChannelPad({
   isSelected,
   isSilenced,
   isTriggered,
+  isCompact,
   meterRef,
   onSelect,
   onPreview,
@@ -71,7 +74,9 @@ export default function ChannelPad({
     // still stretch it further if the contents ever need more room.
     <div
       onContextMenu={handleContextMenu}
-      className={`flex aspect-square flex-col gap-1 rounded-md border p-1.5 ring-2 transition sm:p-2 ${selection} ${trigger}`}
+      className={`flex aspect-square flex-col rounded-md border ring-2 transition ${
+        isCompact ? "gap-0.5 p-1" : "gap-1 p-1.5 sm:p-2"
+      } ${selection} ${trigger}`}
     >
       <button
         type="button"
@@ -80,7 +85,9 @@ export default function ChannelPad({
         aria-label={`Select channel ${displayName}`}
         title={`${shortcut ? `${displayName} (${shortcut})` : displayName}\nAlt+click to preview`}
         // A neutral overlay so the hover reads the same on the selected pad's tint.
-        className={`hover:bg-pad-hover flex flex-1 cursor-pointer items-center justify-center rounded px-1 text-xs font-semibold transition-colors sm:text-sm ${isSilenced ? "opacity-40" : ""}`}
+        className={`hover:bg-pad-hover flex flex-1 cursor-pointer items-center justify-center rounded px-1 font-semibold transition-colors ${
+          isCompact ? "text-[9px]" : "text-xs sm:text-sm"
+        } ${isSilenced ? "opacity-40" : ""}`}
       >
         <span className="min-w-0 truncate">{displayName}</span>
       </button>
@@ -105,33 +112,35 @@ export default function ChannelPad({
         />
       </span>
 
-      <div className="flex gap-1">
-        <button
-          type="button"
-          onClick={onToggleMute}
-          aria-pressed={channel.muted}
-          aria-label={`Mute channel ${displayName}`}
-          title={`Mute ${displayName}`}
-          className={`${TOGGLE_BASE} ${
-            channel.muted ? "border-mute bg-mute text-on-accent" : TOGGLE_OFF
-          }`}
-        >
-          M
-        </button>
+      {!isCompact && (
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={onToggleMute}
+            aria-pressed={channel.muted}
+            aria-label={`Mute channel ${displayName}`}
+            title={`Mute ${displayName}`}
+            className={`${TOGGLE_BASE} ${
+              channel.muted ? "border-mute bg-mute text-on-accent" : TOGGLE_OFF
+            }`}
+          >
+            M
+          </button>
 
-        <button
-          type="button"
-          onClick={onToggleSolo}
-          aria-pressed={channel.soloed}
-          aria-label={`Solo channel ${displayName}`}
-          title={`Solo ${displayName}`}
-          className={`${TOGGLE_BASE} ${
-            channel.soloed ? "border-solo bg-solo text-on-accent" : TOGGLE_OFF
-          }`}
-        >
-          S
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={onToggleSolo}
+            aria-pressed={channel.soloed}
+            aria-label={`Solo channel ${displayName}`}
+            title={`Solo ${displayName}`}
+            className={`${TOGGLE_BASE} ${
+              channel.soloed ? "border-solo bg-solo text-on-accent" : TOGGLE_OFF
+            }`}
+          >
+            S
+          </button>
+        </div>
+      )}
     </div>
   );
 }
