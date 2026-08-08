@@ -85,6 +85,7 @@ import {
   isChannelAudible,
   isSliced,
   isStepCleared,
+  lastFiredStepAt,
   nudgeSteps,
   pasteStepAt,
   repeatOffsets,
@@ -1332,6 +1333,35 @@ export default function DrumMachine() {
       ? null
       : currentTick % clampLength(selectedChannel.length);
 
+  /**
+   * The hit the selected channel is sounding right now — the step the filter
+   * card follows while the transport runs, so a pattern that sweeps its cutoff
+   * hit by hit can be watched doing it.
+   *
+   * The last step that *fires* rather than the one the playhead is standing on:
+   * see `lastFiredStepAt`. Null while stopped, while a step is held open — that
+   * is a deliberate request to look at one step, which the playhead must not
+   * drag the card off — and while the channel has nothing programmed to sound.
+   */
+  const playingStepIndex =
+    currentStep === null || editingStepIndex !== null
+      ? null
+      : lastFiredStepAt(
+          selectedChannel.steps,
+          selectedChannel.length,
+          currentStep,
+        );
+
+  const playingStep =
+    playingStepIndex === null ? null : selectedChannel.steps[playingStepIndex];
+
+  // Resolved through the same function the controls panel uses, so a followed
+  // step and an opened one can never report a hit differently.
+  const playingSettings =
+    playingStep === null
+      ? null
+      : channelSettingsForStep(selectedChannel, playingStep);
+
   return (
     // The page carries the surface colour now that the cards are unfilled —
     // the header and the rails already assume this pairing.
@@ -1489,7 +1519,7 @@ export default function DrumMachine() {
           mobile the header still goes behind the overlay with everything else.
         */}
         <header className="border-line bg-surface shrink-0 border-b">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-6 py-3">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 md:px-6">
             <Oscilloscope
               getWaveform={getWaveform}
               compact={true}
@@ -1529,7 +1559,7 @@ export default function DrumMachine() {
         <div className="quiet-scrollbar flex min-h-0 flex-1 overflow-y-auto">
           <div
             id="drum-main-content"
-            className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6"
+            className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6"
           >
             <ChannelGrid
               channels={channels}
@@ -1597,11 +1627,32 @@ export default function DrumMachine() {
             */}
             <ChannelFilterSection
               channelName={channelDisplayName(selectedChannel)}
-              lowCutHz={selectedSettings.lowCutHz}
-              lowCutResonance={selectedSettings.lowCutResonance}
-              highCutHz={selectedSettings.highCutHz}
-              highCutResonance={selectedSettings.highCutResonance}
+              settings={{
+                lowCutHz: selectedSettings.lowCutHz,
+                lowCutResonance: selectedSettings.lowCutResonance,
+                highCutHz: selectedSettings.highCutHz,
+                highCutResonance: selectedSettings.highCutResonance,
+              }}
               filterSlope={selectedChannel.filterSlope}
+              // What the card follows while the transport runs, so the knobs
+              // and the curve read out the locks of the hit being heard rather
+              // than the channel underneath them.
+              playing={
+                playingStepIndex === null ||
+                playingStep === null ||
+                playingSettings === null
+                  ? null
+                  : {
+                      index: playingStepIndex,
+                      settings: {
+                        lowCutHz: playingSettings.lowCutHz,
+                        lowCutResonance: playingSettings.lowCutResonance,
+                        highCutHz: playingSettings.highCutHz,
+                        highCutResonance: playingSettings.highCutResonance,
+                      },
+                      locks: playingStep.locks ?? {},
+                    }
+              }
               onLowCutChange={handleLowCutChange}
               onLowCutResonanceChange={handleLowCutResonanceChange}
               onHighCutChange={handleHighCutChange}

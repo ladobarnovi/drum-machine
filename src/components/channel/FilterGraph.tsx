@@ -114,7 +114,7 @@ export default function FilterGraph({
   }));
 
   return (
-    <div className="border-line bg-panel relative h-32 overflow-hidden rounded border">
+    <div className="border-line bg-panel relative h-24 overflow-hidden rounded border">
       <svg
         viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
         // Stretch freely: this is a shape overview like the waveform strip, not

@@ -321,7 +321,7 @@ export default function Waveform({
   }, []);
 
   const frame =
-    "border-line bg-panel flex h-20 items-center justify-center overflow-hidden rounded border";
+    "border-line bg-panel flex h-24 items-center justify-center overflow-hidden rounded border";
   const message = "text-muted text-xs";
 
   if (sample.status === "loading") {

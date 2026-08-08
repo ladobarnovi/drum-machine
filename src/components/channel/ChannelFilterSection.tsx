@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, type FocusEvent } from "react";
+
 import FilterGraph from "./FilterGraph";
 import RotaryKnob from "@/components/ui/RotaryKnob";
 import {
@@ -19,6 +21,21 @@ import {
 } from "@/lib/sequencer";
 
 /**
+ * The four values this card shows, whoever they belong to.
+ *
+ * A type of its own because the card now has two sets of them in hand at once —
+ * what the knobs edit, and what the channel is sounding right now — and two
+ * parallel runs of four loose props would leave every read site working out
+ * which run it was looking at.
+ */
+export type FilterSettings = {
+  lowCutHz: number;
+  lowCutResonance: number;
+  highCutHz: number;
+  highCutResonance: number;
+};
+
+/**
  * What the section is given while a single step is open for editing — the same
  * shape, and the same meaning, as `ChannelControls`' own `stepEdit`: the knobs
  * are the same controls either way, and this only says what they are pointed at.
@@ -31,15 +48,31 @@ type FilterStepEdit = {
   onClearLock: (key: LockableParameter) => void;
 };
 
+/**
+ * The hit the channel is sounding right now, while the transport runs — the
+ * step the card follows rather than one it edits.
+ */
+type PlayingStep = {
+  /** Which step is being heard, counted from 0. */
+  index: number;
+  /** The four values as that step actually plays them, locks applied. */
+  settings: FilterSettings;
+  /** Which of the four it overrides, so those can be marked as locks. */
+  locks: StepLocks;
+};
+
 type ChannelFilterSectionProps = {
   /** Whose filter this is, so the card says which channel it belongs to. */
   channelName: string;
-  lowCutHz: number;
-  lowCutResonance: number;
-  highCutHz: number;
-  highCutResonance: number;
+  /** What the knobs edit: the channel's own, or an open step's. */
+  settings: FilterSettings;
   /** How steeply both cuts roll off. Always the channel's, never a step's. */
   filterSlope: FilterSlope;
+  /**
+   * What is currently being heard, or null while the transport is stopped —
+   * or while it is running and the channel has no hits to sound.
+   */
+  playing?: PlayingStep | null;
   onLowCutChange: (hz: number) => void;
   onLowCutResonanceChange: (amount: number) => void;
   onHighCutChange: (hz: number) => void;
@@ -57,17 +90,19 @@ type ChannelFilterSectionProps = {
  * filter of their own, so this card and the Filter group in the panel are two
  * views of one thing and moving either moves the other.
  *
- * The values arrive already resolved, exactly as the controls panel's do: while
- * a step is open the caller hands down that step's overrides in place of the
- * channel's own, so the graph draws what the step is about to be played with.
+ * What is shown, though, is not always what is edited. While the transport is
+ * running the card follows the hit being heard, locks and all, so a pattern
+ * that sweeps its cutoff step by step can be watched doing it rather than
+ * merely known about. The knobs go on writing what they always wrote — the
+ * channel, or the step held open — and the header says which of the three
+ * things is on screen, since a card that quietly showed one and wrote the other
+ * would be a trap.
  */
 export default function ChannelFilterSection({
   channelName,
-  lowCutHz,
-  lowCutResonance,
-  highCutHz,
-  highCutResonance,
+  settings,
   filterSlope,
+  playing,
   onLowCutChange,
   onLowCutResonanceChange,
   onHighCutChange,
@@ -76,18 +111,56 @@ export default function ChannelFilterSection({
   stepEdit,
 }: ChannelFilterSectionProps) {
   /**
-   * What a lockable knob needs to show its state. Handed to every one of them
-   * while a step is open — including the ones with nothing locked, since it is
-   * passing the clear handler at all that reserves the row under the readout
-   * and keeps the knobs from shifting as locks come and go.
+   * Whether a knob is currently being worked.
+   *
+   * Following the playhead has to stop while it is, or turning a knob mid-bar
+   * would show your own move for a moment and then have the next hit paint over
+   * it — you would be dialling in a value you could not see. Focus is what
+   * stands in for "being worked": a press on a knob focuses it, so a drag holds
+   * the card still, and it stays held until the focus leaves the row rather
+   * than snapping back the instant the pointer lifts.
    */
-  const lockProps = (key: LockableParameter) =>
-    stepEdit
+  const [adjusting, setAdjusting] = useState(false);
+
+  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+    // Moving between two knobs is still working the row, so only focus leaving
+    // it altogether hands the card back to the playhead.
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    setAdjusting(false);
+  };
+
+  /**
+   * The step being followed, or null while the card is showing what it edits.
+   *
+   * A step held open wins over the playhead: opening one is a deliberate request
+   * to look at that step, and having the transport drag the card off it would
+   * make the two features unusable together.
+   */
+  const following = !stepEdit && !adjusting ? (playing ?? null) : null;
+
+  const shown = following ? following.settings : settings;
+
+  /**
+   * What a lockable knob needs to show its state.
+   *
+   * Handed to every knob while a step is open — including the ones with nothing
+   * locked, since it is passing the clear handler at all that reserves the row
+   * under the readout and keeps the knobs from shifting as locks come and go.
+   *
+   * While following, the marks go on but the clear buttons do not: the step is
+   * whipping past rather than sitting open, and a × over a value that changes
+   * every sixteenth is a mis-click waiting to happen.
+   */
+  const lockProps = (key: LockableParameter) => {
+    if (following) return { locked: following.locks[key] !== undefined };
+
+    return stepEdit
       ? {
           locked: stepEdit.locks[key] !== undefined,
           onClearLock: () => stepEdit.onClearLock(key),
         }
       : {};
+  };
 
   return (
     <div className="border-line flex flex-col gap-4 rounded-md border p-4">
@@ -98,14 +171,21 @@ export default function ChannelFilterSection({
             others that both name it and would otherwise be the only clue. */}
         <p className="text-muted text-xs">{channelName}</p>
 
-        {/* Only the four knobs below follow the open step; the slope beside
-            them is the channel's whatever is open, so which of the two a
-            control is has to be said rather than inferred from the card. */}
-        {stepEdit && (
+        {/*
+          Which of the three things the knobs are showing. Never nothing while
+          it is anything but the channel: the slope switch beside them is the
+          channel's whatever else is on screen, and a card silently showing one
+          scope and writing another is the one thing this must not be.
+        */}
+        {stepEdit ? (
           <p className="text-select text-xs">
             {`Knobs: step ${stepEdit.index + 1} only`}
           </p>
-        )}
+        ) : following ? (
+          <p className="text-select text-xs">
+            {`Playing step ${following.index + 1}`}
+          </p>
+        ) : null}
 
         {/*
           How steep the cuts are. A switch rather than a knob, and a short list
@@ -136,10 +216,10 @@ export default function ChannelFilterSection({
       </div>
 
       <FilterGraph
-        lowCutHz={lowCutHz}
-        lowCutResonance={lowCutResonance}
-        highCutHz={highCutHz}
-        highCutResonance={highCutResonance}
+        lowCutHz={shown.lowCutHz}
+        lowCutResonance={shown.lowCutResonance}
+        highCutHz={shown.highCutHz}
+        highCutResonance={shown.highCutResonance}
         filterSlope={filterSlope}
       />
 
@@ -148,8 +228,16 @@ export default function ChannelFilterSection({
         and the two resonances after them: a resonance means nothing on its own
         — it is a property of the corner next to it — and pairing them is what
         makes that readable without a legend.
+
+        The focus handlers sit on the row rather than on the card, so working a
+        knob holds the display still while pressing a slope button — which
+        changes nothing a step can lock — leaves it following.
       */}
-      <div className="grid grid-cols-4 justify-items-center gap-x-2 gap-y-4 sm:gap-x-8">
+      <div
+        onFocus={() => setAdjusting(true)}
+        onBlur={handleBlur}
+        className="grid grid-cols-4 justify-items-center gap-x-2 gap-y-4 sm:gap-x-8"
+      >
         {/* The cutoffs ride the same 0..1 log scale their sliders do, so the
             knob's travel matches the panel's and the readout shows the real
             frequency. */}
@@ -159,9 +247,11 @@ export default function ChannelFilterSection({
           min={0}
           max={1}
           step={0.001}
-          value={frequencyToSlider(lowCutHz)}
+          value={frequencyToSlider(shown.lowCutHz)}
           readout={
-            isLowCutBypassed(lowCutHz) ? "Off" : formatFrequency(lowCutHz)
+            isLowCutBypassed(shown.lowCutHz)
+              ? "Off"
+              : formatFrequency(shown.lowCutHz)
           }
           onChange={(position) => onLowCutChange(sliderToFrequency(position))}
           {...lockProps("lowCutHz")}
@@ -173,8 +263,8 @@ export default function ChannelFilterSection({
           min={MIN_RESONANCE}
           max={MAX_RESONANCE}
           step={0.01}
-          value={lowCutResonance}
-          readout={formatResonance(lowCutResonance)}
+          value={shown.lowCutResonance}
+          readout={formatResonance(shown.lowCutResonance)}
           onChange={onLowCutResonanceChange}
           {...lockProps("lowCutResonance")}
         />
@@ -185,9 +275,11 @@ export default function ChannelFilterSection({
           min={0}
           max={1}
           step={0.001}
-          value={frequencyToSlider(highCutHz)}
+          value={frequencyToSlider(shown.highCutHz)}
           readout={
-            isHighCutBypassed(highCutHz) ? "Off" : formatFrequency(highCutHz)
+            isHighCutBypassed(shown.highCutHz)
+              ? "Off"
+              : formatFrequency(shown.highCutHz)
           }
           onChange={(position) => onHighCutChange(sliderToFrequency(position))}
           {...lockProps("highCutHz")}
@@ -199,8 +291,8 @@ export default function ChannelFilterSection({
           min={MIN_RESONANCE}
           max={MAX_RESONANCE}
           step={0.01}
-          value={highCutResonance}
-          readout={formatResonance(highCutResonance)}
+          value={shown.highCutResonance}
+          readout={formatResonance(shown.highCutResonance)}
           onChange={onHighCutResonanceChange}
           {...lockProps("highCutResonance")}
         />

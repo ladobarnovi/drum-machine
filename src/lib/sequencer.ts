@@ -1996,6 +1996,39 @@ export function hasActiveSteps(steps: Step[], length: number): boolean {
   return steps.some((step, index) => step.on && index < playing);
 }
 
+/**
+ * The most recent step at or before `stepIndex` that fires — which is the hit
+ * currently being heard, and not in general the step the playhead is standing
+ * on.
+ *
+ * The distinction is the whole point. A readout that followed the playhead
+ * alone would fall back to the channel's own settings on every silent step, so
+ * a pattern with one locked hit in it would flash that lock for a sixteenth and
+ * then spend the rest of the bar denying it. Walking back to the last hit
+ * instead means what is shown is what is sounding, and it holds until something
+ * else sounds.
+ *
+ * Null while nothing at all fires inside the steps the channel plays. It takes
+ * no account of probability, choke or mute either: the step that came up is the
+ * one reported, since whether its dice landed is not a fact about the pattern.
+ */
+export function lastFiredStepAt(
+  steps: Step[],
+  length: number,
+  stepIndex: number,
+): number | null {
+  const playing = clampLength(length);
+
+  for (let back = 0; back < playing; back += 1) {
+    // Wrapped twice, since walking back past the front would otherwise index
+    // negatively: JavaScript's % keeps the sign of the left operand.
+    const index = (((stepIndex - back) % playing) + playing) % playing;
+    if (steps[index].on) return index;
+  }
+
+  return null;
+}
+
 /** Replaces one step, handing back the rest of the pattern untouched. */
 function withStep(
   steps: Step[],
