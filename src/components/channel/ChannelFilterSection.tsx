@@ -190,33 +190,6 @@ export default function ChannelFilterSection({
             {`Playing step ${following.index + 1}`}
           </p>
         ) : null}
-
-        {/*
-          How steep the cuts are. A switch rather than a knob, and a short list
-          rather than a range, because a slope is not a thing that can be turned
-          continuously: it is 6 dB/oct per pole and there is no such thing as
-          part of a pole, so what is on offer is two poles, three, or four.
-        */}
-        <div className="ml-auto flex items-center gap-1.5 text-[10px]">
-          <span className="text-muted">dB/oct</span>
-
-          {FILTER_SLOPES.map((slope) => (
-            <button
-              key={slope}
-              type="button"
-              onClick={() => onFilterSlopeChange(slope)}
-              aria-pressed={filterSlope === slope}
-              aria-label={`${slope} decibels per octave`}
-              className={`w-7 rounded border px-2 py-0.5 font-medium transition-colors ${
-                filterSlope === slope
-                  ? "border-accent bg-accent text-on-accent"
-                  : "border-edge hover:bg-raised"
-              }`}
-            >
-              {FILTER_SLOPE_LABELS[slope]}
-            </button>
-          ))}
-        </div>
       </div>
 
       <FilterGraph
@@ -300,6 +273,38 @@ export default function ChannelFilterSection({
           onChange={onHighCutResonanceChange}
           {...lockProps("highCutResonance")}
         />
+      </div>
+
+      {/*
+        How steep the cuts are. A switch rather than a knob, and a short list
+        rather than a range, because a slope is not a thing that can be turned
+        continuously: it is 6 dB/oct per pole and there is no such thing as
+        part of a pole, so what is on offer is two poles, three, or four.
+
+        Below the knobs rather than beside the header: it is a channel-wide
+        setting that shapes what the four knobs above it are turning, so it
+        reads as a footer to them rather than competing with the status text
+        for the top row.
+      */}
+      <div className="flex items-center justify-center gap-1.5 text-[10px]">
+        <span className="text-muted">dB/oct</span>
+
+        {FILTER_SLOPES.map((slope) => (
+          <button
+            key={slope}
+            type="button"
+            onClick={() => onFilterSlopeChange(slope)}
+            aria-pressed={filterSlope === slope}
+            aria-label={`${slope} decibels per octave`}
+            className={`w-7 rounded border px-2 py-0.5 font-medium transition-colors ${
+              filterSlope === slope
+                ? "border-accent bg-accent text-on-accent"
+                : "border-edge hover:bg-raised"
+            }`}
+          >
+            {FILTER_SLOPE_LABELS[slope]}
+          </button>
+        ))}
       </div>
     </div>
   );

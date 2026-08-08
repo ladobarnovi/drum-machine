@@ -153,6 +153,41 @@ function levelAtSeconds(seconds: number, envelope: ResolvedEnvelope): number {
   return rampLevel(sustain, 0, fraction);
 }
 
+/** Which stages actually shape the hit, for `EnvelopeGraph` to label. */
+export type EnvelopeActiveStages = {
+  decay: boolean;
+  sustain: boolean;
+  release: boolean;
+};
+
+/**
+ * Which of decay, sustain and release are actually doing something — the
+ * same chain `resolveEnvelope` follows, exposed so `EnvelopeGraph` can tell
+ * a real stage from the flat, unshaped hold `envelopeCurve` draws in its
+ * place. Without this a fully bypassed envelope would have its whole
+ * ring-out region mistaken for a release stage, since the two are drawn as
+ * the same flat line.
+ */
+export function envelopeActiveStages(
+  attackSeconds: number,
+  decaySeconds: number,
+  sustainLevel: number,
+  releaseSeconds: number,
+): EnvelopeActiveStages {
+  const envelope = resolveEnvelope(
+    attackSeconds,
+    decaySeconds,
+    sustainLevel,
+    releaseSeconds,
+  );
+
+  return {
+    decay: envelope.decay !== undefined,
+    sustain: envelope.sustain !== undefined,
+    release: envelope.release !== undefined,
+  };
+}
+
 /** Where each stage's region ends, for `EnvelopeGraph` to mark. */
 export function envelopeStagePositions(
   attackSeconds: number,

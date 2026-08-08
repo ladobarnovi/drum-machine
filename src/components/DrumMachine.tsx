@@ -20,13 +20,14 @@ import SequencerTabsSection from "@/components/patterns/SequencerTabsSection";
 import PresetPicker from "@/components/session/PresetPicker";
 import SnapshotControls from "@/components/session/SnapshotControls";
 import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
+import MobileFooterNav, {
+  type MobilePage,
+} from "@/components/shell/MobileFooterNav";
 import Sidebar, {
   CONTROLS_SIDEBAR_ID,
   FX_SIDEBAR_ID,
 } from "@/components/shell/Sidebar";
-import SidebarTab from "@/components/shell/SidebarTab";
 import ThemeSelector from "@/components/shell/ThemeSelector";
-import PlayButton from "@/components/transport/PlayButton";
 import Transport from "@/components/transport/Transport";
 import RailTabs from "@/components/ui/RailTabs";
 import { useBanks } from "@/hooks/useBanks";
@@ -169,17 +170,11 @@ export default function DrumMachine() {
     channelIdForIndex(0),
   );
   /**
-   * Which rail is showing as a drawer, only meaningful below `lg` where the
-   * rails are overlays. One field rather than two flags, so opening one drawer
-   * closes the other instead of stacking them on top of each other.
+   * Which of the three pages is showing, only meaningful below `lg` — from
+   * there up all three are on screen at once and this is ignored. Starts on
+   * Main so the machine opens the same way it always has.
    */
-  const [openDrawer, setOpenDrawer] = useState<"fx" | "controls" | null>(null);
-
-  const toggleDrawer = useCallback((drawer: "fx" | "controls") => {
-    setOpenDrawer((open) => (open === drawer ? null : drawer));
-  }, []);
-
-  const closeDrawer = useCallback(() => setOpenDrawer(null), []);
+  const [mobilePage, setMobilePage] = useState<MobilePage>("main");
 
   /**
    * Which step of the selected channel the controls panel is pointed at, or
@@ -1380,155 +1375,19 @@ export default function DrumMachine() {
     //
     // Filling the viewport exactly, rather than growing past it, is what moves
     // the scrolling inside: nothing here can push the window taller, so the
-    // only thing that scrolls is the content pane further down.
-    <div className="bg-surface text-fg h-full overflow-hidden">
-      {/*
-        Everything that acts on the machine as a whole rather than on one
-        channel: what it plays with, how it plays, and how loud it comes out.
-        Keeping them off the page means they stay put however far the channel
-        list is scrolled.
-      */}
-      <Sidebar
-        id={CONTROLS_SIDEBAR_ID}
-        side="left"
-        label="controls"
-        isOpen={openDrawer === "controls"}
-        onClose={closeDrawer}
-      >
-        <Transport
-          isPlaying={isPlaying}
-          bpm={bpm}
-          swing={swing}
-          canPlay={canPlay}
-          onTogglePlay={handleTogglePlay}
-          onBpmChange={setBpm}
-          onSwingChange={setSwing}
-        />
-
-        <PresetPicker
-          presets={PRESETS}
-          loadingPresetId={loadingPresetId}
-          onLoadPreset={(preset) => void handleLoadPreset(preset)}
-        />
-
-        {/* Last of the controls, because it is last in the signal too. */}
-        <MasterVolumeControls
-          volume={masterVolume}
-          onChange={setMasterVolume}
-        />
-
-        {/*
-          Below the fader, and so below everything that makes a sound: how the
-          machine looks is a preference about the page rather than a control on
-          the instrument, and putting it last keeps it out of the way of the
-          things that are reached for while playing.
-        */}
-        <ThemeSelector />
-      </Sidebar>
-
-      <SidebarTab
-        side="left"
-        label="Show controls"
-        controls={CONTROLS_SIDEBAR_ID}
-        isOpen={openDrawer === "controls"}
-        onToggle={() => toggleDrawer("controls")}
-      />
-
-      <Sidebar
-        id={FX_SIDEBAR_ID}
-        side="right"
-        label="effects"
-        isOpen={openDrawer === "fx"}
-        onClose={closeDrawer}
-      >
-        {/*
-          Two tabs rather than two stacked bands: six stages of sliders is more
-          than a rail's height, and which of the two kinds of stage you are
-          working on — the buses channels feed by choice, or the stages the
-          whole mix goes through whether it likes it or not — is a decision that
-          holds for a while rather than one made slider by slider.
-
-          Sends come first because their returns rejoin at the master input, so
-          the stages on the other tab are working on the repeats, the tail and
-          the sweep as well as on the dry channels. Each tab then runs in
-          signal-chain order within itself.
-        */}
-        <RailTabs
-          label="Effects"
-          tabs={[
-            {
-              id: "send-fx",
-              label: "Send FX",
-              panel: (
-                <>
-                  <MasterDelayControls
-                    delay={masterDelay}
-                    bpm={bpm}
-                    onChange={setMasterDelay}
-                  />
-
-                  <MasterReverbControls
-                    reverb={masterReverb}
-                    onChange={setMasterReverb}
-                  />
-
-                  {/* Last of the three, because the other two can feed it: the
-                      delay sends on into the reverb, and the reverb sends on
-                      into here. */}
-                  <MasterPhaserControls
-                    phaser={masterPhaser}
-                    onChange={setMasterPhaser}
-                  />
-                </>
-              ),
-            },
-            {
-              id: "master-fx",
-              label: "Master FX",
-              panel: (
-                <>
-                  <MasterDriveControls
-                    drive={masterDrive}
-                    onChange={setMasterDrive}
-                  />
-
-                  <MasterFilterControls
-                    filter={masterFilter}
-                    onChange={setMasterFilter}
-                  />
-
-                  {/* Last of the stages, and last in the signal too: it is
-                      levelling what the drive and the cuts have already made
-                      rather than a mix still about to change under it. */}
-                  <MasterCompressorControls
-                    compressor={masterCompressor}
-                    getGainReduction={getGainReduction}
-                    onChange={setMasterCompressor}
-                  />
-                </>
-              ),
-            },
-          ]}
-        />
-      </Sidebar>
-
-      <SidebarTab
-        side="right"
-        label="Show effects"
-        controls={FX_SIDEBAR_ID}
-        isOpen={openDrawer === "fx"}
-        onToggle={() => toggleDrawer("fx")}
-      />
-
-      {/* Padding clears the fixed rails so the content centres between them.
-          A column the height of the viewport: the header takes what it needs
-          and the pane below it takes the rest. */}
-      <div className="flex h-full flex-col lg:px-64">
+    // only thing that scrolls is the content pane further down. A flex column
+    // itself now, so the footer nav below `lg` can take its own row at the
+    // bottom rather than floating over the page as a fixed overlay.
+    <div className="bg-surface text-fg flex h-full flex-col overflow-hidden">
+      {/* Padding clears the fixed rails so the content centres between them,
+          from `lg` up where both are on screen at once. Below that this is
+          the only page showing, so it's a plain full-width column instead. */}
+      <div className="flex min-h-0 flex-1 flex-col lg:px-64">
         {/*
           Outside the scrolling pane rather than sticky within it, so the
           snapshot buttons stay on screen and a mix can be saved however far
-          the channel list is scrolled. The drawer's backdrop is fixed, so on
-          mobile the header still goes behind the overlay with everything else.
+          the channel list is scrolled. On every page below `lg`, not just
+          Main, so the transport stays reachable while Settings or FX is open.
         */}
         <header className="border-line bg-surface shrink-0 border-b">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 md:px-6">
@@ -1563,12 +1422,62 @@ export default function DrumMachine() {
         </header>
 
         {/*
+          Everything that acts on the machine as a whole rather than on one
+          channel: what it plays with, how it plays, and how loud it comes out.
+          A fixed rail from `lg` up, so it stays put however far the channel
+          list is scrolled; below that it's the Settings page, standing in for
+          the whole column whenever that's the page showing.
+        */}
+        <Sidebar
+          id={CONTROLS_SIDEBAR_ID}
+          side="left"
+          label="Settings"
+          mobileActive={mobilePage === "settings"}
+        >
+          <Transport
+            isPlaying={isPlaying}
+            bpm={bpm}
+            swing={swing}
+            canPlay={canPlay}
+            onTogglePlay={handleTogglePlay}
+            onBpmChange={setBpm}
+            onSwingChange={setSwing}
+          />
+
+          <PresetPicker
+            presets={PRESETS}
+            loadingPresetId={loadingPresetId}
+            onLoadPreset={(preset) => void handleLoadPreset(preset)}
+          />
+
+          {/* Last of the controls, because it is last in the signal too. */}
+          <MasterVolumeControls
+            volume={masterVolume}
+            onChange={setMasterVolume}
+          />
+
+          {/*
+            Below the fader, and so below everything that makes a sound: how the
+            machine looks is a preference about the page rather than a control on
+            the instrument, and putting it last keeps it out of the way of the
+            things that are reached for while playing.
+          */}
+          <ThemeSelector />
+        </Sidebar>
+
+        {/*
           The one scrolling box on the page. `min-h-0` is what lets it shrink
           below its content's height — without it a flex item refuses to, and
           the overflow would push the column past the viewport instead of
-          scrolling here.
+          scrolling here. Below `lg` this is the Main page, and hidden — but
+          still mounted — whenever Settings or FX is the page showing, so
+          nothing here is torn down mid-pattern by a switch to another page.
         */}
-        <div className="quiet-scrollbar flex min-h-0 flex-1 overflow-y-auto">
+        <div
+          className={`quiet-scrollbar min-h-0 flex-1 overflow-y-auto lg:flex ${
+            mobilePage === "main" ? "flex" : "hidden"
+          }`}
+        >
           <div
             id="drum-main-content"
             className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6"
@@ -1787,7 +1696,91 @@ export default function DrumMachine() {
             />
           </div>
         </div>
+
+        {/*
+          What the mix is put through: a fixed rail from `lg` up, and the FX
+          page below that, standing in for the column the same way Settings
+          does on its own turn.
+        */}
+        <Sidebar
+          id={FX_SIDEBAR_ID}
+          side="right"
+          label="Effects"
+          mobileActive={mobilePage === "fx"}
+        >
+          {/*
+            Two tabs rather than two stacked bands: six stages of sliders is more
+            than a rail's height, and which of the two kinds of stage you are
+            working on — the buses channels feed by choice, or the stages the
+            whole mix goes through whether it likes it or not — is a decision that
+            holds for a while rather than one made slider by slider.
+
+            Sends come first because their returns rejoin at the master input, so
+            the stages on the other tab are working on the repeats, the tail and
+            the sweep as well as on the dry channels. Each tab then runs in
+            signal-chain order within itself.
+          */}
+          <RailTabs
+            label="Effects"
+            tabs={[
+              {
+                id: "send-fx",
+                label: "Send FX",
+                panel: (
+                  <>
+                    <MasterDelayControls
+                      delay={masterDelay}
+                      bpm={bpm}
+                      onChange={setMasterDelay}
+                    />
+
+                    <MasterReverbControls
+                      reverb={masterReverb}
+                      onChange={setMasterReverb}
+                    />
+
+                    {/* Last of the three, because the other two can feed it: the
+                        delay sends on into the reverb, and the reverb sends on
+                        into here. */}
+                    <MasterPhaserControls
+                      phaser={masterPhaser}
+                      onChange={setMasterPhaser}
+                    />
+                  </>
+                ),
+              },
+              {
+                id: "master-fx",
+                label: "Master FX",
+                panel: (
+                  <>
+                    <MasterDriveControls
+                      drive={masterDrive}
+                      onChange={setMasterDrive}
+                    />
+
+                    <MasterFilterControls
+                      filter={masterFilter}
+                      onChange={setMasterFilter}
+                    />
+
+                    {/* Last of the stages, and last in the signal too: it is
+                        levelling what the drive and the cuts have already made
+                        rather than a mix still about to change under it. */}
+                    <MasterCompressorControls
+                      compressor={masterCompressor}
+                      getGainReduction={getGainReduction}
+                      onChange={setMasterCompressor}
+                    />
+                  </>
+                ),
+              },
+            ]}
+          />
+        </Sidebar>
       </div>
+
+      <MobileFooterNav page={mobilePage} onChange={setMobilePage} />
 
       {contextMenuStep && (
         <StepContextMenu

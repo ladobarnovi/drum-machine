@@ -1,6 +1,10 @@
 "use client";
 
-import { envelopeCurve, envelopeStagePositions } from "@/lib/envelopeResponse";
+import {
+  envelopeActiveStages,
+  envelopeCurve,
+  envelopeStagePositions,
+} from "@/lib/envelopeResponse";
 import {
   formatSeconds,
   formatSustain,
@@ -56,6 +60,12 @@ export default function EnvelopeGraph({
     sustainLevel,
     releaseSeconds,
   );
+  const active = envelopeActiveStages(
+    attackSeconds,
+    decaySeconds,
+    sustainLevel,
+    releaseSeconds,
+  );
 
   const toX = (position: number) => position * VIEWBOX_WIDTH;
   const toY = (level: number) => (1 - level) * VIEWBOX_HEIGHT;
@@ -71,31 +81,40 @@ export default function EnvelopeGraph({
   // reads as a shape with weight rather than as a line with two sides.
   const area = `${line} L ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT} L 0 ${VIEWBOX_HEIGHT} Z`;
 
-  const stages: Stage[] = [
+  // Decay, sustain and release are only worth a tag while they are actually
+  // shaping the hit — without that check, a fully bypassed envelope would
+  // have its whole flat ring-out mistaken for a release stage, since
+  // `envelopeCurve` draws the two as the same flat line.
+  const candidates: Stage[] = [
     { id: "attack", tag: "A", start: 0, end: positions.attackEnd },
-    { id: "decay", tag: "D", start: positions.attackEnd, end: positions.decayEnd },
-    {
+    active.decay && {
+      id: "decay",
+      tag: "D",
+      start: positions.attackEnd,
+      end: positions.decayEnd,
+    },
+    active.sustain && {
       id: "sustain",
       tag: "S",
       start: positions.decayEnd,
       end: positions.sustainEnd,
     },
-    {
+    active.release && {
       id: "release",
       tag: "R",
       start: positions.sustainEnd,
       end: positions.releaseEnd,
     },
-    // Only stages with a region wider than a rounding error are worth a tag —
-    // a bypassed stage collapses to zero width and would otherwise stack its
-    // letter on top of whichever neighbour is still open.
-  ].filter((stage) => stage.end - stage.start > 0.01);
+  ].filter((stage): stage is Stage => Boolean(stage));
 
-  const dividers = [
-    positions.attackEnd,
-    positions.decayEnd,
-    positions.sustainEnd,
-  ].filter((position, index, all) => all.indexOf(position) === index);
+  // Only regions wider than a rounding error are worth a tag — a bypassed
+  // stage collapses to zero width and would otherwise stack its letter on
+  // top of whichever neighbour is still open.
+  const stages = candidates.filter((stage) => stage.end - stage.start > 0.01);
+
+  // The dividers are just the internal boundaries between the stages that
+  // are actually being drawn, so a bypassed stage draws no line for it either.
+  const dividers = stages.slice(1).map((stage) => stage.start);
 
   return (
     <div className="border-line bg-panel relative h-24 overflow-hidden rounded border">
