@@ -6,6 +6,7 @@ import {
   COMPRESSOR_KNEE_DB,
   DEFAULT_BPM,
   DEFAULT_DELAY_TONE_HZ,
+  DEFAULT_FILTER_SLOPE,
   DEFAULT_HIGH_CUT_HZ,
   DEFAULT_LOW_CUT_HZ,
   DEFAULT_MASTER_COMPRESSOR,
@@ -19,6 +20,7 @@ import {
   DEFAULT_SAMPLE_END,
   DEFAULT_SAMPLE_REVERSED,
   DEFAULT_SAMPLE_START,
+  FLAT_FILTER_Q_DB,
   LFO_FILTER_RANGE_OCTAVES,
   LFO_PITCH_RANGE_SEMITONES,
   MAX_DELAY_LINE_SECONDS,
@@ -44,6 +46,7 @@ import {
   clampThresholdDb,
   clampVolume,
   delayTimeSeconds,
+  filterStages,
   isSampleTrimmed,
   type ChannelLfo,
   type DriveType,
@@ -65,8 +68,14 @@ type TriggerOptions = {
   playbackRate?: number;
   /** Highpass cutoff in Hz. Omit to skip the filter entirely. */
   lowCutHz?: number;
+  /** How much the highpass peaks at its corner, in dB. Omit for flat. */
+  lowCutQDb?: number;
   /** Lowpass cutoff in Hz. Omit to skip the filter entirely. */
   highCutHz?: number;
+  /** How much the lowpass peaks at its corner, in dB. Omit for flat. */
+  highCutQDb?: number;
+  /** How steeply both cuts roll off, in dB per octave. Omit for the shallowest. */
+  filterSlope?: number;
   /** Fade-in time in seconds. Omit for an instant onset. */
   attackSeconds?: number;
   /** Fade-out time in seconds, after the attack. Omit to let the sample ring out. */
@@ -130,19 +139,6 @@ type Playhead = {
   /** How much of the file it covers each second, negative when reversed. */
   fractionsPerSecond: number;
 };
-
-/**
- * Butterworth response: maximally flat passband, so the cutoff rolls off with
- * no resonant peak at all.
- *
- * Careful — for lowpass/highpass, Web Audio's `Q` param is in *decibels*, and
- * the filter coefficients use a linear Q of `10^(Q/20)`. So the textbook
- * Butterworth value of 1/sqrt(2) has to be converted, not assigned directly;
- * passing 0.707 through would actually mean a linear Q of 1.08 and add
- * resonance. The default of 1 dB is a linear Q of 1.12, a ~1.96 dB bump at the
- * cutoff.
- */
-const BUTTERWORTH_Q_DB = 20 * Math.log10(Math.SQRT1_2);
 
 /** Points in the drive transfer curve. Plenty for a smooth-sounding knee. */
 const DRIVE_CURVE_SAMPLES = 1024;
@@ -727,17 +723,101 @@ function driveCurve(
   return curve;
 }
 
-/** A Butterworth cut filter, used per hit and again across the master bus. */
+/**
+ * A cut filter, used per hit and again across the master bus.
+ *
+ * Butterworth — flat, no peak at the corner — unless a `qDb` is asked for. The
+ * stages that only ever want a plain roll-off (the master cuts, the delay's
+ * damping, the reverb's tone, the drive's DC blocker) take the default and say
+ * nothing about it; a channel's own cuts pass the Q their resonance knob comes
+ * to. Note the units: for lowpass and highpass, Web Audio's `Q` is in decibels
+ * and the coefficients use a linear Q of `10^(Q/20)`, so this is not a place to
+ * pass 0.707 through.
+ */
 function createCutFilter(
   context: AudioContext,
   type: "highpass" | "lowpass",
   frequency: number,
+  qDb: number = FLAT_FILTER_Q_DB,
 ): BiquadFilterNode {
   const filter = context.createBiquadFilter();
   filter.type = type;
   filter.frequency.value = frequency;
-  filter.Q.value = BUTTERWORTH_Q_DB;
+  filter.Q.value = qDb;
   return filter;
+}
+
+/**
+ * A single-pole cut: 6 dB/oct, which is the half-section a slope with an odd
+ * number of poles needs and which no BiquadFilterNode can be — theirs are two
+ * poles whatever their Q is set to.
+ *
+ * An IIRFilterNode instead, built from the pole a cutoff of `frequency` puts on
+ * the unit circle. Its coefficients are fixed at construction, which suits a
+ * voice's filters — those are built per hit anyway — but is the one thing worth
+ * knowing about it: an IIR node has no AudioParams, so an LFO aimed at this cut
+ * sweeps the biquad sections beside it and leaves this pole standing. At 18
+ * dB/oct that shallows the last third of the sweep rather than moving it.
+ */
+function createOnePoleFilter(
+  context: AudioContext,
+  type: "highpass" | "lowpass",
+  frequency: number,
+): IIRFilterNode {
+  const pole = Math.exp((-2 * Math.PI * frequency) / context.sampleRate);
+
+  // Each normalised so the band it passes comes through at unity: the lowpass
+  // at DC, the highpass at Nyquist. Without that the stage would double as a
+  // volume change and switching slopes would move the level.
+  const feedforward =
+    type === "lowpass" ? [1 - pole, 0] : [(1 + pole) / 2, -(1 + pole) / 2];
+
+  return context.createIIRFilter(feedforward, [1, -pole]);
+}
+
+/**
+ * Builds one cut of `slope` dB/oct onto the end of a voice's chain, and hands
+ * back both the node the next stage should hang off and the biquad sections an
+ * LFO can ride.
+ *
+ * The resonance goes on the first section alone and the rest stay flat, which
+ * is what keeps a peak a peak: two resonant sections in series would square the
+ * emphasis, so the same knob position would mean twice as many decibels at 24
+ * dB/oct as at 12 and the switch would be a loudness control as much as a
+ * slope one.
+ */
+function appendCutFilter(
+  context: AudioContext,
+  input: AudioNode,
+  type: "highpass" | "lowpass",
+  frequency: number,
+  qDb: number,
+  slope: number,
+): { output: AudioNode; sections: BiquadFilterNode[] } {
+  const { biquads, onePole } = filterStages(slope);
+
+  let tail = input;
+  const sections: BiquadFilterNode[] = [];
+
+  for (let index = 0; index < biquads; index += 1) {
+    const section = createCutFilter(
+      context,
+      type,
+      frequency,
+      index === 0 ? qDb : FLAT_FILTER_Q_DB,
+    );
+    tail.connect(section);
+    tail = section;
+    sections.push(section);
+  }
+
+  if (onePole) {
+    const pole = createOnePoleFilter(context, type, frequency);
+    tail.connect(pole);
+    tail = pole;
+  }
+
+  return { output: tail, sections };
 }
 
 /**
@@ -1564,7 +1644,10 @@ export function useSampleBank() {
         pan,
         playbackRate = 1,
         lowCutHz,
+        lowCutQDb = FLAT_FILTER_Q_DB,
         highCutHz,
+        highCutQDb = FLAT_FILTER_Q_DB,
+        filterSlope = DEFAULT_FILTER_SLOPE,
         attackSeconds,
         decaySeconds,
         delaySend,
@@ -1617,20 +1700,36 @@ export function useSampleBank() {
       }
 
       // Held rather than folded into `tail`, since an LFO aimed at a cut needs
-      // that particular filter back to modulate it.
-      let highpass: BiquadFilterNode | null = null;
-      let lowpass: BiquadFilterNode | null = null;
+      // that cut's own sections back to modulate them. Arrays rather than one
+      // node each: past 12 dB/oct a cut is more than one section, and a sweep
+      // has to move all of them together or the slope would bend as it went.
+      let highpassSections: BiquadFilterNode[] = [];
+      let lowpassSections: BiquadFilterNode[] = [];
 
       if (lowCutHz !== undefined) {
-        highpass = createCutFilter(context, "highpass", lowCutHz);
-        tail.connect(highpass);
-        tail = highpass;
+        const cut = appendCutFilter(
+          context,
+          tail,
+          "highpass",
+          lowCutHz,
+          lowCutQDb,
+          filterSlope,
+        );
+        tail = cut.output;
+        highpassSections = cut.sections;
       }
 
       if (highCutHz !== undefined) {
-        lowpass = createCutFilter(context, "lowpass", highCutHz);
-        tail.connect(lowpass);
-        tail = lowpass;
+        const cut = appendCutFilter(
+          context,
+          tail,
+          "lowpass",
+          highCutHz,
+          highCutQDb,
+          filterSlope,
+        );
+        tail = cut.output;
+        lowpassSections = cut.sections;
       }
 
       // When the decay ends. Held until after `source.start` below, because a
@@ -1794,17 +1893,23 @@ export function useSampleBank() {
 
           // The filter this rides always exists: `triggerOptionsForChannel`
           // builds the cut an LFO is pointed at even where it would otherwise
-          // be bypassed. The check is for callers that pass their own options.
+          // be bypassed. The empty case is for callers passing their own
+          // options — and every section of the cut is swept, so the sections
+          // stay stacked on one corner rather than sliding apart.
           case "lowCut":
             depth.gain.value =
               amount * LFO_FILTER_RANGE_OCTAVES * CENTS_PER_OCTAVE;
-            if (highpass) depth.connect(highpass.detune);
+            for (const section of highpassSections) {
+              depth.connect(section.detune);
+            }
             break;
 
           case "highCut":
             depth.gain.value =
               amount * LFO_FILTER_RANGE_OCTAVES * CENTS_PER_OCTAVE;
-            if (lowpass) depth.connect(lowpass.detune);
+            for (const section of lowpassSections) {
+              depth.connect(section.detune);
+            }
             break;
         }
       }
@@ -1929,7 +2034,8 @@ export function useSampleBank() {
     if (!latest) return null;
 
     const position =
-      latest.fromFraction + (now - latest.startTime) * latest.fractionsPerSecond;
+      latest.fromFraction +
+      (now - latest.startTime) * latest.fractionsPerSecond;
 
     // A hit is only dropped from the map when `onended` reaches the main thread,
     // which is a moment after the audio actually stopped — long enough for the

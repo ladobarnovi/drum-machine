@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelContextMenu from "@/components/channel/ChannelContextMenu";
 import ChannelEditor from "@/components/channel/ChannelEditor";
+import ChannelFilterSection from "@/components/channel/ChannelFilterSection";
 import ChannelGrid from "@/components/channel/ChannelGrid";
 import StepContextMenu from "@/components/channel/steps/StepContextMenu";
 import MasterCompressorControls from "@/components/master/MasterCompressorControls";
@@ -67,6 +68,7 @@ import {
   clampLength,
   clampPan,
   clampPitch,
+  clampResonance,
   clampSampleEnd,
   clampSampleStart,
   clampSend,
@@ -97,6 +99,7 @@ import {
   triggerOptionsForChannel,
   type Channel,
   type ChannelLfo,
+  type FilterSlope,
   type LockableParameter,
   type MasterCompressor,
   type MasterDelay,
@@ -1034,6 +1037,35 @@ export default function DrumMachine() {
     [setParameter],
   );
 
+  // The resonances go through `setParameter` like the cutoffs beside them, so
+  // the knobs in the filter card follow whatever the panel is scoped to: the
+  // channel, or the one step open for editing.
+  const handleLowCutResonanceChange = useCallback(
+    (amount: number) => setParameter("lowCutResonance", clampResonance(amount)),
+    [setParameter],
+  );
+
+  const handleHighCutResonanceChange = useCallback(
+    (amount: number) =>
+      setParameter("highCutResonance", clampResonance(amount)),
+    [setParameter],
+  );
+
+  /**
+   * How steep the selected channel's cuts are.
+   *
+   * Straight onto the channel rather than through `setParameter`, unlike the
+   * four knobs beside it: this is what kind of filter the channel has — the
+   * same sort of decision as the choke source or the sample's direction —
+   * rather than something one step of the pattern gets to override.
+   */
+  const handleFilterSlopeChange = useCallback(
+    (slope: FilterSlope) => {
+      updateChannel(selectedChannel.id, { filterSlope: slope });
+    },
+    [selectedChannel.id, updateChannel],
+  );
+
   const handleAttackChange = useCallback(
     (seconds: number) => setParameter("attackSeconds", clampAttack(seconds)),
     [setParameter],
@@ -1283,6 +1315,16 @@ export default function DrumMachine() {
   const chokeOptions = channels
     .filter((channel) => channel.id !== selectedChannel.id)
     .map((channel) => ({ id: channel.id, name: channelDisplayName(channel) }));
+
+  /**
+   * What the selected channel sounds like right now: its own settings, or the
+   * open step's overrides standing in for them.
+   *
+   * Resolved once here rather than at each of the two places that read it, so
+   * the filter card and the controls panel can never end up showing a different
+   * answer to the same question.
+   */
+  const selectedSettings = channelSettingsForStep(selectedChannel, editingStep);
 
   // The playhead shown is the selected channel's own position in its cycle.
   const currentStep =
@@ -1545,6 +1587,37 @@ export default function DrumMachine() {
               getPlayhead={getSelectedPlayhead}
             />
 
+            {/*
+              Between the sample and the pattern, which is where it belongs in
+              the order the page is worked through: the strip above says what
+              the channel is playing, this says what shape it comes out, and the
+              grid below says when. The two cutoffs are the same ones the
+              controls panel has sliders for — moving either moves both — with
+              a resonance each and a picture of what the four come to.
+            */}
+            <ChannelFilterSection
+              channelName={channelDisplayName(selectedChannel)}
+              lowCutHz={selectedSettings.lowCutHz}
+              lowCutResonance={selectedSettings.lowCutResonance}
+              highCutHz={selectedSettings.highCutHz}
+              highCutResonance={selectedSettings.highCutResonance}
+              filterSlope={selectedChannel.filterSlope}
+              onLowCutChange={handleLowCutChange}
+              onLowCutResonanceChange={handleLowCutResonanceChange}
+              onHighCutChange={handleHighCutChange}
+              onHighCutResonanceChange={handleHighCutResonanceChange}
+              onFilterSlopeChange={handleFilterSlopeChange}
+              stepEdit={
+                editingStepIndex === null || editingStep === null
+                  ? undefined
+                  : {
+                      index: editingStepIndex,
+                      locks: editingStep.locks ?? {},
+                      onClearLock: handleClearStepLock,
+                    }
+              }
+            />
+
             <SequencerTabsSection
               channel={selectedChannel}
               currentStep={currentStep}
@@ -1579,7 +1652,7 @@ export default function DrumMachine() {
 
             <ChannelEditor
               channel={selectedChannel}
-              settings={channelSettingsForStep(selectedChannel, editingStep)}
+              settings={selectedSettings}
               showControlsOnly={true}
               chokeOptions={chokeOptions}
               stepEdit={

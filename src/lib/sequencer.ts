@@ -61,6 +61,76 @@ export const DEFAULT_LOW_CUT_HZ = MIN_FILTER_HZ;
 export const DEFAULT_HIGH_CUT_HZ = MAX_FILTER_HZ;
 
 /**
+ * How much each cut emphasises the band right at its own corner, 0..1.
+ *
+ * Held as a plain fraction rather than as a Q, the way the phaser's depth and
+ * the drive's amount are, because that is what the control is: how much
+ * resonance you want, not a filter coefficient. `resonanceToQDb` below is the
+ * one place the fraction becomes a number a biquad understands, so the knob,
+ * the response curve and the audio graph can never disagree about what a
+ * setting means.
+ *
+ * Zero is the default and is flat — a cut with nothing dialled in behaves
+ * exactly as it did before there was such a thing as resonance.
+ */
+export const MIN_RESONANCE = 0;
+export const MAX_RESONANCE = 1;
+export const DEFAULT_RESONANCE = MIN_RESONANCE;
+
+/**
+ * Butterworth response: maximally flat passband, so the cutoff rolls off with
+ * no resonant peak at all — which is what resonance 0 has to mean.
+ *
+ * Careful — for lowpass/highpass, Web Audio's `Q` param is in *decibels*, and
+ * the filter coefficients use a linear Q of `10^(Q/20)`. So the textbook
+ * Butterworth value of 1/sqrt(2) has to be converted, not assigned directly;
+ * passing 0.707 through would actually mean a linear Q of 1.08 and add
+ * resonance of its own.
+ */
+export const FLAT_FILTER_Q_DB = 20 * Math.log10(Math.SQRT1_2);
+
+/**
+ * Where full resonance lands, in the same dB units. Eighteen is a linear Q of
+ * just under 8 — a corner that sings and can be swept as an effect in its own
+ * right, while staying short of the self-oscillating whistle that would drown
+ * whatever it is filtering.
+ */
+export const MAX_FILTER_Q_DB = 18;
+
+/**
+ * Every pole a filter has rolls its stopband off by this much. The one fact the
+ * slopes below are built out of, and the reason the list is what it is.
+ */
+export const DB_PER_OCTAVE_PER_POLE = 6;
+
+/**
+ * How steeply the channel's cuts fall away past their corners, in dB per
+ * octave — two poles, three, or four.
+ *
+ * Multiples of six because that is the only thing a slope can be: a pole is
+ * worth 6 dB/oct and there is no such thing as part of one, which rules out the
+ * 16 that sits between the second and third entries here. Twelve is the plain
+ * one-section filter every voice had before there was a switch, and the reason
+ * it is the default; twenty-four is two of those in series, the steepness a
+ * cutoff is reached for when it has to actually remove something rather than
+ * tilt it; eighteen is the one in between, and the reason `filterStages` below
+ * has to talk about odd poles at all.
+ */
+export const FILTER_SLOPES = [12, 18, 24] as const;
+
+export type FilterSlope = (typeof FILTER_SLOPES)[number];
+
+/** What a cut already was before the switch existed. */
+export const DEFAULT_FILTER_SLOPE: FilterSlope = 12;
+
+/** Card labels. Kept to the number: the unit is printed once beside them. */
+export const FILTER_SLOPE_LABELS: Record<FilterSlope, string> = {
+  12: "12",
+  18: "18",
+  24: "24",
+};
+
+/**
  * Amplitude envelope times, in seconds. Attack fades the hit in; decay then
  * runs it back down to silence, so the two together set how long a voice lasts.
  */
@@ -1104,7 +1174,9 @@ export const LOCKABLE_PARAMETERS = [
   "pan",
   "pitch",
   "lowCutHz",
+  "lowCutResonance",
   "highCutHz",
+  "highCutResonance",
   "attackSeconds",
   "decaySeconds",
   "delaySend",
@@ -1293,8 +1365,20 @@ export type Channel = {
   pitch: number;
   /** Highpass cutoff; at MIN_FILTER_HZ the filter is bypassed. */
   lowCutHz: number;
+  /** How much the highpass emphasises its own corner; at 0 it is flat. */
+  lowCutResonance: number;
   /** Lowpass cutoff; at MAX_FILTER_HZ the filter is bypassed. */
   highCutHz: number;
+  /** How much the lowpass emphasises its own corner; at 0 it is flat. */
+  highCutResonance: number;
+  /**
+   * How steeply both cuts roll off, in dB per octave.
+   *
+   * One setting for the pair rather than one each: it is what kind of filter
+   * the channel has, and a highpass falling away at one rate against a lowpass
+   * falling away at another is two decisions where players make one.
+   */
+  filterSlope: FilterSlope;
   /** Fade-in time for each hit; at MIN_ATTACK_SECONDS the onset is instant. */
   attackSeconds: number;
   /**
@@ -1363,7 +1447,10 @@ export function createInitialChannels(): Channel[] {
     pan: DEFAULT_PAN,
     pitch: DEFAULT_PITCH,
     lowCutHz: DEFAULT_LOW_CUT_HZ,
+    lowCutResonance: DEFAULT_RESONANCE,
     highCutHz: DEFAULT_HIGH_CUT_HZ,
+    highCutResonance: DEFAULT_RESONANCE,
+    filterSlope: DEFAULT_FILTER_SLOPE,
     attackSeconds: DEFAULT_ATTACK_SECONDS,
     decaySeconds: DEFAULT_DECAY_SECONDS,
     delaySend: DEFAULT_SEND,
@@ -1432,7 +1519,10 @@ export type ChannelSnapshot = Pick<
   | "pan"
   | "pitch"
   | "lowCutHz"
+  | "lowCutResonance"
   | "highCutHz"
+  | "highCutResonance"
+  | "filterSlope"
   | "attackSeconds"
   | "decaySeconds"
   | "delaySend"
@@ -1483,7 +1573,10 @@ export function captureChannelSnapshots(
         pan: channel.pan,
         pitch: channel.pitch,
         lowCutHz: channel.lowCutHz,
+        lowCutResonance: channel.lowCutResonance,
         highCutHz: channel.highCutHz,
+        highCutResonance: channel.highCutResonance,
+        filterSlope: channel.filterSlope,
         attackSeconds: channel.attackSeconds,
         decaySeconds: channel.decaySeconds,
         delaySend: channel.delaySend,
@@ -1598,14 +1691,28 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
     // Undefined skips the filter node entirely when it would be inaudible —
     // unless the LFO is pointed at that cut, since modulation needs a node to
     // land on and a cut parked at its bypass extreme still has room to sweep.
+    //
+    // Resonance is part of that reckoning: a cut parked at its extreme is only
+    // flat while its corner is unemphasised, and a peak dialled in there is
+    // very much audible, so it has to keep the node it rides.
     lowCutHz:
-      isLowCutBypassed(settings.lowCutHz) && lfo?.destination !== "lowCut"
+      isLowCutBypassed(settings.lowCutHz) &&
+      isResonanceFlat(settings.lowCutResonance) &&
+      lfo?.destination !== "lowCut"
         ? undefined
         : clampFrequency(settings.lowCutHz),
+    lowCutQDb: resonanceToQDb(settings.lowCutResonance),
     highCutHz:
-      isHighCutBypassed(settings.highCutHz) && lfo?.destination !== "highCut"
+      isHighCutBypassed(settings.highCutHz) &&
+      isResonanceFlat(settings.highCutResonance) &&
+      lfo?.destination !== "highCut"
         ? undefined
         : clampFrequency(settings.highCutHz),
+    highCutQDb: resonanceToQDb(settings.highCutResonance),
+    // Read off the channel rather than the resolved settings, like the sample's
+    // own direction: how steep the filter is is what kind of filter the channel
+    // has, not something one step of the pattern gets a say in.
+    filterSlope: clampFilterSlope(channel.filterSlope),
     attackSeconds: isAttackBypassed(settings.attackSeconds)
       ? undefined
       : clampAttack(settings.attackSeconds),
@@ -2261,6 +2368,69 @@ export function formatFrequency(hz: number): string {
   return clamped >= 1000
     ? `${(clamped / 1000).toFixed(1)} kHz`
     : `${clamped} Hz`;
+}
+
+/** Narrows the raw value a button hands back to a slope that is on offer. */
+export function clampFilterSlope(value: number): FilterSlope {
+  const slope = Number(value) as FilterSlope;
+  return FILTER_SLOPES.includes(slope) ? slope : DEFAULT_FILTER_SLOPE;
+}
+
+/**
+ * How a slope is actually built: some number of two-pole sections, and a single
+ * pole left over where the count is odd.
+ *
+ * Worked out in one place because two very different things have to agree about
+ * it — the voice, which wires the sections up, and the response curve, which
+ * draws what they come to. A slope the graph and the audio disagreed about
+ * would be worse than no switch at all.
+ */
+export function filterStages(slope: number): {
+  /** Two-pole sections, in series. */
+  biquads: number;
+  /** Whether a single 6 dB/oct pole follows them. */
+  onePole: boolean;
+} {
+  const poles = clampFilterSlope(slope) / DB_PER_OCTAVE_PER_POLE;
+  return { biquads: Math.floor(poles / 2), onePole: poles % 2 === 1 };
+}
+
+export function clampResonance(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_RESONANCE;
+  return Math.min(Math.max(value, MIN_RESONANCE), MAX_RESONANCE);
+}
+
+/**
+ * True while a cut has no peak at its corner, which is the one case where the
+ * cutoff alone decides whether the filter is audible at all.
+ */
+export function isResonanceFlat(value: number): boolean {
+  return clampResonance(value) <= MIN_RESONANCE;
+}
+
+/**
+ * The knob's fraction as the `Q` a biquad wants, in the dB units Web Audio
+ * uses for its lowpass and highpass — flat at 0, MAX_FILTER_Q_DB wide open.
+ *
+ * Linear in dB rather than in linear Q, because dB is where the peak height
+ * lives: an even sweep of the knob raises the corner by an even number of
+ * decibels, where an even sweep of linear Q would spend most of the travel
+ * doing almost nothing and then jump.
+ */
+export function resonanceToQDb(resonance: number): number {
+  return (
+    FLAT_FILTER_Q_DB +
+    clampResonance(resonance) * (MAX_FILTER_Q_DB - FLAT_FILTER_Q_DB)
+  );
+}
+
+/** The same, as the linear Q the response curve is plotted from. */
+export function resonanceToQ(resonance: number): number {
+  return Math.pow(10, resonanceToQDb(resonance) / 20);
+}
+
+export function formatResonance(value: number): string {
+  return `${Math.round(clampResonance(value) * 100)}%`;
 }
 
 export function clampAttack(value: number): number {
