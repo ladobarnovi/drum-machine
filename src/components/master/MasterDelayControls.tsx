@@ -58,7 +58,9 @@ type MasterDelayControlsProps = {
  * Mode decides where the repeats land: stereo leaves them where the channels
  * that sent them are panned, ping-pong throws them from one side to the other
  * instead. Ping-pong is the wider of the two by some distance, and the reason
- * is that it stops being a copy of the mix and becomes movement of its own.
+ * is that it stops being a copy of the mix and becomes movement of its own. It
+ * stops short of the hard edges, so the alternation is felt without the repeats
+ * detaching from the middle of the image; see PING_PONG_PAN.
  *
  * The bus is also a sender in its own right: "To reverb" passes the return on
  * into the reverb bus, so the repeats can be given the same space the channels
@@ -137,10 +139,10 @@ export default function MasterDelayControls({
       {/*
         The second of the two choices here, and it sits below the time rather
         than above it because it is heard on the repeats the time sets out: in
-        ping-pong the bus is summed, placed hard left and swapped on every trip,
-        so the echoes alternate across the speakers. That replaces the panning
-        the sends arrive with — worth knowing before reaching for it on a kit
-        that is already spread out.
+        ping-pong the bus is summed, placed out to one side and swapped on every
+        trip, so the echoes alternate across the speakers. That replaces the
+        panning the sends arrive with — worth knowing before reaching for it on
+        a kit that is already spread out.
       */}
       <label className="flex flex-col gap-1 text-xs">
         <span>Mode</span>

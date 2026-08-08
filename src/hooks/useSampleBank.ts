@@ -28,6 +28,8 @@ import {
   MIN_PHASER_HZ,
   PHASER_STAGE_COUNTS,
   PHASER_SWEEP_OCTAVES,
+  PING_PONG_FAR_GAIN,
+  PING_PONG_NEAR_GAIN,
   clampCompressorAttack,
   clampCompressorRelease,
   clampDrive,
@@ -602,9 +604,13 @@ type MasterChain = {
   delayBus: GainNode;
   /** The straight way into the line, open unless the delay is ping-ponging. */
   delayInputStereo: GainNode;
-  /** The ping-pong way in, summed to mono by the merger it feeds. */
+  /**
+   * The ping-pong way in, summed to mono by the merger inputs they feed. The
+   * pair between them place that sum off to one side, which is where a
+   * ping-pong starts; how far off is PING_PONG_PAN.
+   */
   delayInputLeft: GainNode;
-  /** Places that mono sum hard left, which is where a ping-pong starts. */
+  delayInputRight: GainNode;
   delayInputMerger: ChannelMergerNode;
   delayLine: DelayNode;
   feedback: GainNode;
@@ -873,6 +879,7 @@ function createMasterChain(context: AudioContext): MasterChain {
   const delayBus = context.createGain();
   const delayInputStereo = context.createGain();
   const delayInputLeft = context.createGain();
+  const delayInputRight = context.createGain();
   const delayInputMerger = context.createChannelMerger(2);
   const delayLine = context.createDelay(MAX_DELAY_LINE_SECONDS);
   const feedback = context.createGain();
@@ -983,14 +990,23 @@ function createMasterChain(context: AudioContext): MasterChain {
   // every trip so the repeats alternate across the speakers.
   //
   // A merger input takes a single channel, so connecting the stereo bus to one
-  // sums the sides; connecting only input 0 then leaves that sum hard left.
-  // Feeding the line off-centre is what makes a ping-pong audible at all — most
-  // of a kit is panned near the middle, and a centred signal swapped with itself
-  // is still centred, so the crossing alone would do nothing to it.
+  // sums the sides; feeding both inputs from the bus at different gains then
+  // places that sum where PING_PONG_PAN asks for. Feeding the line off-centre is
+  // what makes a ping-pong audible at all — most of a kit is panned near the
+  // middle, and a centred signal swapped with itself is still centred, so the
+  // crossing alone would do nothing to it.
+  //
+  // Note that the width lives here, in the placement, and not in the swap. A
+  // partial cross-mix would narrow the throw too, but it converges: mixing the
+  // sides towards each other on every trip drags the repeats to the centre
+  // within two or three of them. A full swap is its own inverse, so an
+  // off-centre signal alternates between the same two positions forever.
   delayBus.connect(delayInputStereo);
   delayInputStereo.connect(delayLine);
   delayBus.connect(delayInputLeft);
   delayInputLeft.connect(delayInputMerger, 0, 0);
+  delayBus.connect(delayInputRight);
+  delayInputRight.connect(delayInputMerger, 0, 1);
   delayInputMerger.connect(delayLine);
 
   delayLine.connect(delayTone);
@@ -1093,6 +1109,7 @@ function createMasterChain(context: AudioContext): MasterChain {
   // set explicitly so the first ramp has a side to come from either way.
   delayInputStereo.gain.value = 1;
   delayInputLeft.gain.value = 0;
+  delayInputRight.gain.value = 0;
   delayFeedbackStraight.gain.value = 1;
   delayFeedbackCrossed.gain.value = 0;
   // Sends are parallel, so silencing the return *is* the bypass.
@@ -1129,6 +1146,7 @@ function createMasterChain(context: AudioContext): MasterChain {
     delayBus,
     delayInputStereo,
     delayInputLeft,
+    delayInputRight,
     delayInputMerger,
     delayLine,
     feedback,
@@ -1238,7 +1256,16 @@ function applyDelay(
   // half of each side rather than a copy of both, so the crossfade can never
   // take the loop past the gain `feedback` is set to.
   rampTo(chain.delayInputStereo.gain, delay.pingPong ? 0 : 1, now);
-  rampTo(chain.delayInputLeft.gain, delay.pingPong ? 1 : 0, now);
+  rampTo(
+    chain.delayInputLeft.gain,
+    delay.pingPong ? PING_PONG_NEAR_GAIN : 0,
+    now,
+  );
+  rampTo(
+    chain.delayInputRight.gain,
+    delay.pingPong ? PING_PONG_FAR_GAIN : 0,
+    now,
+  );
   rampTo(chain.delayFeedbackStraight.gain, delay.pingPong ? 0 : 1, now);
   rampTo(chain.delayFeedbackCrossed.gain, delay.pingPong ? 1 : 0, now);
 

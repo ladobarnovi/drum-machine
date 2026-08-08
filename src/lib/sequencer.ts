@@ -245,6 +245,29 @@ export const MAX_FEEDBACK = 0.9;
 export const DEFAULT_FEEDBACK = 0.35;
 
 /**
+ * How far out a ping-pong throws its repeats, on the same scale a channel's pan
+ * uses — so this is "L 75%" on one side and "R 75%" on the other.
+ *
+ * Short of the hard edges deliberately. A repeat pinned to one speaker leaves a
+ * hole down the middle of the image and is the first thing to fall apart on a
+ * phone, on a single speaker, or anywhere the listener isn't sitting between the
+ * two; pulling it in this far keeps the throw unmistakable while leaving the
+ * echoes attached to the mix they came out of.
+ */
+export const PING_PONG_PAN = 0.75;
+
+/**
+ * Where the two sides of a ping-pong repeat sit, using the equal-power law a
+ * StereoPannerNode applies to a mono source. Sharing the law is what makes
+ * PING_PONG_PAN mean the same thing here as the number under a channel's Pan,
+ * and it holds the pair at constant power, so narrowing the throw moves the
+ * repeats inwards without making them louder.
+ */
+const PING_PONG_ANGLE = ((1 - PING_PONG_PAN) / 2) * (Math.PI / 2);
+export const PING_PONG_NEAR_GAIN = Math.cos(PING_PONG_ANGLE);
+export const PING_PONG_FAR_GAIN = Math.sin(PING_PONG_ANGLE);
+
+/**
  * Lowpass on the delay's repeats. It sits inside the feedback loop, so each
  * repeat passes it once more than the one before and the echoes darken as they
  * recede — the tape-delay sound, and the reason a delay can be busy without
@@ -359,9 +382,10 @@ export type MasterDelay = {
   feedback: number;
   /**
    * When set, each repeat lands on the opposite side to the one before it. The
-   * bus is also fed in mono and placed hard left to start it off, because a
-   * centred source swapped with itself is still centred — so this trades the
-   * panning the sends arrive with for the alternation, rather than adding to it.
+   * bus is also fed in mono and placed PING_PONG_PAN to the left to start it
+   * off, because a centred source swapped with itself is still centred — so
+   * this trades the panning the sends arrive with for the alternation, rather
+   * than adding to it.
    */
   pingPong: boolean;
   /** Lowpass cutoff on the repeats; at MAX_FILTER_HZ they are undamped. */
