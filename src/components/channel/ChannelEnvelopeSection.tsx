@@ -126,24 +126,6 @@ export default function ChannelEnvelopeSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {/* Which channel is being shaped, since this card sits between two
-            others that both name it and would otherwise be the only clue —
-            no "Envelope" heading here either, since the tab strip above
-            already says which of the three tabs this is. */}
-        <p className="text-muted text-xs">{channelName}</p>
-
-        {stepEdit ? (
-          <p className="text-select text-xs">
-            {`Knobs: step ${stepEdit.index + 1} only`}
-          </p>
-        ) : following ? (
-          <p className="text-select text-xs">
-            {`Playing step ${following.index + 1}`}
-          </p>
-        ) : null}
-      </div>
-
       <EnvelopeGraph
         attackSeconds={shown.attackSeconds}
         decaySeconds={shown.decaySeconds}

@@ -213,7 +213,7 @@ export default function RotaryKnob({
         // `touch-none` keeps the browser from claiming the drag for scrolling,
         // which would swallow it before it arrived — the same reason the step
         // grid and the trim handles set it.
-        className="size-14 cursor-ns-resize touch-none rounded-full outline-none select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+        className="size-12 md:size-14 cursor-ns-resize touch-none rounded-full outline-none select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
       >
         <svg viewBox="0 0 100 100" aria-hidden className="size-full">
           {/* The travel itself, unlit — the same circle the value rides, so the

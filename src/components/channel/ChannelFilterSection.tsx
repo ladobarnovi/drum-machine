@@ -170,28 +170,6 @@ export default function ChannelFilterSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {/* Which channel is being shaped, since this card sits between two
-            others that both name it and would otherwise be the only clue. */}
-        <p className="text-muted text-xs">{channelName}</p>
-
-        {/*
-          Which of the three things the knobs are showing. Never nothing while
-          it is anything but the channel: the slope switch beside them is the
-          channel's whatever else is on screen, and a card silently showing one
-          scope and writing another is the one thing this must not be.
-        */}
-        {stepEdit ? (
-          <p className="text-select text-xs">
-            {`Knobs: step ${stepEdit.index + 1} only`}
-          </p>
-        ) : following ? (
-          <p className="text-select text-xs">
-            {`Playing step ${following.index + 1}`}
-          </p>
-        ) : null}
-      </div>
-
       <FilterGraph
         lowCutHz={shown.lowCutHz}
         lowCutResonance={shown.lowCutResonance}

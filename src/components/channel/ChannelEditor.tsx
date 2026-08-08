@@ -137,21 +137,6 @@ export default function ChannelEditor(props: ChannelEditorProps) {
     // and Banks.
     return (
       <>
-        <div className="flex flex-wrap items-center gap-3">
-          <ChannelNameInput
-            name={channel.name}
-            fallback={channel.label}
-            onNameChange={props.onNameChange}
-          />
-
-          <SampleSlot
-            channelLabel={displayName}
-            sample={channel.sample}
-            onUpload={props.onUpload}
-            onRemove={props.onRemove}
-          />
-        </div>
-
         <Waveform
           sample={channel.sample}
           start={channel.sampleStart}
@@ -168,6 +153,21 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onReset={props.onSampleTrimReset}
           getPlayhead={props.getPlayhead}
         />
+
+        <div className="flex flex-wrap items-center gap-3">
+          <ChannelNameInput
+            name={channel.name}
+            fallback={channel.label}
+            onNameChange={props.onNameChange}
+          />
+
+          <SampleSlot
+            channelLabel={displayName}
+            sample={channel.sample}
+            onUpload={props.onUpload}
+            onRemove={props.onRemove}
+          />
+        </div>
       </>
     );
   }

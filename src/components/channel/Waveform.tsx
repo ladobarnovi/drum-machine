@@ -321,7 +321,7 @@ export default function Waveform({
   }, []);
 
   const frame =
-    "border-line bg-panel flex h-24 items-center justify-center overflow-hidden rounded border";
+    "border-line bg-panel flex h-20 md:h-24 items-center justify-center overflow-hidden rounded border";
   const message = "text-muted text-xs";
 
   if (sample.status === "loading") {
@@ -397,71 +397,6 @@ export default function Waveform({
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/*
-        Above the strip rather than in the row under it: that row is a readout
-        of where the handles are and only appears once they have been moved,
-        where the direction the file is read in applies to every sample and has
-        to be reachable — and visible — without trimming one first.
-
-        Lit while it is on, like every other toggle in the machine. The strip
-        turns round with it, but a shape alone cannot say which way round it
-        was to begin with — the light is what makes that readable at a glance.
-      */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px]">
-        {/*
-          What a hit is: the whole region, or one part of it. First in the row
-          because it decides whether the rest of the row — and the marks on the
-          strip below — mean anything at all.
-        */}
-        <div className="flex gap-1.5">
-          {SAMPLE_MODES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onModeChange(option)}
-              aria-pressed={mode === option}
-              className={toggleClass(mode === option)}
-            >
-              {SAMPLE_MODE_LABELS[option]}
-            </button>
-          ))}
-        </div>
-
-        {/* Only alongside the mode that has parts to count, rather than greyed
-            out under a one shot where the number would decide nothing. */}
-        {slicing && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted">Parts</span>
-
-            {SLICE_COUNTS.map((count) => (
-              <button
-                key={count}
-                type="button"
-                onClick={() => onSliceCountChange(count)}
-                aria-pressed={sliceCount === count}
-                aria-label={`${count} slices`}
-                className={`w-7 ${toggleClass(sliceCount === count)}`}
-              >
-                {count}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Pushed to the far edge: it applies to a hit whichever mode the
-            sample is in — a slice is read back to front exactly as a whole
-            one shot is — so it belongs beside the pair rather than within it. */}
-        <button
-          type="button"
-          onClick={() => onReversedChange(!reversed)}
-          aria-pressed={reversed}
-          aria-label="Play sample in reverse"
-          className={`ml-auto ${toggleClass(reversed)}`}
-        >
-          Reverse
-        </button>
-      </div>
-
       {/*
         The handles sit outside the strip rather than in it, because the strip
         clips its children to its rounded corners: a handle parked at either end
@@ -603,6 +538,71 @@ export default function Waveform({
           </button>
         </div>
       )}
+
+      {/*
+        Above the strip rather than in the row under it: that row is a readout
+        of where the handles are and only appears once they have been moved,
+        where the direction the file is read in applies to every sample and has
+        to be reachable — and visible — without trimming one first.
+
+        Lit while it is on, like every other toggle in the machine. The strip
+        turns round with it, but a shape alone cannot say which way round it
+        was to begin with — the light is what makes that readable at a glance.
+      */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px]">
+        {/*
+          What a hit is: the whole region, or one part of it. First in the row
+          because it decides whether the rest of the row — and the marks on the
+          strip below — mean anything at all.
+        */}
+        <div className="flex gap-1.5">
+          {SAMPLE_MODES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onModeChange(option)}
+              aria-pressed={mode === option}
+              className={toggleClass(mode === option)}
+            >
+              {SAMPLE_MODE_LABELS[option]}
+            </button>
+          ))}
+        </div>
+
+        {/* Only alongside the mode that has parts to count, rather than greyed
+            out under a one shot where the number would decide nothing. */}
+        {slicing && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted">Parts</span>
+
+            {SLICE_COUNTS.map((count) => (
+              <button
+                key={count}
+                type="button"
+                onClick={() => onSliceCountChange(count)}
+                aria-pressed={sliceCount === count}
+                aria-label={`${count} slices`}
+                className={`w-7 ${toggleClass(sliceCount === count)}`}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Pushed to the far edge: it applies to a hit whichever mode the
+            sample is in — a slice is read back to front exactly as a whole
+            one shot is — so it belongs beside the pair rather than within it. */}
+        <button
+          type="button"
+          onClick={() => onReversedChange(!reversed)}
+          aria-pressed={reversed}
+          aria-label="Play sample in reverse"
+          className={`ml-auto ${toggleClass(reversed)}`}
+        >
+          Reverse
+        </button>
+      </div>
     </div>
   );
 }
