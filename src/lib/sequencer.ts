@@ -143,6 +143,21 @@ export const DEFAULT_ATTACK_SECONDS = MIN_ATTACK_SECONDS;
 export const DEFAULT_DECAY_SECONDS = MAX_DECAY_SECONDS;
 
 /**
+ * The level decay settles at, and how long release then takes to fall from
+ * there to silence — the two stages that extend attack/decay into a full
+ * ADSR. Both default to bypassed, so a channel nobody has touched these on
+ * still plays the plain attack-then-decay shape it always has.
+ */
+export const MIN_SUSTAIN_LEVEL = 0;
+export const MAX_SUSTAIN_LEVEL = 1;
+export const MIN_RELEASE_SECONDS = 0.005;
+export const MAX_RELEASE_SECONDS = 2;
+/** At MIN_SUSTAIN_LEVEL, decay already reaches silence on its own, exactly as
+ *  it did before sustain existed — which is what makes this the bypassed end. */
+export const DEFAULT_SUSTAIN_LEVEL = MIN_SUSTAIN_LEVEL;
+export const DEFAULT_RELEASE_SECONDS = MIN_RELEASE_SECONDS;
+
+/**
  * How much of a channel is tapped off to a send bus. Sends are taken after the
  * channel's own volume, so turning a channel down takes its delay and reverb
  * with it and the balance of the mix survives the move.
@@ -1203,6 +1218,8 @@ export const LOCKABLE_PARAMETERS = [
   "highCutResonance",
   "attackSeconds",
   "decaySeconds",
+  "sustainLevel",
+  "releaseSeconds",
   "delaySend",
   "reverbSend",
   "phaserSend",
@@ -1408,8 +1425,24 @@ export type Channel = {
   /**
    * How long a hit takes to fade to silence after the attack. At
    * MAX_DECAY_SECONDS the envelope is bypassed and the sample rings out in full.
+   *
+   * With `sustainLevel` above its own bypass point, decay instead falls to that
+   * level rather than to silence — see `sustainLevel` for what happens next.
    */
   decaySeconds: number;
+  /**
+   * The level decay falls to instead of silence, once it is above
+   * MIN_SUSTAIN_LEVEL. At that floor decay reaches silence on its own, exactly
+   * as it did before this existed, which is why it is the default.
+   */
+  sustainLevel: number;
+  /**
+   * How long release then takes to fall from the sustain level to silence. Only
+   * heard at all once `sustainLevel` is doing something — release has nothing
+   * of its own to fade from otherwise, so a channel with the plateau bypassed
+   * plays exactly as if release were too.
+   */
+  releaseSeconds: number;
   /** How much of this channel is tapped off to the delay bus. */
   delaySend: number;
   /** How much of this channel is tapped off to the reverb bus. */
@@ -1477,6 +1510,8 @@ export function createInitialChannels(): Channel[] {
     filterSlope: DEFAULT_FILTER_SLOPE,
     attackSeconds: DEFAULT_ATTACK_SECONDS,
     decaySeconds: DEFAULT_DECAY_SECONDS,
+    sustainLevel: DEFAULT_SUSTAIN_LEVEL,
+    releaseSeconds: DEFAULT_RELEASE_SECONDS,
     delaySend: DEFAULT_SEND,
     reverbSend: DEFAULT_SEND,
     phaserSend: DEFAULT_SEND,
@@ -1549,6 +1584,8 @@ export type ChannelSnapshot = Pick<
   | "filterSlope"
   | "attackSeconds"
   | "decaySeconds"
+  | "sustainLevel"
+  | "releaseSeconds"
   | "delaySend"
   | "reverbSend"
   | "phaserSend"
@@ -1603,6 +1640,8 @@ export function captureChannelSnapshots(
         filterSlope: channel.filterSlope,
         attackSeconds: channel.attackSeconds,
         decaySeconds: channel.decaySeconds,
+        sustainLevel: channel.sustainLevel,
+        releaseSeconds: channel.releaseSeconds,
         delaySend: channel.delaySend,
         reverbSend: channel.reverbSend,
         phaserSend: channel.phaserSend,
@@ -1743,6 +1782,20 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
     decaySeconds: isDecayBypassed(settings.decaySeconds)
       ? undefined
       : clampDecay(settings.decaySeconds),
+    // Sustain only means something once decay is actually falling somewhere,
+    // and release only means something once sustain has left a plateau to
+    // fall from — each is left off whenever the stage before it is, so
+    // `trigger` never has to work out on its own which combinations are live.
+    sustainLevel: isDecayBypassed(settings.decaySeconds)
+      ? undefined
+      : isSustainBypassed(settings.sustainLevel)
+        ? undefined
+        : clampSustain(settings.sustainLevel),
+    releaseSeconds: isSustainBypassed(settings.sustainLevel)
+      ? undefined
+      : isReleaseBypassed(settings.releaseSeconds)
+        ? undefined
+        : clampRelease(settings.releaseSeconds),
     // A closed send costs nothing to skip, so the tap node is never built.
     delaySend: isSendClosed(settings.delaySend)
       ? undefined
@@ -2554,6 +2607,42 @@ export function formatSeconds(seconds: number): string {
   return seconds >= 1
     ? `${seconds.toFixed(2)} s`
     : `${Math.round(seconds * 1000)} ms`;
+}
+
+export function clampSustain(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_SUSTAIN_LEVEL;
+  return Math.min(Math.max(value, MIN_SUSTAIN_LEVEL), MAX_SUSTAIN_LEVEL);
+}
+
+export function clampRelease(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_RELEASE_SECONDS;
+  return Math.min(Math.max(value, MIN_RELEASE_SECONDS), MAX_RELEASE_SECONDS);
+}
+
+export function releaseToSlider(seconds: number): number {
+  return timeToSlider(
+    clampRelease(seconds),
+    MIN_RELEASE_SECONDS,
+    MAX_RELEASE_SECONDS,
+  );
+}
+
+export function sliderToRelease(position: number): number {
+  return sliderToTime(position, MIN_RELEASE_SECONDS, MAX_RELEASE_SECONDS);
+}
+
+/** At the bottom of the range decay already falls to silence on its own. */
+export function isSustainBypassed(level: number): boolean {
+  return clampSustain(level) <= MIN_SUSTAIN_LEVEL;
+}
+
+/** An instant tail needs no ramp, so the envelope's release stage is skipped. */
+export function isReleaseBypassed(seconds: number): boolean {
+  return clampRelease(seconds) <= MIN_RELEASE_SECONDS;
+}
+
+export function formatSustain(level: number): string {
+  return `${Math.round(clampSustain(level) * 100)}%`;
 }
 
 /** Narrows the raw string a `<select>` hands back to a known shape. */

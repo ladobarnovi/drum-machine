@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelContextMenu from "@/components/channel/ChannelContextMenu";
 import ChannelEditor from "@/components/channel/ChannelEditor";
-import ChannelFilterSection from "@/components/channel/ChannelFilterSection";
 import ChannelGrid from "@/components/channel/ChannelGrid";
+import SampleEditorTabsSection from "@/components/channel/SampleEditorTabsSection";
 import StepContextMenu from "@/components/channel/steps/StepContextMenu";
 import MasterCompressorControls from "@/components/master/MasterCompressorControls";
 import MasterDelayControls from "@/components/master/MasterDelayControls";
@@ -68,10 +68,12 @@ import {
   clampLength,
   clampPan,
   clampPitch,
+  clampRelease,
   clampResonance,
   clampSampleEnd,
   clampSampleStart,
   clampSend,
+  clampSustain,
   clampVolume,
   clearStepAt,
   clearStepLockAt,
@@ -1077,6 +1079,16 @@ export default function DrumMachine() {
     [setParameter],
   );
 
+  const handleSustainChange = useCallback(
+    (level: number) => setParameter("sustainLevel", clampSustain(level)),
+    [setParameter],
+  );
+
+  const handleReleaseChange = useCallback(
+    (seconds: number) => setParameter("releaseSeconds", clampRelease(seconds)),
+    [setParameter],
+  );
+
   const handleDelaySendChange = useCallback(
     (amount: number) => setParameter("delaySend", clampSend(amount)),
     [setParameter],
@@ -1580,9 +1592,16 @@ export default function DrumMachine() {
               the moment samples are arriving would answer itself. */}
             {!canPlay && loadingPresetId === null && <LoadSamplesNotice />}
 
-            <ChannelEditor
+            {/*
+              What the channel is playing, what shape it comes out in, and how
+              its amplitude moves over one hit — three tabs sharing a card,
+              directly above the pattern grid that says when each of them
+              fires. The two filter cutoffs and the four envelope stages are
+              the same ones the controls panel below has sliders for — moving
+              either moves both — with a picture of what each set comes to.
+            */}
+            <SampleEditorTabsSection
               channel={selectedChannel}
-              showSampleOnly={true}
               onUpload={(file) => void handleUpload(selectedChannel.id, file)}
               onRemove={() => handleRemove(selectedChannel.id)}
               onNameChange={(name) =>
@@ -1615,29 +1634,17 @@ export default function DrumMachine() {
                 handleSampleTrimReset(selectedChannel.id)
               }
               getPlayhead={getSelectedPlayhead}
-            />
-
-            {/*
-              Between the sample and the pattern, which is where it belongs in
-              the order the page is worked through: the strip above says what
-              the channel is playing, this says what shape it comes out, and the
-              grid below says when. The two cutoffs are the same ones the
-              controls panel has sliders for — moving either moves both — with
-              a resonance each and a picture of what the four come to.
-            */}
-            <ChannelFilterSection
-              channelName={channelDisplayName(selectedChannel)}
-              settings={{
+              filterSettings={{
                 lowCutHz: selectedSettings.lowCutHz,
                 lowCutResonance: selectedSettings.lowCutResonance,
                 highCutHz: selectedSettings.highCutHz,
                 highCutResonance: selectedSettings.highCutResonance,
               }}
               filterSlope={selectedChannel.filterSlope}
-              // What the card follows while the transport runs, so the knobs
-              // and the curve read out the locks of the hit being heard rather
-              // than the channel underneath them.
-              playing={
+              // What the Filter and Env tabs follow while the transport runs,
+              // so the knobs and the pictures read out the locks of the hit
+              // being heard rather than the channel underneath them.
+              playingFilter={
                 playingStepIndex === null ||
                 playingStep === null ||
                 playingSettings === null
@@ -1658,6 +1665,32 @@ export default function DrumMachine() {
               onHighCutChange={handleHighCutChange}
               onHighCutResonanceChange={handleHighCutResonanceChange}
               onFilterSlopeChange={handleFilterSlopeChange}
+              envelopeSettings={{
+                attackSeconds: selectedSettings.attackSeconds,
+                decaySeconds: selectedSettings.decaySeconds,
+                sustainLevel: selectedSettings.sustainLevel,
+                releaseSeconds: selectedSettings.releaseSeconds,
+              }}
+              playingEnvelope={
+                playingStepIndex === null ||
+                playingStep === null ||
+                playingSettings === null
+                  ? null
+                  : {
+                      index: playingStepIndex,
+                      settings: {
+                        attackSeconds: playingSettings.attackSeconds,
+                        decaySeconds: playingSettings.decaySeconds,
+                        sustainLevel: playingSettings.sustainLevel,
+                        releaseSeconds: playingSettings.releaseSeconds,
+                      },
+                      locks: playingStep.locks ?? {},
+                    }
+              }
+              onAttackChange={handleAttackChange}
+              onDecayChange={handleDecayChange}
+              onSustainChange={handleSustainChange}
+              onReleaseChange={handleReleaseChange}
               stepEdit={
                 editingStepIndex === null || editingStep === null
                   ? undefined

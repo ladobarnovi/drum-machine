@@ -1,7 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
-
 import ChannelControls, {
   type ChokeOption,
   type StepEdit,
@@ -127,26 +125,18 @@ type ControlsSectionProps = {
 type ChannelEditorProps = ChannelEditorBaseProps &
   (SampleSectionProps | SequencerSectionProps | ControlsSectionProps);
 
-/**
- * No fill: the border alone is enough to group a card, and a tint behind the
- * step grid and the sliders competed with the controls sitting on it.
- */
-function Card({ children }: { children: ReactNode }) {
-  return (
-    <div className="border-line flex flex-col gap-4 rounded-md border p-4">
-      {children}
-    </div>
-  );
-}
-
 /** One section of the currently selected channel's editor. */
 export default function ChannelEditor(props: ChannelEditorProps) {
   const { channel } = props;
   const displayName = channelDisplayName(channel);
 
   if (props.showSampleOnly) {
+    // No `Card` here, unlike before: this section now shares its card with
+    // the Filter and Env tabs it sits alongside in `SampleEditorTabsSection`,
+    // the same way `showSequencerOnly` below shares its card with Patterns
+    // and Banks.
     return (
-      <Card>
+      <>
         <div className="flex flex-wrap items-center gap-3">
           <ChannelNameInput
             name={channel.name}
@@ -178,7 +168,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onReset={props.onSampleTrimReset}
           getPlayhead={props.getPlayhead}
         />
-      </Card>
+      </>
     );
   }
 

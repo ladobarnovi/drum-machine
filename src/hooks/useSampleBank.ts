@@ -82,6 +82,17 @@ type TriggerOptions = {
   attackSeconds?: number;
   /** Fade-out time in seconds, after the attack. Omit to let the sample ring out. */
   decaySeconds?: number;
+  /**
+   * The level decay falls to instead of silence. Omit for a plain decay-to-
+   * silence — meaningless without `decaySeconds`, so never sent without it.
+   */
+  sustainLevel?: number;
+  /**
+   * Fade-out time in seconds, from the sustain level to silence. Omit to hold
+   * at the sustain level and let the sample ring out from there instead —
+   * meaningless without `sustainLevel`, so never sent without it.
+   */
+  releaseSeconds?: number;
   /** How much of this hit is tapped to the delay bus. Omit to send nothing. */
   delaySend?: number;
   /** How much of this hit is tapped to the reverb bus. Omit to send nothing. */
@@ -1677,6 +1688,8 @@ export function useSampleBank() {
         filterSlope = DEFAULT_FILTER_SLOPE,
         attackSeconds,
         decaySeconds,
+        sustainLevel,
+        releaseSeconds,
         delaySend,
         reverbSend,
         phaserSend,
@@ -1780,9 +1793,33 @@ export function useSampleBank() {
         }
 
         if (decaySeconds !== undefined) {
-          releaseTime = time + attack + decaySeconds;
-          level.exponentialRampToValueAtTime(DECAY_FLOOR, releaseTime);
-          level.setValueAtTime(0, releaseTime);
+          const decayEnd = time + attack + decaySeconds;
+
+          if (sustainLevel === undefined) {
+            // No plateau to fall to, so decay runs straight down to silence —
+            // the same floor-then-hard-zero shape it always has. An
+            // exponential ramp can never reach zero on its own, hence the
+            // floor; the hard zero is what actually gets there.
+            level.exponentialRampToValueAtTime(DECAY_FLOOR, decayEnd);
+            level.setValueAtTime(0, decayEnd);
+            releaseTime = decayEnd;
+          } else {
+            level.exponentialRampToValueAtTime(sustainLevel, decayEnd);
+
+            if (releaseSeconds !== undefined) {
+              const releaseEnd = decayEnd + releaseSeconds;
+              // Anchors the plateau explicitly before falling away from it,
+              // so the automation queue has a value to ramp from rather than
+              // whatever an unrelated hit's release left the param sitting at.
+              level.setValueAtTime(sustainLevel, decayEnd);
+              level.exponentialRampToValueAtTime(DECAY_FLOOR, releaseEnd);
+              level.setValueAtTime(0, releaseEnd);
+              releaseTime = releaseEnd;
+            }
+            // No release: the envelope holds at the sustain level and the
+            // voice rings out with the buffer, same as a hit with no decay
+            // at all — `releaseTime` stays null and nothing stops it early.
+          }
         }
 
         tail.connect(envelope);

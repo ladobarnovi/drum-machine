@@ -97,6 +97,12 @@ type ChannelFilterSectionProps = {
  * channel, or the step held open — and the header says which of the three
  * things is on screen, since a card that quietly showed one and wrote the other
  * would be a trap.
+ *
+ * No card of its own, and no "Filter" heading either: this now shares both
+ * with the Sample and Env tabs it sits alongside in `SampleEditorTabsSection`,
+ * the same way `ChannelEditor`'s `showSequencerOnly` shares its card with
+ * Patterns and Banks, and the tab strip already says which of the three this
+ * is.
  */
 export default function ChannelFilterSection({
   channelName,
@@ -163,10 +169,8 @@ export default function ChannelFilterSection({
   };
 
   return (
-    <div className="border-line flex flex-col gap-4 rounded-md border p-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <h2 className="text-xs font-semibold">Filter</h2>
-
         {/* Which channel is being shaped, since this card sits between two
             others that both name it and would otherwise be the only clue. */}
         <p className="text-muted text-xs">{channelName}</p>
