@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import ChannelContextMenu from "@/components/channel/ChannelContextMenu";
-import ChannelEditor from "@/components/channel/ChannelEditor";
 import ChannelGrid from "@/components/channel/ChannelGrid";
 import SampleEditorTabsSection from "@/components/channel/SampleEditorTabsSection";
 import StepContextMenu from "@/components/channel/steps/StepContextMenu";
@@ -1774,54 +1773,6 @@ export default function DrumMachine() {
               onSelectBank={selectBank}
               onLoadPattern={handleLoadPattern}
               onPatternContextMenu={handlePatternContextMenu}
-            />
-
-            <ChannelEditor
-              channel={selectedChannel}
-              settings={selectedSettings}
-              showControlsOnly={true}
-              chokeOptions={chokeOptions}
-              stepEdit={
-                editingStepIndex === null || editingStep === null
-                  ? undefined
-                  : {
-                      index: editingStepIndex,
-                      velocity: editingStep.velocity,
-                      probability: editingStep.probability,
-                      repeatCount: editingStep.repeatCount,
-                      slice: editingStep.slice,
-                      // Null is what takes the Position row off the panel, so
-                      // the mode is read here rather than in the panel itself:
-                      // a one shot has no parts to choose between.
-                      sliceCount: isSliced(selectedChannel.sampleMode)
-                        ? selectedChannel.sliceCount
-                        : null,
-                      locks: editingStep.locks ?? {},
-                      onVelocityChange: (velocity) =>
-                        handleStepVelocityChange(editingStepIndex, velocity),
-                      onProbabilityChange: (probability) =>
-                        handleStepProbabilityChange(
-                          editingStepIndex,
-                          probability,
-                        ),
-                      onRepeatChange: (repeatCount) =>
-                        handleStepRepeatChange(editingStepIndex, repeatCount),
-                      onSliceChange: (slice) =>
-                        handleStepSliceChange(editingStepIndex, slice),
-                      onClearLock: handleClearStepLock,
-                      onClearLocks: handleClearStepLocks,
-                    }
-              }
-              onVolumeChange={handleVolumeChange}
-              onPanChange={handlePanChange}
-              onPitchChange={handlePitchChange}
-              onLowCutChange={handleLowCutChange}
-              onHighCutChange={handleHighCutChange}
-              onAttackChange={handleAttackChange}
-              onDecayChange={handleDecayChange}
-              onChokedByChange={(sourceId) =>
-                handleChokedByChange(selectedChannel.id, sourceId)
-              }
             />
           </div>
         </div>
