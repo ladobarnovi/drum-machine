@@ -12,6 +12,7 @@ import StepGrid from "./steps/StepGrid";
 import StepPatternControls from "./steps/StepPatternControls";
 import Accordion from "@/components/ui/Accordion";
 import RotaryKnob from "@/components/ui/RotaryKnob";
+import type { LibraryEntry } from "@/lib/sampleLibrary";
 import {
   MAX_PAN,
   MAX_PITCH,
@@ -62,6 +63,8 @@ type SampleSectionProps = {
   showSequencerOnly?: false;
   showControlsOnly?: false;
   onUpload: (file: File) => void;
+  /** One of the bundled samples, picked in the library browser. */
+  onLoadLibrarySample: (entry: LibraryEntry) => void;
   onRemove: () => void;
   onNameChange: (name: string) => void;
   /** Where the waveform's two trim handles have been dragged to. */
@@ -286,6 +289,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             channelLabel={displayName}
             sample={channel.sample}
             onUpload={props.onUpload}
+            onLoadLibrarySample={props.onLoadLibrarySample}
             onRemove={props.onRemove}
           />
         </div>

@@ -1,73 +1,52 @@
-export type PresetSlot = {
-  /** Channel name applied when the preset loads. */
-  channelName: string;
-  /** Sample filename inside the preset's directory. */
-  file: string;
-};
+import {
+  CATEGORY_808,
+  CATEGORY_909,
+  findLibrarySample,
+  type LibraryEntry,
+} from "./sampleLibrary";
 
 export type Preset = {
   id: string;
   name: string;
-  /** Public directory holding this preset's samples. Unused when it has none. */
-  directory: string;
   /**
-   * One slot per channel, in order, starting at channel 1. Empty for a preset
+   * Library sample ids, one per channel, in order starting at channel 1. Ids
+   * rather than filenames, so a kit and the library browser can never drift
+   * apart: both name the same entries in `sampleLibrary.ts`. Empty for a kit
    * that loads nothing — see `PRESET_EMPTY`.
    */
-  slots: PresetSlot[];
+  sampleIds: string[];
 };
 
+/**
+ * Each of these two is simply its category taken in order, which is why the
+ * list isn't written out again here: the categories are already kept in kit
+ * order — kick, snare, toms, and down through the cymbals — so a kit that
+ * listed them a second time would be a copy waiting to fall out of step. A kit
+ * drawing on more than one category, or wanting a different order, would spell
+ * its ids out instead.
+ */
 export const PRESET_909: Preset = {
   id: "909",
   name: "909",
-  directory: "/presets/909",
-  slots: [
-    { channelName: "Kick", file: "Kick 909.wav" },
-    { channelName: "Snare", file: "Snare 909.wav" },
-    { channelName: "Low Tom", file: "Tom 909 Lo.wav" },
-    { channelName: "Mid Tom", file: "Tom 909 Mid.wav" },
-    { channelName: "High Tom", file: "Tom 909 Hi.wav" },
-    { channelName: "Rim Shot", file: "Rimshot 909.wav" },
-    { channelName: "Clap", file: "Clap 909.wav" },
-    { channelName: "Hihat Closed", file: "Hihat Closed 909.wav" },
-    { channelName: "Hihat Open", file: "Hihat Open 909.wav" },
-    { channelName: "Crash", file: "Crash 909.wav" },
-    { channelName: "Ride", file: "Ride 909.wav" },
-  ],
+  sampleIds: CATEGORY_909.samples.map((sample) => sample.id),
 };
 
 export const PRESET_808: Preset = {
   id: "808",
   name: "808",
-  directory: "/presets/808",
-  slots: [
-    { channelName: "Kick", file: "Kick 808.wav" },
-    { channelName: "Snare", file: "Snare 808.wav" },
-    { channelName: "Low Tom", file: "Tom 808 Low.wav" },
-    { channelName: "Mid Tom", file: "Tom 808 Mid.wav" },
-    { channelName: "High Tom", file: "Tom 808 Hi.wav" },
-    { channelName: "Rim Shot", file: "Rim 808.wav" },
-    { channelName: "Clap", file: "Clap 808.wav" },
-    { channelName: "Hihat Closed", file: "Hihat Closed 808.wav" },
-    { channelName: "Hihat Open", file: "Hihat Open 808.wav" },
-    { channelName: "Maracas", file: "Maracas 808.wav" },
-    { channelName: "Shaker", file: "Shaker 808.wav" },
-    { channelName: "Cowbell", file: "Cowbell 808.wav" },
-    { channelName: "Cymbal", file: "Cymbal 808.wav" },
-  ],
+  sampleIds: CATEGORY_808.samples.map((sample) => sample.id),
 };
 
 /**
- * The blank kit: no slots and no directory of its own, because it is defined by
- * what it takes away rather than by what it loads. Picking it empties every
- * channel — samples and patterns both — which is the one thing the other kits
- * can't do, since they only ever write over the channels they reach.
+ * The blank kit: no samples of its own, because it is defined by what it takes
+ * away rather than by what it loads. Picking it empties every channel — samples
+ * and patterns both — which is the one thing the other kits can't do, since
+ * they only ever write over the channels they reach.
  */
 export const PRESET_EMPTY: Preset = {
   id: "empty",
   name: "Empty",
-  directory: "",
-  slots: [],
+  sampleIds: [],
 };
 
 /**
@@ -84,12 +63,13 @@ export const PRESETS: Preset[] = [PRESET_909, PRESET_808, PRESET_EMPTY];
 export const DEFAULT_PRESET: Preset = PRESET_909;
 
 /**
- * Sample filenames contain spaces, so the segment is encoded for the URL.
- * `preset.directory` is root-relative, so the deployed base path (e.g.
- * "/drum-machine" on GitHub Pages) has to be prepended by hand — Next.js
- * only rewrites `next/link` and `next/image`, not plain fetch URLs.
+ * What a kit actually loads: its ids resolved against the library, and any the
+ * library no longer has dropped rather than left as a hole. Dropping keeps the
+ * channels a kit fills contiguous, which is what the picker promises when it
+ * says the kit fills channels 1 to n.
  */
-export function presetSlotUrl(preset: Preset, slot: PresetSlot): string {
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-  return `${basePath}${preset.directory}/${encodeURIComponent(slot.file)}`;
+export function presetEntries(preset: Preset): LibraryEntry[] {
+  return preset.sampleIds
+    .map((id) => findLibrarySample(id))
+    .filter((entry): entry is LibraryEntry => entry !== null);
 }

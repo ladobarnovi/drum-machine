@@ -31,7 +31,7 @@ export default function PresetPicker({
   const isLoading = loadingPresetId !== null;
 
   /** The blank kit is the one with nothing to load, so it clears instead. */
-  const isEmptyKit = selected.slots.length === 0;
+  const isEmptyKit = selected.sampleIds.length === 0;
 
   return (
     <RailGroup title="Kit">
@@ -60,7 +60,7 @@ export default function PresetPicker({
       <p className="text-muted text-xs">
         {isEmptyKit
           ? "Empties every channel — samples and patterns both."
-          : `Fills channels 1–${selected.slots.length}. Step patterns are kept.`}
+          : `Fills channels 1–${selected.sampleIds.length}. Step patterns are kept.`}
       </p>
     </RailGroup>
   );

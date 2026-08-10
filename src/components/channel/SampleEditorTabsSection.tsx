@@ -9,6 +9,7 @@ import ChannelFilterSection, {
 import ChannelFxSection, { type FxSettings } from "./ChannelFxSection";
 import ChannelLfoSection from "./ChannelLfoSection";
 import RailTabs from "@/components/ui/RailTabs";
+import type { LibraryEntry } from "@/lib/sampleLibrary";
 import {
   channelDisplayName,
   type Channel,
@@ -42,6 +43,7 @@ type SampleEditorTabsSectionProps = {
 
   // Sample tab — the name, the slot, and the waveform under them.
   onUpload: (file: File) => void;
+  onLoadLibrarySample: (entry: LibraryEntry) => void;
   onRemove: () => void;
   onNameChange: (name: string) => void;
   onSampleStartChange: (fraction: number) => void;
@@ -117,6 +119,7 @@ type SampleEditorTabsSectionProps = {
 export default function SampleEditorTabsSection({
   channel,
   onUpload,
+  onLoadLibrarySample,
   onRemove,
   onNameChange,
   onSampleStartChange,
@@ -171,6 +174,7 @@ export default function SampleEditorTabsSection({
               channel={channel}
               showSampleOnly={true}
               onUpload={onUpload}
+              onLoadLibrarySample={onLoadLibrarySample}
               onRemove={onRemove}
               onNameChange={onNameChange}
               onSampleStartChange={onSampleStartChange}

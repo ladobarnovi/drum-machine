@@ -944,6 +944,14 @@ export type SampleState =
   | {
       status: "loaded";
       name: string;
+      /**
+       * Which entry of the bundled library this is, for a sample that came
+       * from there rather than from a file someone picked. Absent on an
+       * uploaded one, which has no id to carry: the browser marks what a
+       * channel is playing by this, and a name is not enough to go on when
+       * every kit has a "Kick" in it.
+       */
+      libraryId?: string;
       /** Per-bucket peak amplitudes (0..1) for the waveform display. */
       peaks: number[];
       durationSeconds: number;

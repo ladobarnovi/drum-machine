@@ -123,9 +123,15 @@ import { applyPattern } from "@/lib/patterns";
 import {
   DEFAULT_PRESET,
   PRESETS,
-  presetSlotUrl,
+  presetEntries,
   type Preset,
 } from "@/lib/presets";
+import {
+  channelNameFollowsSample,
+  librarySampleLabel,
+  librarySampleUrl,
+  type LibraryEntry,
+} from "@/lib/sampleLibrary";
 import { computePeaks } from "@/lib/waveform";
 
 /** Back to playing the whole file, which is what "Reset trim" asks for. */
@@ -1211,9 +1217,9 @@ export default function DrumMachine() {
       // Create the audio context while still inside the click gesture.
       ensureContext();
 
-      const slots = preset.slots.slice(0, CHANNEL_COUNT);
+      const entries = presetEntries(preset).slice(0, CHANNEL_COUNT);
 
-      if (slots.length === 0) {
+      if (entries.length === 0) {
         // The decoded buffers go with the channels that pointed at them, or the
         // kit would still be sitting in memory behind sixteen empty slots.
         for (let index = 0; index < CHANNEL_COUNT; index += 1) {
@@ -1233,35 +1239,41 @@ export default function DrumMachine() {
 
       setChannels((prev) =>
         prev.map((channel, index) => {
-          const slot = slots[index];
-          if (!slot) return channel;
+          const entry = entries[index];
+          if (!entry) return channel;
           return {
             ...channel,
-            name: clampChannelName(slot.channelName),
-            sample: { status: "loading", name: slot.file },
+            // A kit names the channels it fills after the samples it puts in
+            // them, whatever they were called before: loading one is a request
+            // for that kit, and half of what makes it one is which drum sits
+            // on which channel.
+            name: clampChannelName(entry.sample.name),
+            sample: { status: "loading", name: librarySampleLabel(entry) },
             ...UNEDITED,
           };
         }),
       );
 
       await Promise.all(
-        slots.map(async (slot, index) => {
+        entries.map(async (entry, index) => {
           const channelId = channelIdForIndex(index);
+          const label = librarySampleLabel(entry);
           try {
             const buffer = await loadSampleFromUrl(
               channelId,
-              presetSlotUrl(preset, slot),
+              librarySampleUrl(entry),
             );
             updateChannel(channelId, {
               sample: {
                 status: "loaded",
-                name: slot.file,
+                name: label,
+                libraryId: entry.sample.id,
                 peaks: computePeaks(buffer),
                 durationSeconds: buffer.duration,
               },
             });
           } catch (error) {
-            console.error(`Failed to load preset sample ${slot.file}`, error);
+            console.error(`Failed to load preset sample ${label}`, error);
             removeSample(channelId);
             updateChannel(channelId, {
               sample: {
@@ -1276,6 +1288,72 @@ export default function DrumMachine() {
       setLoadingPresetId(null);
     },
     [ensureContext, loadSampleFromUrl, removeSample, updateChannel],
+  );
+
+  /**
+   * Loads one bundled sample into one channel, which is the same fetch a kit
+   * makes for each of its slots — the difference being that a kit is a whole
+   * machine arriving at once and this is a single drum being swapped, so
+   * nothing else about the channel is touched.
+   *
+   * The channel takes the sample's name, but only when the name it has now was
+   * put there by a sample rather than typed; see `channelNameFollowsSample`.
+   * And it is auditioned once it lands, because picking from a list of names
+   * is a guess until it is heard — the browser stays open on top of this, so
+   * the next guess is one press away.
+   */
+  const handleLoadLibrarySample = useCallback(
+    async (channelId: string, entry: LibraryEntry) => {
+      // Created inside the press, as everything that ends in a sound is.
+      ensureContext();
+
+      const label = librarySampleLabel(entry);
+
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === channelId
+            ? {
+                ...channel,
+                name: channelNameFollowsSample(channel)
+                  ? clampChannelName(entry.sample.name)
+                  : channel.name,
+                sample: { status: "loading", name: label },
+                ...UNEDITED,
+              }
+            : channel,
+        ),
+      );
+
+      try {
+        const buffer = await loadSampleFromUrl(
+          channelId,
+          librarySampleUrl(entry),
+        );
+        updateChannel(channelId, {
+          sample: {
+            status: "loaded",
+            name: label,
+            libraryId: entry.sample.id,
+            peaks: computePeaks(buffer),
+            durationSeconds: buffer.duration,
+          },
+        });
+        handlePreviewChannel(channelId);
+      } catch (error) {
+        console.error(`Failed to load library sample ${label}`, error);
+        removeSample(channelId);
+        updateChannel(channelId, {
+          sample: { status: "error", message: "Couldn't load that sample" },
+        });
+      }
+    },
+    [
+      ensureContext,
+      handlePreviewChannel,
+      loadSampleFromUrl,
+      removeSample,
+      updateChannel,
+    ],
   );
 
   /**
@@ -1514,6 +1592,9 @@ export default function DrumMachine() {
             <SampleEditorTabsSection
               channel={selectedChannel}
               onUpload={(file) => void handleUpload(selectedChannel.id, file)}
+              onLoadLibrarySample={(entry) =>
+                void handleLoadLibrarySample(selectedChannel.id, entry)
+              }
               onRemove={() => handleRemove(selectedChannel.id)}
               onNameChange={(name) =>
                 handleNameChange(selectedChannel.id, name)
