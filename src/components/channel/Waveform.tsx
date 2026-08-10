@@ -495,30 +495,6 @@ export default function Waveform({
           fractionAt={fractionAt}
         />
       </div>
-
-      {/* Only once something has been trimmed: an untrimmed channel has nothing
-          to put back, and the row would be a line of chrome under every sample
-          saying so. */}
-      {trimmed && (
-        <div className="flex items-center gap-2 text-[10px]">
-          {/* Where the handles are on the strip, so the pair reads left to
-              right the way they sit — which on a reversed sample is the file
-              counted from its far end. */}
-          <span className="text-muted tabular-nums">
-            {formatSeconds(onThisStrip(leading) * sample.durationSeconds)} –{" "}
-            {formatSeconds(onThisStrip(trailing) * sample.durationSeconds)} of{" "}
-            {formatSeconds(sample.durationSeconds)}
-          </span>
-
-          <button
-            type="button"
-            onClick={onReset}
-            className="border-edge hover:bg-raised ml-auto rounded border px-2 py-0.5 font-medium transition-colors"
-          >
-            Reset trim
-          </button>
-        </div>
-      )}
     </div>
   );
 }
