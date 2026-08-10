@@ -450,9 +450,14 @@ input[type="range"]:focus-visible {
   response. Motion, because a send amount has no shape of its own to draw and
   what it is doing to the channel is a thing that happens over time.
 
+  The sweep is shared with the LFO tab, whose free-running wave scrolls the same
+  way and for the same reason the phaser's notches do — two copies laid end to
+  end and slid by exactly one copy's width, so the loop has no seam.
+
   Only the shape of each is here. How fast it runs is set per element from the
-  send it pictures, and a shut send is handed no duration and no class at all,
-  so a tile that is doing nothing sits perfectly still rather than idling.
+  value it pictures, and anything doing nothing — a shut send, a switched-off
+  LFO — is handed no duration and no class at all, so it sits perfectly still
+  rather than idling.
 */
 @keyframes fx-pulse {
   0%,
@@ -490,8 +495,9 @@ input[type="range"]:focus-visible {
   animation-timing-function: linear;
 }
 
-/* Asked for less motion, given none: the tiles still say what each send is
-   set to — that is carried by their shape, not by their movement. */
+/* Asked for less motion, given none: the tiles still say what each send is set
+   to, and the LFO plot still says what shape it is putting out — that is
+   carried by their shape, not by their movement. */
 @media (prefers-reduced-motion: reduce) {
   .fx-pulse,
   .fx-sweep {

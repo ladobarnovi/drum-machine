@@ -1503,12 +1503,13 @@ export default function DrumMachine() {
 
             {/*
               What the channel is playing, what shape it comes out in, how its
-              amplitude moves over one hit, and where it gets sent — four tabs
-              sharing a card, directly above the pattern grid that says when
-              each of them fires. The two filter cutoffs and the four envelope
-              stages are the same ones the controls panel below has sliders for
-              — moving either moves both — with a picture of what each set
-              comes to. The three sends are only here.
+              amplitude moves over one hit, what is moving it underneath, and
+              where it gets sent — five tabs sharing a card, directly above the
+              pattern grid that says when each of them fires. The two filter
+              cutoffs and the four envelope stages are the same ones the
+              controls panel below has sliders for — moving either moves both —
+              with a picture of what each set comes to. The LFO and the three
+              sends are only here.
             */}
             <SampleEditorTabsSection
               channel={selectedChannel}
@@ -1607,6 +1608,11 @@ export default function DrumMachine() {
               onDecayChange={handleDecayChange}
               onSustainChange={handleSustainChange}
               onReleaseChange={handleReleaseChange}
+              // Always the channel's own, and never a step's: no lock can
+              // stand in for any of it, so there is nothing to resolve and
+              // nothing for the playhead to drag the tab onto.
+              lfo={selectedChannel.lfo}
+              onLfoChange={(lfo) => handleLfoChange(selectedChannel.id, lfo)}
               fxSettings={{
                 delaySend: selectedSettings.delaySend,
                 reverbSend: selectedSettings.reverbSend,
@@ -1719,7 +1725,6 @@ export default function DrumMachine() {
               onChokedByChange={(sourceId) =>
                 handleChokedByChange(selectedChannel.id, sourceId)
               }
-              onLfoChange={(lfo) => handleLfoChange(selectedChannel.id, lfo)}
             />
           </div>
         </div>

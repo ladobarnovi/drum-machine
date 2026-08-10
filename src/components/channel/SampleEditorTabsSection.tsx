@@ -7,10 +7,12 @@ import ChannelFilterSection, {
   type FilterSettings,
 } from "./ChannelFilterSection";
 import ChannelFxSection, { type FxSettings } from "./ChannelFxSection";
+import ChannelLfoSection from "./ChannelLfoSection";
 import RailTabs from "@/components/ui/RailTabs";
 import {
   channelDisplayName,
   type Channel,
+  type ChannelLfo,
   type FilterSlope,
   type LockableParameter,
   type SampleMode,
@@ -77,6 +79,12 @@ type SampleEditorTabsSectionProps = {
   onSustainChange: (level: number) => void;
   onReleaseChange: (seconds: number) => void;
 
+  // LFO tab — the modulation source, and the wave it puts out. One value
+  // rather than a settings-and-handlers pair like the tabs either side, since
+  // no step can lock any of it and the section always edits the channel's own.
+  lfo: ChannelLfo;
+  onLfoChange: (lfo: ChannelLfo) => void;
+
   // FX tab — the three send amounts, pictured.
   fxSettings: FxSettings;
   playingFx?: PlayingRef<FxSettings> | null;
@@ -90,17 +98,21 @@ type SampleEditorTabsSectionProps = {
 
 /**
  * What used to be two separate cards — the sample's waveform, and the filter
- * pictured beside its knobs — are now four tabs sharing one. Env came third:
+ * pictured beside its knobs — are now five tabs sharing one. Env came third:
  * the same envelope `ChannelControls`' Shaping group already has sliders for,
  * extended into a full attack/decay/sustain/release and paired with a picture
- * of its own. FX came fourth, and unlike the others it took its controls with
- * it rather than mirroring them — the three sends are here and nowhere else.
+ * of its own. FX came last, and unlike the first three it took its controls
+ * with it rather than mirroring them — the three sends are here and nowhere
+ * else. LFO did the same, moving up out of an accordion of its own in the
+ * controls column, and slots in between the two: it is the second half of how
+ * a hit moves over its own length, and it is read against the envelope far
+ * more often than against the sends.
  *
- * One card rather than four, so switching between what the channel is
- * playing, what shape it comes out in, how its amplitude moves and where it
- * gets sent reads as changing what you're looking at rather than moving to a
- * different part of the page — the same trade `SequencerTabsSection` makes
- * for the step grid, patterns and banks below it.
+ * One card rather than five, so switching between what the channel is
+ * playing, what shape it comes out in, how its amplitude moves, what is
+ * modulating it and where it gets sent reads as changing what you're looking
+ * at rather than moving to a different part of the page — the same trade
+ * `SequencerTabsSection` makes for the step grid, patterns and banks below it.
  */
 export default function SampleEditorTabsSection({
   channel,
@@ -135,6 +147,8 @@ export default function SampleEditorTabsSection({
   onDecayChange,
   onSustainChange,
   onReleaseChange,
+  lfo,
+  onLfoChange,
   fxSettings,
   playingFx,
   onDelaySendChange,
@@ -211,6 +225,11 @@ export default function SampleEditorTabsSection({
               stepEdit={stepEdit}
             />
           ),
+        },
+        {
+          id: "lfo",
+          label: "LFO",
+          panel: <ChannelLfoSection lfo={lfo} onChange={onLfoChange} />,
         },
         {
           id: "fx",

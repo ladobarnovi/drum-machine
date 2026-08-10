@@ -4,7 +4,6 @@ import ChannelControls, {
   type ChokeOption,
   type StepEdit,
 } from "./ChannelControls";
-import ChannelLfoControls from "./ChannelLfoControls";
 import ChannelNameInput from "./ChannelNameInput";
 import SampleModeControls from "./SampleModeControls";
 import SampleSlot from "./SampleSlot";
@@ -31,7 +30,6 @@ import {
   resolveSwipeTarget,
   swipeTargetsFor,
   type Channel,
-  type ChannelLfo,
   type LockableParameter,
   type SampleMode,
   type SliceCount,
@@ -126,7 +124,7 @@ type SequencerSectionProps = {
   onLengthChange: (length: number) => void;
 };
 
-/** The per-channel sliders, and the LFO section under them. */
+/** The per-channel sliders. */
 type ControlsSectionProps = {
   showSampleOnly?: false;
   showSequencerOnly?: false;
@@ -149,7 +147,6 @@ type ControlsSectionProps = {
   onAttackChange: (seconds: number) => void;
   onDecayChange: (seconds: number) => void;
   onChokedByChange: (channelId: string) => void;
-  onLfoChange: (lfo: ChannelLfo) => void;
 };
 
 type ChannelEditorProps = ChannelEditorBaseProps &
@@ -358,34 +355,31 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   // under a heading that says otherwise.
   const { settings } = props;
 
+  // One accordion rather than two: the LFO that used to sit in a second one
+  // under this now has a tab of its own up in `SampleEditorTabsSection`, where
+  // it is drawn as well as dialled in.
   return (
-    <>
-      <Accordion title="Channel Params">
-        <ChannelControls
-          volume={settings.volume}
-          pan={settings.pan}
-          pitch={settings.pitch}
-          lowCutHz={settings.lowCutHz}
-          highCutHz={settings.highCutHz}
-          attackSeconds={settings.attackSeconds}
-          decaySeconds={settings.decaySeconds}
-          chokedBy={channel.chokedBy}
-          chokeOptions={props.chokeOptions}
-          stepEdit={props.stepEdit}
-          onVolumeChange={props.onVolumeChange}
-          onPanChange={props.onPanChange}
-          onPitchChange={props.onPitchChange}
-          onLowCutChange={props.onLowCutChange}
-          onHighCutChange={props.onHighCutChange}
-          onAttackChange={props.onAttackChange}
-          onDecayChange={props.onDecayChange}
-          onChokedByChange={props.onChokedByChange}
-        />
-      </Accordion>
-
-      <Accordion title="Channel LFO" defaultOpen={false}>
-        <ChannelLfoControls lfo={channel.lfo} onChange={props.onLfoChange} />
-      </Accordion>
-    </>
+    <Accordion title="Channel Params">
+      <ChannelControls
+        volume={settings.volume}
+        pan={settings.pan}
+        pitch={settings.pitch}
+        lowCutHz={settings.lowCutHz}
+        highCutHz={settings.highCutHz}
+        attackSeconds={settings.attackSeconds}
+        decaySeconds={settings.decaySeconds}
+        chokedBy={channel.chokedBy}
+        chokeOptions={props.chokeOptions}
+        stepEdit={props.stepEdit}
+        onVolumeChange={props.onVolumeChange}
+        onPanChange={props.onPanChange}
+        onPitchChange={props.onPitchChange}
+        onLowCutChange={props.onLowCutChange}
+        onHighCutChange={props.onHighCutChange}
+        onAttackChange={props.onAttackChange}
+        onDecayChange={props.onDecayChange}
+        onChokedByChange={props.onChokedByChange}
+      />
+    </Accordion>
   );
 }
