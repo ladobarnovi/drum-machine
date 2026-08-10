@@ -444,6 +444,61 @@ input[type="range"]:focus-visible {
   }
 }
 
+/*
+  The FX tab's three send tiles: repeats lighting one after another, a reverb
+  tail shimmering as it spreads, and a phaser's notches walking across the
+  response. Motion, because a send amount has no shape of its own to draw and
+  what it is doing to the channel is a thing that happens over time.
+
+  Only the shape of each is here. How fast it runs is set per element from the
+  send it pictures, and a shut send is handed no duration and no class at all,
+  so a tile that is doing nothing sits perfectly still rather than idling.
+*/
+@keyframes fx-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  35% {
+    opacity: 1;
+  }
+}
+
+@keyframes fx-sweep {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--fx-sweep-width)));
+  }
+}
+
+.fx-pulse {
+  animation-name: fx-pulse;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  /* The staggered delays are what make a pulse travel rather than a row
+     blink together, and this holds each element at the dim end of the cycle
+     until its turn comes — without it the first pass would start fully lit
+     and only settle into the sequence on the second. */
+  animation-fill-mode: backwards;
+}
+
+.fx-sweep {
+  animation-name: fx-sweep;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+
+/* Asked for less motion, given none: the tiles still say what each send is
+   set to — that is carried by their shape, not by their movement. */
+@media (prefers-reduced-motion: reduce) {
+  .fx-pulse,
+  .fx-sweep {
+    animation: none;
+  }
+}
+
 body {
   overflow: hidden !important;
 }

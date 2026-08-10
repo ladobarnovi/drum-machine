@@ -117,7 +117,7 @@ export default function EnvelopeGraph({
   const dividers = stages.slice(1).map((stage) => stage.start);
 
   return (
-    <div className="border-line bg-panel relative h-20 md:h-24 overflow-hidden rounded border">
+    <div className="border-line bg-panel relative h-16 md:h-24 overflow-hidden rounded border">
       <svg
         viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
         // Stretch freely: this is a shape overview like the filter's, not a

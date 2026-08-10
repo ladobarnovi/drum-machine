@@ -1502,12 +1502,13 @@ export default function DrumMachine() {
             {!canPlay && loadingPresetId === null && <LoadSamplesNotice />}
 
             {/*
-              What the channel is playing, what shape it comes out in, and how
-              its amplitude moves over one hit — three tabs sharing a card,
-              directly above the pattern grid that says when each of them
-              fires. The two filter cutoffs and the four envelope stages are
-              the same ones the controls panel below has sliders for — moving
-              either moves both — with a picture of what each set comes to.
+              What the channel is playing, what shape it comes out in, how its
+              amplitude moves over one hit, and where it gets sent — four tabs
+              sharing a card, directly above the pattern grid that says when
+              each of them fires. The two filter cutoffs and the four envelope
+              stages are the same ones the controls panel below has sliders for
+              — moving either moves both — with a picture of what each set
+              comes to. The three sends are only here.
             */}
             <SampleEditorTabsSection
               channel={selectedChannel}
@@ -1556,9 +1557,9 @@ export default function DrumMachine() {
                 highCutResonance: selectedSettings.highCutResonance,
               }}
               filterSlope={selectedChannel.filterSlope}
-              // What the Filter and Env tabs follow while the transport runs,
-              // so the knobs and the pictures read out the locks of the hit
-              // being heard rather than the channel underneath them.
+              // What the Filter, Env and FX tabs follow while the transport
+              // runs, so the knobs and the pictures read out the locks of the
+              // hit being heard rather than the channel underneath them.
               playingFilter={
                 playingStepIndex === null ||
                 playingStep === null ||
@@ -1606,6 +1607,29 @@ export default function DrumMachine() {
               onDecayChange={handleDecayChange}
               onSustainChange={handleSustainChange}
               onReleaseChange={handleReleaseChange}
+              fxSettings={{
+                delaySend: selectedSettings.delaySend,
+                reverbSend: selectedSettings.reverbSend,
+                phaserSend: selectedSettings.phaserSend,
+              }}
+              playingFx={
+                playingStepIndex === null ||
+                playingStep === null ||
+                playingSettings === null
+                  ? null
+                  : {
+                      index: playingStepIndex,
+                      settings: {
+                        delaySend: playingSettings.delaySend,
+                        reverbSend: playingSettings.reverbSend,
+                        phaserSend: playingSettings.phaserSend,
+                      },
+                      locks: playingStep.locks ?? {},
+                    }
+              }
+              onDelaySendChange={handleDelaySendChange}
+              onReverbSendChange={handleReverbSendChange}
+              onPhaserSendChange={handlePhaserSendChange}
               stepEdit={
                 editingStepIndex === null || editingStep === null
                   ? undefined
@@ -1692,9 +1716,6 @@ export default function DrumMachine() {
               onHighCutChange={handleHighCutChange}
               onAttackChange={handleAttackChange}
               onDecayChange={handleDecayChange}
-              onDelaySendChange={handleDelaySendChange}
-              onReverbSendChange={handleReverbSendChange}
-              onPhaserSendChange={handlePhaserSendChange}
               onChokedByChange={(sourceId) =>
                 handleChokedByChange(selectedChannel.id, sourceId)
               }

@@ -8,14 +8,12 @@ import {
   DEFAULT_STEP_VELOCITY,
   MAX_PAN,
   MAX_PITCH,
-  MAX_SEND,
   MAX_STEP_PROBABILITY,
   MAX_STEP_REPEAT,
   MAX_STEP_VELOCITY,
   MAX_VOLUME,
   MIN_PAN,
   MIN_PITCH,
-  MIN_SEND,
   MIN_STEP_PROBABILITY,
   MIN_STEP_REPEAT,
   MIN_STEP_VELOCITY,
@@ -23,7 +21,6 @@ import {
   attackToSlider,
   clampPan,
   clampPitch,
-  clampSend,
   clampStepSlice,
   clampVolume,
   decayToSlider,
@@ -92,9 +89,6 @@ type ChannelControlsProps = {
   highCutHz: number;
   attackSeconds: number;
   decaySeconds: number;
-  delaySend: number;
-  reverbSend: number;
-  phaserSend: number;
   chokedBy: string | null;
   /** Every channel that could choke this one — this channel is not among them. */
   chokeOptions: ChokeOption[];
@@ -107,16 +101,15 @@ type ChannelControlsProps = {
   onHighCutChange: (hz: number) => void;
   onAttackChange: (seconds: number) => void;
   onDecayChange: (seconds: number) => void;
-  onDelaySendChange: (amount: number) => void;
-  onReverbSendChange: (amount: number) => void;
-  onPhaserSendChange: (amount: number) => void;
   /** The raw select value; empty means no choke. */
   onChokedByChange: (channelId: string) => void;
 };
 
 /**
- * Volume, pan, pitch, filters, the amplitude envelope, the three send amounts,
- * and the choke source — for the channel, or for one step of it.
+ * Volume, pan, pitch, filters, the amplitude envelope and the choke source —
+ * for the channel, or for one step of it. The three send amounts used to be
+ * here too, in a group of their own at the bottom; they are the FX tab's now,
+ * where they have pictures to go with them.
  *
  * The values arrive already resolved: while a step is open the caller hands
  * down that step's overrides in place of the channel's own settings, so the
@@ -133,9 +126,6 @@ export default function ChannelControls({
   highCutHz,
   attackSeconds,
   decaySeconds,
-  delaySend,
-  reverbSend,
-  phaserSend,
   chokedBy,
   chokeOptions,
   stepEdit,
@@ -146,9 +136,6 @@ export default function ChannelControls({
   onHighCutChange,
   onAttackChange,
   onDecayChange,
-  onDelaySendChange,
-  onReverbSendChange,
-  onPhaserSendChange,
   onChokedByChange,
 }: ChannelControlsProps) {
   /**
@@ -450,45 +437,6 @@ export default function ChannelControls({
           </div>
         </div>
 
-        <div className={groupClass}>
-          <h3 className={headingClass}>FX</h3>
-
-          <div className={gridClass}>
-            {/* How much of this channel is fed to each master send bus. */}
-            <ControlSlider
-              label="Delay"
-              min={MIN_SEND}
-              max={MAX_SEND}
-              step={0.01}
-              value={delaySend}
-              readout={`${Math.round(delaySend * 100)}%`}
-              onChange={(value) => onDelaySendChange(clampSend(value))}
-              {...lockProps("delaySend")}
-            />
-
-            <ControlSlider
-              label="Reverb"
-              min={MIN_SEND}
-              max={MAX_SEND}
-              step={0.01}
-              value={reverbSend}
-              readout={`${Math.round(reverbSend * 100)}%`}
-              onChange={(value) => onReverbSendChange(clampSend(value))}
-              {...lockProps("reverbSend")}
-            />
-
-            <ControlSlider
-              label="Phaser"
-              min={MIN_SEND}
-              max={MAX_SEND}
-              step={0.01}
-              value={phaserSend}
-              readout={`${Math.round(phaserSend * 100)}%`}
-              onChange={(value) => onPhaserSendChange(clampSend(value))}
-              {...lockProps("phaserSend")}
-            />
-          </div>
-        </div>
       </div>
     </section>
   );

@@ -148,9 +148,6 @@ type ControlsSectionProps = {
   onHighCutChange: (hz: number) => void;
   onAttackChange: (seconds: number) => void;
   onDecayChange: (seconds: number) => void;
-  onDelaySendChange: (amount: number) => void;
-  onReverbSendChange: (amount: number) => void;
-  onPhaserSendChange: (amount: number) => void;
   onChokedByChange: (channelId: string) => void;
   onLfoChange: (lfo: ChannelLfo) => void;
 };
@@ -372,9 +369,6 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           highCutHz={settings.highCutHz}
           attackSeconds={settings.attackSeconds}
           decaySeconds={settings.decaySeconds}
-          delaySend={settings.delaySend}
-          reverbSend={settings.reverbSend}
-          phaserSend={settings.phaserSend}
           chokedBy={channel.chokedBy}
           chokeOptions={props.chokeOptions}
           stepEdit={props.stepEdit}
@@ -385,9 +379,6 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onHighCutChange={props.onHighCutChange}
           onAttackChange={props.onAttackChange}
           onDecayChange={props.onDecayChange}
-          onDelaySendChange={props.onDelaySendChange}
-          onReverbSendChange={props.onReverbSendChange}
-          onPhaserSendChange={props.onPhaserSendChange}
           onChokedByChange={props.onChokedByChange}
         />
       </Accordion>

@@ -6,6 +6,7 @@ import ChannelEnvelopeSection from "./ChannelEnvelopeSection";
 import ChannelFilterSection, {
   type FilterSettings,
 } from "./ChannelFilterSection";
+import ChannelFxSection, { type FxSettings } from "./ChannelFxSection";
 import RailTabs from "@/components/ui/RailTabs";
 import {
   channelDisplayName,
@@ -18,9 +19,9 @@ import {
 } from "@/lib/sequencer";
 
 /**
- * Shared by the Filter and Env tabs: the same step, if any, is open for
- * both, since a lock is a lock on the channel's settings regardless of which
- * tab happens to be showing it.
+ * Shared by the Filter, Env and FX tabs: the same step, if any, is open for
+ * all of them, since a lock is a lock on the channel's settings regardless of
+ * which tab happens to be showing it.
  */
 type StepEditRef = {
   index: number;
@@ -76,22 +77,30 @@ type SampleEditorTabsSectionProps = {
   onSustainChange: (level: number) => void;
   onReleaseChange: (seconds: number) => void;
 
-  /** Set while one step is open, so the Filter and Env tabs both scope to it. */
+  // FX tab — the three send amounts, pictured.
+  fxSettings: FxSettings;
+  playingFx?: PlayingRef<FxSettings> | null;
+  onDelaySendChange: (amount: number) => void;
+  onReverbSendChange: (amount: number) => void;
+  onPhaserSendChange: (amount: number) => void;
+
+  /** Set while one step is open, so all three of those tabs scope to it. */
   stepEdit?: StepEditRef;
 };
 
 /**
  * What used to be two separate cards — the sample's waveform, and the filter
- * pictured beside its knobs — are now three tabs sharing one, Env joining
- * them as a third: the same envelope `ChannelControls`' Shaping group already
- * has sliders for, extended into a full attack/decay/sustain/release and
- * paired with a picture of its own.
+ * pictured beside its knobs — are now four tabs sharing one. Env came third:
+ * the same envelope `ChannelControls`' Shaping group already has sliders for,
+ * extended into a full attack/decay/sustain/release and paired with a picture
+ * of its own. FX came fourth, and unlike the others it took its controls with
+ * it rather than mirroring them — the three sends are here and nowhere else.
  *
- * One card rather than three, so switching between what the channel is
- * playing, what shape it comes out in, and how its amplitude moves reads as
- * changing what you're looking at rather than moving to a different part of
- * the page — the same trade `SequencerTabsSection` makes for the step grid,
- * patterns and banks below it.
+ * One card rather than four, so switching between what the channel is
+ * playing, what shape it comes out in, how its amplitude moves and where it
+ * gets sent reads as changing what you're looking at rather than moving to a
+ * different part of the page — the same trade `SequencerTabsSection` makes
+ * for the step grid, patterns and banks below it.
  */
 export default function SampleEditorTabsSection({
   channel,
@@ -126,6 +135,11 @@ export default function SampleEditorTabsSection({
   onDecayChange,
   onSustainChange,
   onReleaseChange,
+  fxSettings,
+  playingFx,
+  onDelaySendChange,
+  onReverbSendChange,
+  onPhaserSendChange,
   stepEdit,
 }: SampleEditorTabsSectionProps) {
   const channelName = channelDisplayName(channel);
@@ -195,6 +209,20 @@ export default function SampleEditorTabsSection({
                 onDecayChange={onDecayChange}
                 onSustainChange={onSustainChange}
                 onReleaseChange={onReleaseChange}
+                stepEdit={stepEdit}
+              />
+            ),
+          },
+          {
+            id: "fx",
+            label: "FX",
+            panel: (
+              <ChannelFxSection
+                settings={fxSettings}
+                playing={playingFx}
+                onDelaySendChange={onDelaySendChange}
+                onReverbSendChange={onReverbSendChange}
+                onPhaserSendChange={onPhaserSendChange}
                 stepEdit={stepEdit}
               />
             ),
