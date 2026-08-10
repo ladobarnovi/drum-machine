@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import ChannelControls, {
   type ChokeOption,
   type StepEdit,
@@ -7,6 +9,7 @@ import ChannelControls, {
 import ChannelNameInput from "./ChannelNameInput";
 import SampleModeControls from "./SampleModeControls";
 import SampleSlot from "./SampleSlot";
+import SampleSourceMenu, { type SampleSourceAnchor } from "./SampleSourceMenu";
 import Waveform from "./Waveform";
 import StepGrid from "./steps/StepGrid";
 import StepPatternControls from "./steps/StepPatternControls";
@@ -160,6 +163,15 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   const { channel } = props;
   const displayName = channelDisplayName(channel);
 
+  /**
+   * Where the sample-source menu is up, or null while it is shut. Held here
+   * rather than inside either control that raises it, because both the strip
+   * and the slot do and there is only ever one menu between them. Declared for
+   * all three sections, since a hook cannot sit behind the branch below — the
+   * other two simply never raise it.
+   */
+  const [sourceMenu, setSourceMenu] = useState<SampleSourceAnchor | null>(null);
+
   if (props.showSampleOnly) {
     // Only a loaded file has a length to place Start and End against — on any
     // other status the two knobs still turn, but read out against nothing.
@@ -184,6 +196,9 @@ export default function ChannelEditor(props: ChannelEditorProps) {
       <>
         <Waveform
           sample={channel.sample}
+          channelLabel={displayName}
+          onLoadRequest={setSourceMenu}
+          menuOpen={sourceMenu?.from === "waveform"}
           start={channel.sampleStart}
           end={channel.sampleEnd}
           onStartChange={props.onSampleStartChange}
@@ -288,11 +303,26 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           <SampleSlot
             channelLabel={displayName}
             sample={channel.sample}
-            onUpload={props.onUpload}
-            onLoadLibrarySample={props.onLoadLibrarySample}
+            onOpenSourceMenu={setSourceMenu}
+            menuOpen={sourceMenu?.from === "slot"}
             onRemove={props.onRemove}
           />
         </div>
+
+        {/* Raised by the strip above and the slot beside it both, so it is
+            mounted once here rather than inside either. */}
+        <SampleSourceMenu
+          channelLabel={displayName}
+          currentSampleId={
+            channel.sample.status === "loaded"
+              ? channel.sample.libraryId
+              : undefined
+          }
+          anchor={sourceMenu}
+          onClose={() => setSourceMenu(null)}
+          onUpload={props.onUpload}
+          onLoadLibrarySample={props.onLoadLibrarySample}
+        />
       </>
     );
   }

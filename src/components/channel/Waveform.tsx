@@ -8,6 +8,7 @@ import {
   type PointerEvent,
 } from "react";
 
+import { anchorFromEvent, type SampleSourceAnchor } from "./SampleSourceMenu";
 import {
   formatSeconds,
   isSampleTrimmed,
@@ -22,6 +23,12 @@ import {
 
 type WaveformProps = {
   sample: SampleState;
+  /** Named on the strip's own control, which is only there while it is empty. */
+  channelLabel: string;
+  /** Raises the source menu from the empty strip. */
+  onLoadRequest: (anchor: SampleSourceAnchor) => void;
+  /** Whether that menu is up, and was raised from here. */
+  menuOpen: boolean;
   /** Where playback starts, as a fraction of the whole file. */
   start: number;
   /** Where playback stops, as a fraction of the whole file. */
@@ -286,6 +293,9 @@ function WaveformPlayhead({ getPlayhead, reversed }: WaveformPlayheadProps) {
 
 export default function Waveform({
   sample,
+  channelLabel,
+  onLoadRequest,
+  menuOpen,
   start,
   end,
   onStartChange,
@@ -331,12 +341,41 @@ export default function Waveform({
     );
   }
 
-  if (sample.status === "empty" || sample.peaks.length === 0) {
+  // A channel with nothing on it is the one case where the strip has nothing
+  // to picture, so it becomes the way to fill it instead: this is the first
+  // place anyone looks at an empty channel, and it is the largest target on
+  // the card. Pressing it raises the same two choices the slot below does.
+  if (sample.status === "empty") {
+    return (
+      <button
+        type="button"
+        onClick={(event) => onLoadRequest(anchorFromEvent(event, "waveform"))}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-label={`Load a sample for channel ${channelLabel}`}
+        className={`${frame} hover:bg-raised hover:border-edge focus-visible:outline-accent w-full cursor-pointer gap-1.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2`}
+      >
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          aria-hidden="true"
+          className="text-muted size-4"
+        >
+          <path d="M8 3.5 v9 M3.5 8 h9" />
+        </svg>
+
+        <span className={message}>Load a sample</span>
+      </button>
+    );
+  }
+
+  if (sample.peaks.length === 0) {
     return (
       <div className={frame}>
-        <span className={message}>
-          {sample.status === "empty" ? "No sample loaded" : "No waveform"}
-        </span>
+        <span className={message}>No waveform</span>
       </div>
     );
   }

@@ -152,6 +152,12 @@ export default function SampleLibraryDialog({
                             <button
                               type="button"
                               onClick={() => onSelect({ category, sample })}
+                              // Named for what pressing it does rather than
+                              // left to read out as its contents, which under
+                              // a heading nobody has to be told twice would
+                              // be "Kick" and then, on the one already in the
+                              // slot, "Kick Loaded".
+                              aria-label={`Load ${sample.name} ${category.name}`}
                               aria-current={current}
                               className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${
                                 current

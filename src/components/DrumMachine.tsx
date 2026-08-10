@@ -760,9 +760,25 @@ export default function DrumMachine() {
   const handleRemove = useCallback(
     (channelId: string) => {
       removeSample(channelId);
-      updateChannel(channelId, { sample: { status: "empty" }, ...UNEDITED });
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === channelId
+            ? {
+                ...channel,
+                // A name the machine put there goes out with the sample that
+                // put it there, so an emptied channel isn't left sitting under
+                // the name of a drum it no longer has — and so the next sample
+                // loaded into it is free to name it again. A typed name stays:
+                // that one was someone's decision.
+                name: channelNameFollowsSample(channel) ? "" : channel.name,
+                sample: { status: "empty" },
+                ...UNEDITED,
+              }
+            : channel,
+        ),
+      );
     },
-    [removeSample, updateChannel],
+    [removeSample],
   );
 
   const handleLengthChange = useCallback(
