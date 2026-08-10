@@ -1543,6 +1543,12 @@ export default function DrumMachine() {
                 handleSampleTrimReset(selectedChannel.id)
               }
               getPlayhead={getSelectedPlayhead}
+              volume={selectedSettings.volume}
+              pan={selectedSettings.pan}
+              pitch={selectedSettings.pitch}
+              onVolumeChange={handleVolumeChange}
+              onPanChange={handlePanChange}
+              onPitchChange={handlePitchChange}
               filterSettings={{
                 lowCutHz: selectedSettings.lowCutHz,
                 lowCutResonance: selectedSettings.lowCutResonance,

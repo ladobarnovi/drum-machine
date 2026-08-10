@@ -6,21 +6,37 @@ import ChannelControls, {
 } from "./ChannelControls";
 import ChannelLfoControls from "./ChannelLfoControls";
 import ChannelNameInput from "./ChannelNameInput";
+import SampleModeControls from "./SampleModeControls";
 import SampleSlot from "./SampleSlot";
 import Waveform from "./Waveform";
 import StepGrid from "./steps/StepGrid";
 import StepPatternControls from "./steps/StepPatternControls";
 import Accordion from "@/components/ui/Accordion";
+import RotaryKnob from "@/components/ui/RotaryKnob";
 import {
+  MAX_PAN,
+  MAX_PITCH,
+  MAX_VOLUME,
+  MIN_PAN,
+  MIN_PITCH,
+  MIN_VOLUME,
   channelDisplayName,
+  clampPan,
+  clampPitch,
+  clampVolume,
+  formatPan,
+  formatPitch,
+  formatSeconds,
   isSliced,
   resolveSwipeTarget,
   swipeTargetsFor,
   type Channel,
   type ChannelLfo,
+  type LockableParameter,
   type SampleMode,
   type SliceCount,
   type StepFill,
+  type StepLocks,
   type SwipeTarget,
 } from "@/lib/sequencer";
 
@@ -66,6 +82,23 @@ type SampleSectionProps = {
   onSampleTrimReset: () => void;
   /** Where in the file this channel is being heard, for the waveform's line. */
   getPlayhead: () => number | null;
+  /**
+   * Gain, pan and pitch, resolved the same way `settings` is for the Channel
+   * Params accordion — the channel's own values, or an open step's. Repeated
+   * here rather than left to that accordion alone, since reaching for the
+   * sample and its level in the same glance is the point of a knob row sitting
+   * right under the waveform.
+   */
+  volume: number;
+  pan: number;
+  pitch: number;
+  onVolumeChange: (volume: number) => void;
+  onPanChange: (pan: number) => void;
+  onPitchChange: (pitch: number) => void;
+  /** Set while one step is being edited, so these three knobs mark their locks
+   * the same way the accordion's sliders do. */
+  locks?: StepLocks;
+  onClearLock?: (key: LockableParameter) => void;
 };
 
 /** The step grid, and the pattern and length controls under it. */
@@ -131,6 +164,21 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   const displayName = channelDisplayName(channel);
 
   if (props.showSampleOnly) {
+    // Only a loaded file has a length to place Start and End against — on any
+    // other status the two knobs still turn, but read out against nothing.
+    const durationSeconds =
+      channel.sample.status === "loaded" ? channel.sample.durationSeconds : 0;
+
+    // Same shape as `ChannelFilterSection`'s: absent locks means an unlocked
+    // row, present locks means every knob gets its mark and its clear button.
+    const lockProps = (key: LockableParameter) =>
+      props.locks
+        ? {
+            locked: props.locks[key] !== undefined,
+            onClearLock: () => props.onClearLock?.(key),
+          }
+        : {};
+
     // No `Card` here, unlike before: this section now shares its card with
     // the Filter and Env tabs it sits alongside in `SampleEditorTabsSection`,
     // the same way `showSequencerOnly` below shares its card with Patterns
@@ -144,14 +192,93 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onStartChange={props.onSampleStartChange}
           onEndChange={props.onSampleEndChange}
           reversed={channel.sampleReversed}
-          onReversedChange={props.onSampleReversedChange}
+          mode={channel.sampleMode}
+          sliceCount={channel.sliceCount}
+          highlightSlice={props.highlightSlice}
+          onReset={props.onSampleTrimReset}
+          getPlayhead={props.getPlayhead}
+        />
+
+        {/*
+          Start and End ride the same 0..1 file fraction the waveform's own
+          trim handles do, so dragging a handle and turning its knob move the
+          same number — a knob is just a second grip on it, for placing a cut
+          finer than a drag across the strip allows. Gain, Pan and Pitch sit
+          beside them because the sample and its level are one decision in
+          practice, not two panels apart.
+        */}
+        <div className="grid grid-cols-5 justify-items-center gap-x-2 gap-y-4 sm:gap-x-6">
+          <RotaryKnob
+            label="Start"
+            ariaLabel="Sample start"
+            min={0}
+            max={1}
+            step={0.001}
+            value={channel.sampleStart}
+            readout={formatSeconds(channel.sampleStart * durationSeconds)}
+            onChange={props.onSampleStartChange}
+          />
+
+          <RotaryKnob
+            label="End"
+            ariaLabel="Sample end"
+            min={0}
+            max={1}
+            step={0.001}
+            value={channel.sampleEnd}
+            readout={formatSeconds(channel.sampleEnd * durationSeconds)}
+            onChange={props.onSampleEndChange}
+          />
+
+          <RotaryKnob
+            label="Gain"
+            ariaLabel="Volume"
+            min={MIN_VOLUME}
+            max={MAX_VOLUME}
+            step={0.01}
+            value={props.volume}
+            readout={`${Math.round(props.volume * 100)}%`}
+            onChange={(value) => props.onVolumeChange(clampVolume(value))}
+            {...lockProps("volume")}
+          />
+
+          <RotaryKnob
+            label="Pan"
+            ariaLabel="Pan"
+            min={MIN_PAN}
+            max={MAX_PAN}
+            step={0.01}
+            value={props.pan}
+            readout={formatPan(props.pan)}
+            onChange={(value) => props.onPanChange(clampPan(value))}
+            {...lockProps("pan")}
+          />
+
+          <RotaryKnob
+            label="Pitch"
+            ariaLabel="Pitch"
+            min={MIN_PITCH}
+            max={MAX_PITCH}
+            step={1}
+            value={props.pitch}
+            readout={formatPitch(props.pitch)}
+            onChange={(value) => props.onPitchChange(clampPitch(value))}
+            {...lockProps("pitch")}
+          />
+        </div>
+
+        {/*
+          What a hit is, how many parts it's cut into, and which way it's
+          read — under the knobs rather than under the strip, now that the
+          strip has knobs of its own sitting between the two.
+        */}
+        <SampleModeControls
           mode={channel.sampleMode}
           onModeChange={props.onSampleModeChange}
           sliceCount={channel.sliceCount}
           onSliceCountChange={props.onSliceCountChange}
-          highlightSlice={props.highlightSlice}
-          onReset={props.onSampleTrimReset}
-          getPlayhead={props.getPlayhead}
+          reversed={channel.sampleReversed}
+          onReversedChange={props.onSampleReversedChange}
         />
 
         <div className="flex flex-wrap items-center gap-3">

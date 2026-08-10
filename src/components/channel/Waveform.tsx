@@ -9,9 +9,6 @@ import {
 } from "react";
 
 import {
-  SAMPLE_MODES,
-  SAMPLE_MODE_LABELS,
-  SLICE_COUNTS,
   formatSeconds,
   isSampleTrimmed,
   isSliced,
@@ -34,13 +31,10 @@ type WaveformProps = {
   onEndChange: (fraction: number) => void;
   /** Whether the region between the handles is read back to front. */
   reversed: boolean;
-  onReversedChange: (reversed: boolean) => void;
   /** Whether a hit plays the whole trimmed region or one slice of it. */
   mode: SampleMode;
-  onModeChange: (mode: SampleMode) => void;
   /** How many parts the region is divided into while slicing. */
   sliceCount: SliceCount;
-  onSliceCountChange: (sliceCount: SliceCount) => void;
   /**
    * The slice the step open for editing fires, or null while no step is open —
    * which is also every moment the channel is a one shot.
@@ -297,11 +291,8 @@ export default function Waveform({
   onStartChange,
   onEndChange,
   reversed,
-  onReversedChange,
   mode,
-  onModeChange,
   sliceCount,
-  onSliceCountChange,
   highlightSlice,
   onReset,
   getPlayhead,
@@ -375,16 +366,6 @@ export default function Waveform({
     slicing && highlightSlice !== null
       ? sliceRegion(start, end, sliceCount, highlightSlice)
       : null;
-
-  // Shared by the mode pair and the slice counts, and the same shape the
-  // Reverse button below already had: these are all toggles that stay lit
-  // while they are what the sample is set to.
-  const toggleClass = (isActive: boolean) =>
-    `rounded border px-2 py-0.5 font-medium transition-colors ${
-      isActive
-        ? "border-accent bg-accent text-on-accent"
-        : "border-edge hover:bg-raised"
-    }`;
 
   // Which end of the file each end of the picture is. Reversed, the hit begins
   // at the file's later edge, so the handle on the left writes `end`: the two
@@ -538,71 +519,6 @@ export default function Waveform({
           </button>
         </div>
       )}
-
-      {/*
-        Above the strip rather than in the row under it: that row is a readout
-        of where the handles are and only appears once they have been moved,
-        where the direction the file is read in applies to every sample and has
-        to be reachable — and visible — without trimming one first.
-
-        Lit while it is on, like every other toggle in the machine. The strip
-        turns round with it, but a shape alone cannot say which way round it
-        was to begin with — the light is what makes that readable at a glance.
-      */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px]">
-        {/*
-          What a hit is: the whole region, or one part of it. First in the row
-          because it decides whether the rest of the row — and the marks on the
-          strip below — mean anything at all.
-        */}
-        <div className="flex gap-1.5">
-          {SAMPLE_MODES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onModeChange(option)}
-              aria-pressed={mode === option}
-              className={toggleClass(mode === option)}
-            >
-              {SAMPLE_MODE_LABELS[option]}
-            </button>
-          ))}
-        </div>
-
-        {/* Only alongside the mode that has parts to count, rather than greyed
-            out under a one shot where the number would decide nothing. */}
-        {slicing && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted">Parts</span>
-
-            {SLICE_COUNTS.map((count) => (
-              <button
-                key={count}
-                type="button"
-                onClick={() => onSliceCountChange(count)}
-                aria-pressed={sliceCount === count}
-                aria-label={`${count} slices`}
-                className={`w-7 ${toggleClass(sliceCount === count)}`}
-              >
-                {count}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Pushed to the far edge: it applies to a hit whichever mode the
-            sample is in — a slice is read back to front exactly as a whole
-            one shot is — so it belongs beside the pair rather than within it. */}
-        <button
-          type="button"
-          onClick={() => onReversedChange(!reversed)}
-          aria-pressed={reversed}
-          aria-label="Play sample in reverse"
-          className={`ml-auto ${toggleClass(reversed)}`}
-        >
-          Reverse
-        </button>
-      </div>
     </div>
   );
 }

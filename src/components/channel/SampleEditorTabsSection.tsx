@@ -49,6 +49,14 @@ type SampleEditorTabsSectionProps = {
   highlightSlice: number | null;
   onSampleTrimReset: () => void;
   getPlayhead: () => number | null;
+  // Sample tab — Gain, Pan and Pitch, the same three values the Channel
+  // Params accordion edits, resolved against whichever step (if any) is open.
+  volume: number;
+  pan: number;
+  pitch: number;
+  onVolumeChange: (volume: number) => void;
+  onPanChange: (pan: number) => void;
+  onPitchChange: (pitch: number) => void;
 
   // Filter tab — the two cuts, pictured.
   filterSettings: FilterSettings;
@@ -98,6 +106,12 @@ export default function SampleEditorTabsSection({
   highlightSlice,
   onSampleTrimReset,
   getPlayhead,
+  volume,
+  pan,
+  pitch,
+  onVolumeChange,
+  onPanChange,
+  onPitchChange,
   filterSettings,
   filterSlope,
   playingFilter,
@@ -140,6 +154,14 @@ export default function SampleEditorTabsSection({
                 highlightSlice={highlightSlice}
                 onSampleTrimReset={onSampleTrimReset}
                 getPlayhead={getPlayhead}
+                volume={volume}
+                pan={pan}
+                pitch={pitch}
+                onVolumeChange={onVolumeChange}
+                onPanChange={onPanChange}
+                onPitchChange={onPitchChange}
+                locks={stepEdit?.locks}
+                onClearLock={stepEdit?.onClearLock}
               />
             ),
           },
