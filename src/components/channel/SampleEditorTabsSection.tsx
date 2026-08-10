@@ -145,90 +145,88 @@ export default function SampleEditorTabsSection({
   const channelName = channelDisplayName(channel);
 
   return (
-    <div className="border-line flex flex-col gap-4 rounded-md border p-4">
-      <RailTabs
-        label="Sample editor view"
-        variant="panel"
-        tabs={[
-          {
-            id: "sample",
-            label: "Sample",
-            panel: (
-              <ChannelEditor
-                channel={channel}
-                showSampleOnly={true}
-                onUpload={onUpload}
-                onRemove={onRemove}
-                onNameChange={onNameChange}
-                onSampleStartChange={onSampleStartChange}
-                onSampleEndChange={onSampleEndChange}
-                onSampleReversedChange={onSampleReversedChange}
-                onSampleModeChange={onSampleModeChange}
-                onSliceCountChange={onSliceCountChange}
-                highlightSlice={highlightSlice}
-                onSampleTrimReset={onSampleTrimReset}
-                getPlayhead={getPlayhead}
-                volume={volume}
-                pan={pan}
-                pitch={pitch}
-                onVolumeChange={onVolumeChange}
-                onPanChange={onPanChange}
-                onPitchChange={onPitchChange}
-                locks={stepEdit?.locks}
-                onClearLock={stepEdit?.onClearLock}
-              />
-            ),
-          },
-          {
-            id: "filter",
-            label: "Filter",
-            panel: (
-              <ChannelFilterSection
-                channelName={channelName}
-                settings={filterSettings}
-                filterSlope={filterSlope}
-                playing={playingFilter}
-                onLowCutChange={onLowCutChange}
-                onLowCutResonanceChange={onLowCutResonanceChange}
-                onHighCutChange={onHighCutChange}
-                onHighCutResonanceChange={onHighCutResonanceChange}
-                onFilterSlopeChange={onFilterSlopeChange}
-                stepEdit={stepEdit}
-              />
-            ),
-          },
-          {
-            id: "env",
-            label: "Env",
-            panel: (
-              <ChannelEnvelopeSection
-                channelName={channelName}
-                settings={envelopeSettings}
-                playing={playingEnvelope}
-                onAttackChange={onAttackChange}
-                onDecayChange={onDecayChange}
-                onSustainChange={onSustainChange}
-                onReleaseChange={onReleaseChange}
-                stepEdit={stepEdit}
-              />
-            ),
-          },
-          {
-            id: "fx",
-            label: "FX",
-            panel: (
-              <ChannelFxSection
-                settings={fxSettings}
-                playing={playingFx}
-                onDelaySendChange={onDelaySendChange}
-                onReverbSendChange={onReverbSendChange}
-                onPhaserSendChange={onPhaserSendChange}
-                stepEdit={stepEdit}
-              />
-            ),
-          },
-        ]}
-      />
-    </div>
+    <RailTabs
+      label="Sample editor view"
+      variant="panel"
+      tabs={[
+        {
+          id: "sample",
+          label: "Sample",
+          panel: (
+            <ChannelEditor
+              channel={channel}
+              showSampleOnly={true}
+              onUpload={onUpload}
+              onRemove={onRemove}
+              onNameChange={onNameChange}
+              onSampleStartChange={onSampleStartChange}
+              onSampleEndChange={onSampleEndChange}
+              onSampleReversedChange={onSampleReversedChange}
+              onSampleModeChange={onSampleModeChange}
+              onSliceCountChange={onSliceCountChange}
+              highlightSlice={highlightSlice}
+              onSampleTrimReset={onSampleTrimReset}
+              getPlayhead={getPlayhead}
+              volume={volume}
+              pan={pan}
+              pitch={pitch}
+              onVolumeChange={onVolumeChange}
+              onPanChange={onPanChange}
+              onPitchChange={onPitchChange}
+              locks={stepEdit?.locks}
+              onClearLock={stepEdit?.onClearLock}
+            />
+          ),
+        },
+        {
+          id: "filter",
+          label: "Filter",
+          panel: (
+            <ChannelFilterSection
+              channelName={channelName}
+              settings={filterSettings}
+              filterSlope={filterSlope}
+              playing={playingFilter}
+              onLowCutChange={onLowCutChange}
+              onLowCutResonanceChange={onLowCutResonanceChange}
+              onHighCutChange={onHighCutChange}
+              onHighCutResonanceChange={onHighCutResonanceChange}
+              onFilterSlopeChange={onFilterSlopeChange}
+              stepEdit={stepEdit}
+            />
+          ),
+        },
+        {
+          id: "env",
+          label: "Env",
+          panel: (
+            <ChannelEnvelopeSection
+              channelName={channelName}
+              settings={envelopeSettings}
+              playing={playingEnvelope}
+              onAttackChange={onAttackChange}
+              onDecayChange={onDecayChange}
+              onSustainChange={onSustainChange}
+              onReleaseChange={onReleaseChange}
+              stepEdit={stepEdit}
+            />
+          ),
+        },
+        {
+          id: "fx",
+          label: "FX",
+          panel: (
+            <ChannelFxSection
+              settings={fxSettings}
+              playing={playingFx}
+              onDelaySendChange={onDelaySendChange}
+              onReverbSendChange={onReverbSendChange}
+              onPhaserSendChange={onPhaserSendChange}
+              stepEdit={stepEdit}
+            />
+          ),
+        },
+      ]}
+    />
   );
 }

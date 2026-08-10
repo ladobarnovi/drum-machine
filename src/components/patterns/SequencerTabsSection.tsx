@@ -68,63 +68,61 @@ export default function SequencerTabsSection({
   onPatternContextMenu,
 }: SequencerTabsSectionProps) {
   return (
-    <div className="border-line flex flex-col gap-4 rounded-md border p-4">
-      <RailTabs
-        label="Sequencer view"
-        variant="panel"
-        tabs={[
-          {
-            id: "sequencer",
-            label: "Sequencer",
-            panel: (
-              <ChannelEditor
-                channel={channel}
-                showSequencerOnly={true}
-                currentStep={currentStep}
-                editingStep={editingStep}
-                swipeTarget={swipeTarget}
-                onStepClick={onStepClick}
-                onStepHold={onStepHold}
-                onStepVelocityChange={onStepVelocityChange}
-                onStepPitchChange={onStepPitchChange}
-                onStepSliceChange={onStepSliceChange}
-                onStepContextMenu={onStepContextMenu}
-                onSwipeTargetChange={onSwipeTargetChange}
-                onApplyStepFill={onApplyStepFill}
-                onNudgeSteps={onNudgeSteps}
-                onClearSteps={onClearSteps}
-                onInvertSteps={onInvertSteps}
-                onHumanizeSteps={onHumanizeSteps}
-                onLengthChange={onLengthChange}
-              />
-            ),
-          },
-          {
-            id: "patterns",
-            label: "Patterns",
-            panel: (
-              <PatternGrid
-                bankIndex={selectedBankIndex}
-                bank={banks[selectedBankIndex]}
-                activePatternIndex={activePatternIndex}
-                onLoad={onLoadPattern}
-                onContextMenu={onPatternContextMenu}
-              />
-            ),
-          },
-          {
-            id: "banks",
-            label: "Banks",
-            panel: (
-              <BankGrid
-                banks={banks}
-                selectedBankIndex={selectedBankIndex}
-                onSelect={onSelectBank}
-              />
-            ),
-          },
-        ]}
-      />
-    </div>
+    <RailTabs
+      label="Sequencer view"
+      variant="panel"
+      tabs={[
+        {
+          id: "sequencer",
+          label: "Sequencer",
+          panel: (
+            <ChannelEditor
+              channel={channel}
+              showSequencerOnly={true}
+              currentStep={currentStep}
+              editingStep={editingStep}
+              swipeTarget={swipeTarget}
+              onStepClick={onStepClick}
+              onStepHold={onStepHold}
+              onStepVelocityChange={onStepVelocityChange}
+              onStepPitchChange={onStepPitchChange}
+              onStepSliceChange={onStepSliceChange}
+              onStepContextMenu={onStepContextMenu}
+              onSwipeTargetChange={onSwipeTargetChange}
+              onApplyStepFill={onApplyStepFill}
+              onNudgeSteps={onNudgeSteps}
+              onClearSteps={onClearSteps}
+              onInvertSteps={onInvertSteps}
+              onHumanizeSteps={onHumanizeSteps}
+              onLengthChange={onLengthChange}
+            />
+          ),
+        },
+        {
+          id: "patterns",
+          label: "Patterns",
+          panel: (
+            <PatternGrid
+              bankIndex={selectedBankIndex}
+              bank={banks[selectedBankIndex]}
+              activePatternIndex={activePatternIndex}
+              onLoad={onLoadPattern}
+              onContextMenu={onPatternContextMenu}
+            />
+          ),
+        },
+        {
+          id: "banks",
+          label: "Banks",
+          panel: (
+            <BankGrid
+              banks={banks}
+              selectedBankIndex={selectedBankIndex}
+              onSelect={onSelectBank}
+            />
+          ),
+        },
+      ]}
+    />
   );
 }

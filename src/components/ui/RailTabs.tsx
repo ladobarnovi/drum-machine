@@ -27,6 +27,24 @@ const TAB_BUTTON_CLASS: Record<"rail" | "panel", string> = {
   panel: "px-3 py-1.5 text-xs font-semibold sm:text-sm",
 };
 
+// "rail" sits loose in the sidebar column, so its strip is a pill of its own.
+// "panel" sits inside a bordered card, so its strip fuses into that card as a
+// header instead of nesting a second bordered box inside the first.
+const CONTAINER_CLASS: Record<"rail" | "panel", string> = {
+  rail: "flex flex-col gap-3",
+  panel: "border-line flex flex-col rounded-md border",
+};
+
+const TABLIST_CLASS: Record<"rail" | "panel", string> = {
+  rail: "border-line rounded-md border p-1",
+  panel: "border-line border-b p-2",
+};
+
+const TABPANEL_CLASS: Record<"rail" | "panel", string> = {
+  rail: "flex flex-col gap-3",
+  panel: "flex flex-col gap-3 p-4",
+};
+
 /**
  * A rail's worth of controls split across tabs, where `RailGroup` would stack
  * the same content in labelled bands.
@@ -83,12 +101,12 @@ export default function RailTabs({ label, tabs, variant = "rail" }: RailTabsProp
   };
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className={CONTAINER_CLASS[variant]}>
       <div
         role="tablist"
         aria-label={label}
         onKeyDown={handleKeyDown}
-        className="border-line flex gap-1 rounded-md border p-1"
+        className={`flex gap-1 ${TABLIST_CLASS[variant]}`}
       >
         {tabs.map((tab, index) => {
           const isActive = tab.id === active.id;
@@ -124,7 +142,7 @@ export default function RailTabs({ label, tabs, variant = "rail" }: RailTabsProp
         role="tabpanel"
         id={`${active.id}-panel`}
         aria-labelledby={`${active.id}-tab`}
-        className="flex flex-col gap-3"
+        className={TABPANEL_CLASS[variant]}
       >
         {active.panel}
       </div>
