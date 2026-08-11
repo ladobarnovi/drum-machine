@@ -35,6 +35,7 @@ import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
 import { useMidiAccess } from "@/hooks/useMidiAccess";
+import { useMidiClockInput } from "@/hooks/useMidiClockInput";
 import { useMidiClockOutput } from "@/hooks/useMidiClockOutput";
 import { useMidiInput } from "@/hooks/useMidiInput";
 import { useSampleBank } from "@/hooks/useSampleBank";
@@ -178,6 +179,35 @@ export default function DrumMachine() {
   } = useBanks();
   const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [swing, setSwing] = useState(DEFAULT_SWING);
+
+  /**
+   * Whether the transport runs at the BPM dialled into the slider, or at
+   * whatever tempo the incoming MIDI clock is estimated to be running —
+   * see `useMidiClockInput`. Kept apart from `bpm` itself rather than
+   * overwriting it while external, so switching back to Internal lands
+   * exactly where the slider was left rather than wherever the last
+   * incoming pulse happened to land it.
+   *
+   * Not persisted, unlike the device selections: defaulting back to
+   * Internal on every reload is what keeps a machine nobody has plugged
+   * a clock into today from silently waiting on one that's never coming.
+   */
+  const [midiClockSource, setMidiClockSource] = useState<
+    "internal" | "external"
+  >("internal");
+  const midiClockInput = useMidiClockInput();
+
+  /**
+   * The tempo actually driving the transport right now — read everywhere
+   * `bpm` used to be read for anything that has to follow what's actually
+   * playing, while the slider's own `bpm` is left to mean only what it has
+   * always meant: where the dial is set.
+   */
+  const effectiveBpm =
+    midiClockSource === "external" && midiClockInput.estimatedBpm !== null
+      ? midiClockInput.estimatedBpm
+      : bpm;
+
   const [selectedChannelId, setSelectedChannelId] = useState(
     channelIdForIndex(0),
   );
@@ -362,8 +392,8 @@ export default function DrumMachine() {
   // The delay depends on the tempo as well, so a BPM change re-applies it and
   // a synced delay tracks the transport.
   useEffect(() => {
-    applyMasterDelay(masterDelay, bpm);
-  }, [applyMasterDelay, bpm, masterDelay]);
+    applyMasterDelay(masterDelay, effectiveBpm);
+  }, [applyMasterDelay, effectiveBpm, masterDelay]);
 
   useEffect(() => {
     applyMasterReverb(masterReverb);
@@ -400,7 +430,7 @@ export default function DrumMachine() {
       const firedChannelIds: string[] = [];
       // The gap to the next tick, swing included — what a step's own repeats
       // have to fit inside without running into the one after it.
-      const stepDuration = secondsToNextStep(tick, bpm, swing);
+      const stepDuration = secondsToNextStep(tick, effectiveBpm, swing);
 
       for (const channel of channelsRef.current) {
         if (!isChannelAudible(channel, soloActive)) continue;
@@ -437,11 +467,11 @@ export default function DrumMachine() {
         choke(channelsChokedBy(channelsRef.current, sourceId), time);
       }
     },
-    [bpm, choke, flashChannels, swing, trigger],
+    [choke, effectiveBpm, flashChannels, swing, trigger],
   );
 
   const { isPlaying, currentTick, play, stop } = useSequencer({
-    bpm,
+    bpm: effectiveBpm,
     swing,
     ensureContext,
     onStep: handleStep,
@@ -1060,6 +1090,26 @@ export default function DrumMachine() {
   // there's one permission prompt regardless of how many of the two are used.
   const midiAccess = useMidiAccess();
 
+  /**
+   * An incoming Start or Continue while external clock is the chosen source:
+   * begins playback the same way pressing Play does, skipping only the
+   * `canPlay` guard the button itself enforces — a transport message
+   * arriving before anything is loaded is still safe to act on, since the
+   * scheduler simply has nothing to trigger yet. Ignored outright while the
+   * source is Internal, so gear left sending clock in the background can't
+   * start the transport nobody asked it to.
+   */
+  const handleMidiTransportStart = useCallback(() => {
+    if (midiClockSource !== "external" || isPlaying) return;
+    play();
+  }, [isPlaying, midiClockSource, play]);
+
+  const handleMidiTransportStop = useCallback(() => {
+    if (midiClockSource !== "external" || !isPlaying) return;
+    stop();
+    clearFlashes();
+  }, [clearFlashes, isPlaying, midiClockSource, stop]);
+
   const {
     inputs: midiInputs,
     selectedInputId: midiInputId,
@@ -1072,6 +1122,12 @@ export default function DrumMachine() {
     // it's binding a knob or driving one that's already mapped (see
     // `lib/midiCcMap`).
     onControlChange: handleIncomingCc,
+    // Always fed to the estimator regardless of which source is chosen, so a
+    // recent tempo is already waiting the moment External is switched on —
+    // see `useMidiClockInput`.
+    onClockTick: midiClockInput.handleClockTick,
+    onTransportStart: handleMidiTransportStart,
+    onTransportStop: handleMidiTransportStop,
   });
 
   /**
@@ -1095,7 +1151,15 @@ export default function DrumMachine() {
     outputs: midiOutputs,
     selectedOutputId: midiOutputId,
     selectOutput: selectMidiOutput,
-  } = useMidiClockOutput({ access: midiAccess, isPlaying, bpm, ensureContext });
+  } = useMidiClockOutput({
+    access: midiAccess,
+    isPlaying,
+    // Whatever tempo is actually running, external source included, so a
+    // second device chained off this machine's clock out follows the same
+    // beat this one is following rather than the slider it's ignoring.
+    bpm: effectiveBpm,
+    ensureContext,
+  });
 
   /**
    * Moves the editor to another channel, closing whichever step was open.
@@ -1625,6 +1689,9 @@ export default function DrumMachine() {
             outputs={midiOutputs}
             selectedOutputId={midiOutputId}
             onSelectOutput={selectMidiOutput}
+            clockSource={midiClockSource}
+            onClockSourceChange={setMidiClockSource}
+            estimatedBpm={midiClockInput.estimatedBpm}
           />
 
           <PresetPicker
@@ -1903,7 +1970,7 @@ export default function DrumMachine() {
                   <>
                     <MasterDelayControls
                       delay={masterDelay}
-                      bpm={bpm}
+                      bpm={effectiveBpm}
                       onChange={setMasterDelay}
                     />
 

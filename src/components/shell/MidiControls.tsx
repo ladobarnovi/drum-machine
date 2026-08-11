@@ -3,8 +3,11 @@
 import RailGroup from "@/components/ui/RailGroup";
 import type { MidiInputDevice } from "@/hooks/useMidiInput";
 import type { MidiOutputDevice } from "@/hooks/useMidiClockOutput";
+import type { MidiClockSource } from "@/lib/midi";
 
 const NONE_OPTION = "";
+const INTERNAL_OPTION = "internal";
+const EXTERNAL_OPTION = "external";
 
 type MidiControlsProps = {
   supported: boolean;
@@ -14,6 +17,11 @@ type MidiControlsProps = {
   outputs: MidiOutputDevice[];
   selectedOutputId: string | null;
   onSelectOutput: (id: string | null) => void;
+  /** Whether the transport follows the BPM slider or the incoming clock. */
+  clockSource: MidiClockSource;
+  onClockSourceChange: (source: MidiClockSource) => void;
+  /** The live tempo read off the input, or null while nothing's arrived recently. */
+  estimatedBpm: number | null;
 };
 
 /**
@@ -34,6 +42,9 @@ export default function MidiControls({
   outputs,
   selectedOutputId,
   onSelectOutput,
+  clockSource,
+  onClockSourceChange,
+  estimatedBpm,
 }: MidiControlsProps) {
   if (!supported) return null;
 
@@ -65,6 +76,35 @@ export default function MidiControls({
       <p className="text-muted text-xs">
         Notes 36–51 (C1–D#2 on most controllers) play channels 1–16.
       </p>
+
+      <label className="flex flex-col gap-1 text-xs">
+        <span>Clock source</span>
+        <select
+          value={clockSource}
+          onChange={(event) =>
+            onClockSourceChange(
+              event.target.value === EXTERNAL_OPTION
+                ? EXTERNAL_OPTION
+                : INTERNAL_OPTION,
+            )
+          }
+          aria-label="MIDI clock source"
+          className="border-edge bg-field w-full rounded border px-2 py-1 text-xs"
+        >
+          <option value={INTERNAL_OPTION}>Internal</option>
+          <option value={EXTERNAL_OPTION}>External</option>
+        </select>
+      </label>
+
+      {/* Only worth a line while it says something the select doesn't
+          already: which way External is actually going right now. */}
+      {clockSource === EXTERNAL_OPTION && (
+        <p className="text-muted text-xs">
+          {estimatedBpm !== null
+            ? `Following incoming clock — ${estimatedBpm} BPM.`
+            : "Waiting for a clock signal…"}
+        </p>
+      )}
 
       <label className="flex flex-col gap-1 text-xs">
         <span>Output</span>

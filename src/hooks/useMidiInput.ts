@@ -19,20 +19,37 @@ type UseMidiInputOptions = {
   onNoteOn: (channelIndex: number, velocityGain: number) => void;
   /** Called with the controller number and 0..127 value for each CC message. */
   onControlChange?: (controller: number, value: number) => void;
+  /**
+   * Called with the message's own timestamp for each incoming clock pulse —
+   * `MIDIMessageEvent.timeStamp`, the same clock `performance.now()` reads,
+   * rather than whatever moment this callback happens to run on, since
+   * estimating a tempo from the gaps between pulses only works if the
+   * timestamps are the ones the browser actually received the bytes at.
+   */
+  onClockTick?: (timestampMs: number) => void;
+  /** Called on an incoming Start or Continue — this machine has no paused
+   *  position to resume from, so both mean the same thing here: begin. */
+  onTransportStart?: () => void;
+  onTransportStop?: () => void;
 };
 
 /**
  * Listens for MIDI messages from a chosen input port: notes are mapped onto
  * the sixteen channels (see `lib/midi`) so a pad controller or a keyboard can
- * play the kit the way its own pads already do, and control changes are
- * handed to `onControlChange` for whatever's mapped to them (see
- * `lib/midiCcMap`) — the same physical device drives both, the way a
- * controller's pads and knobs already share one cable.
+ * play the kit the way its own pads already do; control changes are handed
+ * to `onControlChange` for whatever's mapped to them (see `lib/midiCcMap`);
+ * and clock/transport bytes are handed to `onClockTick`/`onTransportStart`/
+ * `onTransportStop` for following another device's tempo (see
+ * `useMidiClockInput`). One physical device, one cable, all three at once —
+ * a controller's pads, knobs and clock out already share it.
  */
 export function useMidiInput({
   access,
   onNoteOn,
   onControlChange,
+  onClockTick,
+  onTransportStart,
+  onTransportStop,
 }: UseMidiInputOptions) {
   const { supported, inputs, inputPortsRef } = access;
   const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
@@ -44,6 +61,18 @@ export function useMidiInput({
   useEffect(() => {
     onControlChangeRef.current = onControlChange;
   }, [onControlChange]);
+  const onClockTickRef = useRef(onClockTick);
+  useEffect(() => {
+    onClockTickRef.current = onClockTick;
+  }, [onClockTick]);
+  const onTransportStartRef = useRef(onTransportStart);
+  useEffect(() => {
+    onTransportStartRef.current = onTransportStart;
+  }, [onTransportStart]);
+  const onTransportStopRef = useRef(onTransportStop);
+  useEffect(() => {
+    onTransportStopRef.current = onTransportStop;
+  }, [onTransportStop]);
 
   // Restores a previous session's choice once there is something to restore
   // it onto — a saved id with no matching port is left unselected rather than
@@ -80,15 +109,31 @@ export function useMidiInput({
     input.onmidimessage = (event) => {
       const message = parseMidiMessage(event.data);
 
-      if (message.type === "noteon") {
-        const channelIndex = channelIndexForMidiNote(message.note);
-        if (channelIndex === null) return;
-        onNoteOnRef.current(channelIndex, midiVelocityToGain(message.velocity));
-        return;
-      }
-
-      if (message.type === "cc") {
-        onControlChangeRef.current?.(message.controller, message.value);
+      switch (message.type) {
+        case "noteon": {
+          const channelIndex = channelIndexForMidiNote(message.note);
+          if (channelIndex === null) return;
+          onNoteOnRef.current(
+            channelIndex,
+            midiVelocityToGain(message.velocity),
+          );
+          return;
+        }
+        case "cc":
+          onControlChangeRef.current?.(message.controller, message.value);
+          return;
+        case "clock":
+          onClockTickRef.current?.(event.timeStamp);
+          return;
+        case "start":
+        case "continue":
+          onTransportStartRef.current?.();
+          return;
+        case "stop":
+          onTransportStopRef.current?.();
+          return;
+        default:
+          return;
       }
     };
 
