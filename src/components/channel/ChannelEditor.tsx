@@ -274,6 +274,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             readout={`${Math.round(props.volume * 100)}%`}
             onChange={(value) => props.onVolumeChange(clampVolume(value))}
             {...lockProps("volume")}
+            midiMapId="channel:volume"
           />
 
           <RotaryKnob
@@ -286,6 +287,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             readout={formatPan(props.pan)}
             onChange={(value) => props.onPanChange(clampPan(value))}
             {...lockProps("pan")}
+            midiMapId="channel:pan"
           />
 
           <RotaryKnob
@@ -298,6 +300,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             readout={formatPitch(props.pitch)}
             onChange={(value) => props.onPitchChange(clampPitch(value))}
             {...lockProps("pitch")}
+            midiMapId="channel:pitch"
           />
         </div>
 

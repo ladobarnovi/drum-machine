@@ -51,6 +51,7 @@ export default function MasterFilterControls({
         onChange={(position) =>
           onChange({ ...filter, lowCutHz: sliderToFrequency(position) })
         }
+        midiMapId="master:filter:lowCut"
       />
 
       <RailSlider
@@ -68,6 +69,7 @@ export default function MasterFilterControls({
         onChange={(position) =>
           onChange({ ...filter, highCutHz: sliderToFrequency(position) })
         }
+        midiMapId="master:filter:highCut"
       />
     </MasterFxSection>
   );

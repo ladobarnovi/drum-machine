@@ -90,6 +90,7 @@ export default function MasterPhaserControls({
         onChange={(position) =>
           onChange({ ...phaser, rateHz: sliderToPhaserRate(position) })
         }
+        midiMapId="master:phaser:rate"
       />
 
       <RailSlider
@@ -103,6 +104,7 @@ export default function MasterPhaserControls({
         onChange={(value) =>
           onChange({ ...phaser, depth: clampPhaserDepth(value) })
         }
+        midiMapId="master:phaser:depth"
       />
 
       {/* Resonance, in the sense the delay's feedback is: it wraps the allpass
@@ -118,6 +120,7 @@ export default function MasterPhaserControls({
         onChange={(value) =>
           onChange({ ...phaser, feedback: clampPhaserFeedback(value) })
         }
+        midiMapId="master:phaser:feedback"
       />
 
       <RailSlider
@@ -129,6 +132,7 @@ export default function MasterPhaserControls({
         value={phaser.level}
         readout={`${Math.round(phaser.level * 100)}%`}
         onChange={(value) => onChange({ ...phaser, level: clampVolume(value) })}
+        midiMapId="master:phaser:level"
       />
     </MasterFxSection>
   );

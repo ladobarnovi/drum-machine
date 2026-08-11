@@ -124,6 +124,7 @@ import {
   type StepFill,
   type SwipeTarget,
 } from "@/lib/sequencer";
+import { handleIncomingCc } from "@/lib/midiCcMap";
 import { applyPattern } from "@/lib/patterns";
 import {
   DEFAULT_PRESET,
@@ -1063,7 +1064,15 @@ export default function DrumMachine() {
     inputs: midiInputs,
     selectedInputId: midiInputId,
     selectInput: selectMidiInput,
-  } = useMidiInput({ access: midiAccess, onNoteOn: handleMidiNoteOn });
+  } = useMidiInput({
+    access: midiAccess,
+    onNoteOn: handleMidiNoteOn,
+    // A CC message is never this machine's to interpret directly — it's
+    // routed straight to the shared MIDI-learn runtime, which knows whether
+    // it's binding a knob or driving one that's already mapped (see
+    // `lib/midiCcMap`).
+    onControlChange: handleIncomingCc,
+  });
 
   /**
    * Picking a device from the rail is a click, and so — unlike a note arriving

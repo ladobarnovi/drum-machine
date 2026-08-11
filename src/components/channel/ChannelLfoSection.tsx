@@ -65,6 +65,7 @@ export default function ChannelLfoSection({
           onChange={(position) =>
             onChange({ ...lfo, rateHz: sliderToLfoRate(position) })
           }
+          midiMapId="channel:lfo:rate"
         />
 
         {/* The readout is in the destination's own unit, so the same knob reads
@@ -80,6 +81,7 @@ export default function ChannelLfoSection({
           onChange={(value) =>
             onChange({ ...lfo, amount: clampLfoAmount(value) })
           }
+          midiMapId="channel:lfo:amount"
         />
       </div>
 

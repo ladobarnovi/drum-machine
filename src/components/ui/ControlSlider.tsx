@@ -1,5 +1,9 @@
 "use client";
 
+import type { MouseEvent } from "react";
+
+import { useMidiLearnControl } from "@/hooks/useMidiLearnControl";
+
 type ControlSliderProps = {
   label: string;
   min: number;
@@ -20,6 +24,12 @@ type ControlSliderProps = {
    * it happens to be locked — pass it to all of them or to none.
    */
   onClearLock?: () => void;
+  /**
+   * This slider's identity in the MIDI CC map (see `lib/midiCcMap`). Left
+   * undefined, the row has no MIDI behaviour at all — right-click does
+   * nothing special, and it renders exactly as it always has.
+   */
+  midiMapId?: string;
 };
 
 export default function ControlSlider({
@@ -32,13 +42,53 @@ export default function ControlSlider({
   onChange,
   locked = false,
   onClearLock,
+  midiMapId,
 }: ControlSliderProps) {
+  const midiLearn = useMidiLearnControl(midiMapId, min, max, onChange);
+
+  /**
+   * A right click, while this row has a MIDI identity: starts listening for
+   * the next CC, clears an existing binding, or cancels listening — whichever
+   * currently applies, so one gesture covers all three without a menu.
+   */
+  const handleContextMenu = (event: MouseEvent<HTMLElement>) => {
+    if (!midiLearn) return;
+    event.preventDefault();
+
+    if (midiLearn.isLearning) {
+      midiLearn.cancelLearn();
+    } else if (midiLearn.cc !== null) {
+      midiLearn.clearBinding();
+    } else {
+      midiLearn.startLearn();
+    }
+  };
+
+  const midiTitle = !midiLearn
+    ? undefined
+    : midiLearn.isLearning
+      ? "Listening for a MIDI CC — right-click to cancel"
+      : midiLearn.cc !== null
+        ? `Mapped to MIDI CC ${midiLearn.cc} — right-click to clear`
+        : "Right-click to map a MIDI CC";
+
   const slider = (
     <>
       {/* Locked labels take the colour of what is being looked at, so the
           overridden rows can be picked out of the panel at a glance. */}
-      <span className={`w-14 shrink-0 ${locked ? "text-select" : ""}`}>
+      <span className={`flex w-14 shrink-0 items-center gap-1 ${locked ? "text-select" : ""}`}>
         {label}
+
+        {/* A MIDI dot: solid once mapped, pulsing while listening for the CC
+            that will map it. Absent otherwise. */}
+        {midiLearn && (midiLearn.cc !== null || midiLearn.isLearning) && (
+          <span
+            aria-hidden
+            className={`bg-accent inline-block size-1.5 shrink-0 rounded-full ${
+              midiLearn.isLearning ? "animate-pulse" : ""
+            }`}
+          />
+        )}
       </span>
       <input
         type="range"
@@ -57,12 +107,26 @@ export default function ControlSlider({
   );
 
   if (!onClearLock) {
-    return <label className="flex items-center gap-2 text-xs">{slider}</label>;
+    return (
+      <label
+        onContextMenu={handleContextMenu}
+        title={midiTitle}
+        className="flex items-center gap-2 text-xs"
+      >
+        {slider}
+      </label>
+    );
   }
 
   return (
     <div className="flex items-center gap-2 text-xs">
-      <label className="flex flex-1 items-center gap-2">{slider}</label>
+      <label
+        onContextMenu={handleContextMenu}
+        title={midiTitle}
+        className="flex flex-1 items-center gap-2"
+      >
+        {slider}
+      </label>
 
       {/* Held open even when there is nothing to clear, so the rows of a panel
           stay aligned as locks come and go under them. */}

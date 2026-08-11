@@ -64,6 +64,7 @@ export default function MasterDriveControls({
         value={drive.amount}
         readout={`${Math.round(drive.amount * 100)}%`}
         onChange={(value) => onChange({ ...drive, amount: clampDrive(value) })}
+        midiMapId="master:drive:amount"
       />
 
       <RailSlider
@@ -75,6 +76,7 @@ export default function MasterDriveControls({
         value={drive.level}
         readout={`${Math.round(drive.level * 100)}%`}
         onChange={(value) => onChange({ ...drive, level: clampVolume(value) })}
+        midiMapId="master:drive:level"
       />
     </MasterFxSection>
   );

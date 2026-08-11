@@ -17,20 +17,33 @@ type UseMidiInputOptions = {
   access: MidiAccess;
   /** Called with the channel index and a 0..1 velocity gain for each note played. */
   onNoteOn: (channelIndex: number, velocityGain: number) => void;
+  /** Called with the controller number and 0..127 value for each CC message. */
+  onControlChange?: (controller: number, value: number) => void;
 };
 
 /**
- * Listens for MIDI note-on messages from a chosen input port and maps them
- * onto the sixteen channels (see `lib/midi`), so a pad controller or a
- * keyboard can play the kit the way its own pads already do.
+ * Listens for MIDI messages from a chosen input port: notes are mapped onto
+ * the sixteen channels (see `lib/midi`) so a pad controller or a keyboard can
+ * play the kit the way its own pads already do, and control changes are
+ * handed to `onControlChange` for whatever's mapped to them (see
+ * `lib/midiCcMap`) — the same physical device drives both, the way a
+ * controller's pads and knobs already share one cable.
  */
-export function useMidiInput({ access, onNoteOn }: UseMidiInputOptions) {
+export function useMidiInput({
+  access,
+  onNoteOn,
+  onControlChange,
+}: UseMidiInputOptions) {
   const { supported, inputs, inputPortsRef } = access;
   const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
   const onNoteOnRef = useRef(onNoteOn);
   useEffect(() => {
     onNoteOnRef.current = onNoteOn;
   }, [onNoteOn]);
+  const onControlChangeRef = useRef(onControlChange);
+  useEffect(() => {
+    onControlChangeRef.current = onControlChange;
+  }, [onControlChange]);
 
   // Restores a previous session's choice once there is something to restore
   // it onto — a saved id with no matching port is left unselected rather than
@@ -66,12 +79,17 @@ export function useMidiInput({ access, onNoteOn }: UseMidiInputOptions) {
 
     input.onmidimessage = (event) => {
       const message = parseMidiMessage(event.data);
-      if (message.type !== "noteon") return;
 
-      const channelIndex = channelIndexForMidiNote(message.note);
-      if (channelIndex === null) return;
+      if (message.type === "noteon") {
+        const channelIndex = channelIndexForMidiNote(message.note);
+        if (channelIndex === null) return;
+        onNoteOnRef.current(channelIndex, midiVelocityToGain(message.velocity));
+        return;
+      }
 
-      onNoteOnRef.current(channelIndex, midiVelocityToGain(message.velocity));
+      if (message.type === "cc") {
+        onControlChangeRef.current?.(message.controller, message.value);
+      }
     };
 
     return () => {

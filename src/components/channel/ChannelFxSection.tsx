@@ -141,6 +141,7 @@ export default function ChannelFxSection({
           readout={readout(shown.delaySend)}
           onChange={(value) => onDelaySendChange(clampSend(value))}
           {...lockProps("delaySend")}
+          midiMapId="channel:fx:delaySend"
         />
 
         <RotaryKnob
@@ -153,6 +154,7 @@ export default function ChannelFxSection({
           readout={readout(shown.reverbSend)}
           onChange={(value) => onReverbSendChange(clampSend(value))}
           {...lockProps("reverbSend")}
+          midiMapId="channel:fx:reverbSend"
         />
 
         <RotaryKnob
@@ -165,6 +167,7 @@ export default function ChannelFxSection({
           readout={readout(shown.phaserSend)}
           onChange={(value) => onPhaserSendChange(clampSend(value))}
           {...lockProps("phaserSend")}
+          midiMapId="channel:fx:phaserSend"
         />
       </div>
     </div>

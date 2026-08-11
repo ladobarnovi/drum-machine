@@ -33,6 +33,7 @@ export default function MasterVolumeControls({
         value={volume}
         readout={`${Math.round(volume * 100)}%`}
         onChange={(value) => onChange(clampVolume(value))}
+        midiMapId="master:volume"
       />
     </RailGroup>
   );

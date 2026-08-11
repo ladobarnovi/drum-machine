@@ -16,13 +16,15 @@ export const MIDI_MAX_NOTE = MIDI_BASE_NOTE + CHANNEL_COUNT;
 export type MidiMessage =
   | { type: "noteon"; note: number; velocity: number }
   | { type: "noteoff"; note: number }
+  | { type: "cc"; controller: number; value: number }
   | { type: "other" };
 
 /**
- * Decodes a raw Web MIDI message's bytes into the one thing this machine
- * listens for. Everything that isn't a note is `"other"` — clock, CC and
- * program-change bytes all fall through here rather than needing their own
- * cases nobody reads yet.
+ * Decodes a raw Web MIDI message's bytes into the things this machine
+ * listens for: notes, for triggering channels, and control changes, for
+ * mapping to a slider or knob. Everything else is `"other"` — clock and
+ * program-change bytes fall through here rather than needing their own cases
+ * nobody reads.
  */
 export function parseMidiMessage(data: Uint8Array | null): MidiMessage {
   if (!data || data.length < 2) return { type: "other" };
@@ -31,14 +33,17 @@ export function parseMidiMessage(data: Uint8Array | null): MidiMessage {
   // which this machine doesn't distinguish between — a controller sending on
   // channel 10 works exactly like one sending on channel 1.
   const status = data[0] & 0xf0;
-  const note = data[1];
-  const velocity = data.length > 2 ? data[2] : 0;
+  const data1 = data[1];
+  const data2 = data.length > 2 ? data[2] : 0;
 
   // A note-on with zero velocity is the running-status trick most MIDI gear
   // uses to mean "note off" without a second status byte, so it's folded into
   // the same case as an explicit 0x80.
-  if (status === 0x90 && velocity > 0) return { type: "noteon", note, velocity };
-  if (status === 0x90 || status === 0x80) return { type: "noteoff", note };
+  if (status === 0x90 && data2 > 0) {
+    return { type: "noteon", note: data1, velocity: data2 };
+  }
+  if (status === 0x90 || status === 0x80) return { type: "noteoff", note: data1 };
+  if (status === 0xb0) return { type: "cc", controller: data1, value: data2 };
   return { type: "other" };
 }
 
@@ -55,6 +60,12 @@ export function channelIndexForMidiNote(note: number): number | null {
  */
 export function midiVelocityToGain(velocity: number): number {
   return Math.min(Math.max(velocity, 0), 127) / 127;
+}
+
+/** A MIDI CC value (0..127), scaled linearly onto whatever range a mapped control's own slider covers. */
+export function ccValueToRange(value: number, min: number, max: number): number {
+  const clamped = Math.min(Math.max(value, 0), 127);
+  return min + (clamped / 127) * (max - min);
 }
 
 /** True in any browser that implements the Web MIDI API. */

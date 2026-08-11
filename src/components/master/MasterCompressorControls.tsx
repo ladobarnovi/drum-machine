@@ -68,6 +68,7 @@ export default function MasterCompressorControls({
         onChange={(value) =>
           onChange({ ...compressor, thresholdDb: clampThresholdDb(value) })
         }
+        midiMapId="master:compressor:threshold"
       />
 
       <RailSlider
@@ -81,6 +82,7 @@ export default function MasterCompressorControls({
         onChange={(value) =>
           onChange({ ...compressor, ratio: clampRatio(value) })
         }
+        midiMapId="master:compressor:ratio"
       />
 
       <RailSlider
@@ -97,6 +99,7 @@ export default function MasterCompressorControls({
             attackSeconds: clampCompressorAttack(value),
           })
         }
+        midiMapId="master:compressor:attack"
       />
 
       <RailSlider
@@ -113,6 +116,7 @@ export default function MasterCompressorControls({
             releaseSeconds: clampCompressorRelease(value),
           })
         }
+        midiMapId="master:compressor:release"
       />
 
       {/* Last, because it is last in this stage's signal too: what the
@@ -128,6 +132,7 @@ export default function MasterCompressorControls({
         onChange={(value) =>
           onChange({ ...compressor, level: clampVolume(value) })
         }
+        midiMapId="master:compressor:makeup"
       />
     </MasterFxSection>
   );

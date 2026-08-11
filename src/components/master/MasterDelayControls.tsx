@@ -133,6 +133,7 @@ export default function MasterDelayControls({
           onChange={(value) =>
             onChange({ ...delay, timeSeconds: clampDelaySeconds(value) })
           }
+          midiMapId="master:delay:time"
         />
       )}
 
@@ -173,6 +174,7 @@ export default function MasterDelayControls({
         onChange={(value) =>
           onChange({ ...delay, feedback: clampFeedback(value) })
         }
+        midiMapId="master:delay:feedback"
       />
 
       {/*
@@ -196,6 +198,7 @@ export default function MasterDelayControls({
         onChange={(position) =>
           onChange({ ...delay, toneHz: sliderToFrequency(position) })
         }
+        midiMapId="master:delay:tone"
       />
 
       <RailSlider
@@ -207,6 +210,7 @@ export default function MasterDelayControls({
         value={delay.level}
         readout={`${Math.round(delay.level * 100)}%`}
         onChange={(value) => onChange({ ...delay, level: clampVolume(value) })}
+        midiMapId="master:delay:level"
       />
 
       {/*
@@ -225,6 +229,7 @@ export default function MasterDelayControls({
         onChange={(value) =>
           onChange({ ...delay, reverbSend: clampSend(value) })
         }
+        midiMapId="master:delay:reverbSend"
       />
     </MasterFxSection>
   );

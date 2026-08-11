@@ -154,6 +154,7 @@ export default function ChannelEnvelopeSection({
           }
           onChange={(position) => onAttackChange(sliderToAttack(position))}
           {...lockProps("attackSeconds")}
+          midiMapId="channel:envelope:attack"
         />
 
         <RotaryKnob
@@ -170,6 +171,7 @@ export default function ChannelEnvelopeSection({
           }
           onChange={(position) => onDecayChange(sliderToDecay(position))}
           {...lockProps("decaySeconds")}
+          midiMapId="channel:envelope:decay"
         />
 
         <RotaryKnob
@@ -186,6 +188,7 @@ export default function ChannelEnvelopeSection({
           }
           onChange={onSustainChange}
           {...lockProps("sustainLevel")}
+          midiMapId="channel:envelope:sustain"
         />
 
         <RotaryKnob
@@ -202,6 +205,7 @@ export default function ChannelEnvelopeSection({
           }
           onChange={(position) => onReleaseChange(sliderToRelease(position))}
           {...lockProps("releaseSeconds")}
+          midiMapId="channel:envelope:release"
         />
       </div>
     </div>

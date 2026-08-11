@@ -58,6 +58,7 @@ export default function MasterReverbControls({
         onChange={(value) =>
           onChange({ ...reverb, decaySeconds: clampReverbDecay(value) })
         }
+        midiMapId="master:reverb:decay"
       />
 
       {/* Shares the cutoff scale the filters use, so the readout is a real Hz. */}
@@ -76,6 +77,7 @@ export default function MasterReverbControls({
         onChange={(position) =>
           onChange({ ...reverb, toneHz: sliderToFrequency(position) })
         }
+        midiMapId="master:reverb:tone"
       />
 
       <RailSlider
@@ -87,6 +89,7 @@ export default function MasterReverbControls({
         value={reverb.level}
         readout={`${Math.round(reverb.level * 100)}%`}
         onChange={(value) => onChange({ ...reverb, level: clampVolume(value) })}
+        midiMapId="master:reverb:level"
       />
 
       {/*
@@ -105,6 +108,7 @@ export default function MasterReverbControls({
         onChange={(value) =>
           onChange({ ...reverb, phaserSend: clampSend(value) })
         }
+        midiMapId="master:reverb:phaserSend"
       />
     </MasterFxSection>
   );

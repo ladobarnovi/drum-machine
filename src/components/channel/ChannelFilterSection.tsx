@@ -210,6 +210,7 @@ export default function ChannelFilterSection({
           }
           onChange={(position) => onLowCutChange(sliderToFrequency(position))}
           {...lockProps("lowCutHz")}
+          midiMapId="channel:filter:lowCutHz"
         />
 
         <RotaryKnob
@@ -222,6 +223,7 @@ export default function ChannelFilterSection({
           readout={formatResonance(shown.lowCutResonance)}
           onChange={onLowCutResonanceChange}
           {...lockProps("lowCutResonance")}
+          midiMapId="channel:filter:lowCutResonance"
         />
 
         <RotaryKnob
@@ -238,6 +240,7 @@ export default function ChannelFilterSection({
           }
           onChange={(position) => onHighCutChange(sliderToFrequency(position))}
           {...lockProps("highCutHz")}
+          midiMapId="channel:filter:highCutHz"
         />
 
         <RotaryKnob
@@ -250,6 +253,7 @@ export default function ChannelFilterSection({
           readout={formatResonance(shown.highCutResonance)}
           onChange={onHighCutResonanceChange}
           {...lockProps("highCutResonance")}
+          midiMapId="channel:filter:highCutResonance"
         />
       </div>
 
