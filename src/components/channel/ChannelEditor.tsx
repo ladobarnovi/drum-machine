@@ -20,17 +20,20 @@ import {
   DEFAULT_STEP_PROBABILITY,
   DEFAULT_STEP_REPEAT,
   DEFAULT_STEP_SLICE,
+  DEFAULT_STEP_TIMING,
   DEFAULT_STEP_VELOCITY,
   MAX_PAN,
   MAX_PITCH,
   MAX_STEP_PROBABILITY,
   MAX_STEP_REPEAT,
+  MAX_STEP_TIMING,
   MAX_STEP_VELOCITY,
   MAX_VOLUME,
   MIN_PAN,
   MIN_PITCH,
   MIN_STEP_PROBABILITY,
   MIN_STEP_REPEAT,
+  MIN_STEP_TIMING,
   MIN_STEP_VELOCITY,
   MIN_VOLUME,
   channelDisplayName,
@@ -44,6 +47,7 @@ import {
   formatSeconds,
   formatStepRepeat,
   formatStepSlice,
+  formatStepTiming,
   formatVelocity,
   isSliced,
   resolveSwipeTarget,
@@ -137,6 +141,7 @@ type SequencerSectionProps = {
   onStepSliceChange: (stepIndex: number, slice: number) => void;
   onStepProbabilityChange: (stepIndex: number, probability: number) => void;
   onStepRepeatChange: (stepIndex: number, repeatCount: number) => void;
+  onStepTimingChange: (stepIndex: number, timingOffset: number) => void;
   onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
   onSwipeTargetChange: (target: SwipeTarget) => void;
   onApplyStepFill: (fill: StepFill) => void;
@@ -391,9 +396,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
 
         {/*
           Only up while a step is held open — the same condition that puts the
-          grid into edit mode in the first place. Position joins the row only
-          on a sliced channel, the same rule the grid itself uses to decide
-          whether a step has a part to point at.
+          grid into edit mode in the first place.
         */}
         {openStep && editingStepIndex !== null && (
           <div className="flex flex-col gap-2">
@@ -401,7 +404,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
               {`Step ${editingStepIndex + 1}`}
             </h3>
 
-            <div className="grid grid-cols-3 justify-items-center gap-x-2 gap-y-4 sm:grid-cols-4 sm:gap-x-6">
+            <div className="grid grid-cols-5 justify-items-center gap-x-2 gap-y-4 sm:gap-x-6">
               <RotaryKnob
                 label="Velocity"
                 min={MIN_STEP_VELOCITY}
@@ -456,30 +459,68 @@ export default function ChannelEditor(props: ChannelEditorProps) {
                 }
               />
 
-              {sliceCount !== null &&
-                (() => {
-                  const slice = clampStepSlice(openStep.slice, sliceCount);
+              <RotaryKnob
+                label="Timing"
+                ariaLabel="Step timing offset"
+                min={MIN_STEP_TIMING}
+                max={MAX_STEP_TIMING}
+                step={0.001}
+                value={openStep.timingOffset}
+                readout={formatStepTiming(openStep.timingOffset)}
+                onChange={(timingOffset) =>
+                  props.onStepTimingChange(editingStepIndex, timingOffset)
+                }
+                locked={openStep.timingOffset !== DEFAULT_STEP_TIMING}
+                onClearLock={() =>
+                  props.onStepTimingChange(editingStepIndex, DEFAULT_STEP_TIMING)
+                }
+              />
+
+              {/*
+                Kept in the row rather than pulled from it on a one shot, so
+                the knob count doesn't jump as a channel is sliced and
+                unsliced — only greyed out, the same as a bypassed filter
+                cutoff, since there is no part of an unsliced sample for it
+                to point at.
+              */}
+              {(() => {
+                if (sliceCount === null) {
                   return (
                     <RotaryKnob
                       label="Position"
-                      min={1}
-                      max={sliceCount}
+                      min={0}
+                      max={1}
                       step={1}
-                      value={slice + 1}
-                      readout={formatStepSlice(slice, sliceCount)}
-                      onChange={(value) =>
-                        props.onStepSliceChange(editingStepIndex, value - 1)
-                      }
-                      locked={slice > DEFAULT_STEP_SLICE}
-                      onClearLock={() =>
-                        props.onStepSliceChange(
-                          editingStepIndex,
-                          DEFAULT_STEP_SLICE,
-                        )
-                      }
+                      value={0}
+                      readout="—"
+                      onChange={() => {}}
+                      disabled
                     />
                   );
-                })()}
+                }
+
+                const slice = clampStepSlice(openStep.slice, sliceCount);
+                return (
+                  <RotaryKnob
+                    label="Position"
+                    min={1}
+                    max={sliceCount}
+                    step={1}
+                    value={slice + 1}
+                    readout={formatStepSlice(slice, sliceCount)}
+                    onChange={(value) =>
+                      props.onStepSliceChange(editingStepIndex, value - 1)
+                    }
+                    locked={slice > DEFAULT_STEP_SLICE}
+                    onClearLock={() =>
+                      props.onStepSliceChange(
+                        editingStepIndex,
+                        DEFAULT_STEP_SLICE,
+                      )
+                    }
+                  />
+                );
+              })()}
             </div>
           </div>
         )}

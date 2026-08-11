@@ -19,6 +19,7 @@ type SequencerTabsSectionProps = {
   onStepSliceChange: (stepIndex: number, slice: number) => void;
   onStepProbabilityChange: (stepIndex: number, probability: number) => void;
   onStepRepeatChange: (stepIndex: number, repeatCount: number) => void;
+  onStepTimingChange: (stepIndex: number, timingOffset: number) => void;
   onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
   onSwipeTargetChange: (target: SwipeTarget) => void;
   onApplyStepFill: (fill: StepFill) => void;
@@ -56,6 +57,7 @@ export default function SequencerTabsSection({
   onStepSliceChange,
   onStepProbabilityChange,
   onStepRepeatChange,
+  onStepTimingChange,
   onStepContextMenu,
   onSwipeTargetChange,
   onApplyStepFill,
@@ -93,6 +95,7 @@ export default function SequencerTabsSection({
               onStepSliceChange={onStepSliceChange}
               onStepProbabilityChange={onStepProbabilityChange}
               onStepRepeatChange={onStepRepeatChange}
+              onStepTimingChange={onStepTimingChange}
               onStepContextMenu={onStepContextMenu}
               onSwipeTargetChange={onSwipeTargetChange}
               onApplyStepFill={onApplyStepFill}

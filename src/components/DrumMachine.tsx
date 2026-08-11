@@ -77,6 +77,7 @@ import {
   clampVolume,
   clearStepAt,
   clearStepLockAt,
+  clampStepTiming,
   clearStepLocksAt,
   clearSteps,
   createInitialChannels,
@@ -96,6 +97,7 @@ import {
   setStepProbabilityAt,
   setStepRepeatAt,
   setStepSliceAt,
+  setStepTimingAt,
   setStepVelocityAt,
   stepFires,
   toggleStepAt,
@@ -406,9 +408,13 @@ export default function DrumMachine() {
         // happens in full or not at all — never half-fires.
         if (!stepFires(step.probability)) continue;
 
+        // The step's own nudge off the grid, on top of whichever repeat is
+        // firing — a roll moves with the hit that owns it rather than staying
+        // pinned to the grid the hit itself has stepped off.
+        const hitTime = time + clampStepTiming(step.timingOffset);
         const options = triggerOptionsForChannel(channel, step);
         for (const offset of repeatOffsets(step.repeatCount, stepDuration)) {
-          trigger(channel.id, time + offset, options);
+          trigger(channel.id, hitTime + offset, options);
         }
         firedChannelIds.push(channel.id);
       }
@@ -568,6 +574,15 @@ export default function DrumMachine() {
     (stepIndex: number, repeatCount: number) => {
       updateSelectedSteps((steps) =>
         setStepRepeatAt(steps, stepIndex, repeatCount),
+      );
+    },
+    [updateSelectedSteps],
+  );
+
+  const handleStepTimingChange = useCallback(
+    (stepIndex: number, timingOffset: number) => {
+      updateSelectedSteps((steps) =>
+        setStepTimingAt(steps, stepIndex, timingOffset),
       );
     },
     [updateSelectedSteps],
@@ -1755,6 +1770,7 @@ export default function DrumMachine() {
               onStepSliceChange={handleStepSliceChange}
               onStepProbabilityChange={handleStepProbabilityChange}
               onStepRepeatChange={handleStepRepeatChange}
+              onStepTimingChange={handleStepTimingChange}
               onStepContextMenu={handleStepContextMenu}
               onSwipeTargetChange={setSwipeTarget}
               onApplyStepFill={handleApplyStepFill}

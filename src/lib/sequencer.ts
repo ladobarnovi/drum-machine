@@ -1205,6 +1205,21 @@ export const MAX_STEP_REPEAT = 4;
 export const DEFAULT_STEP_REPEAT = MIN_STEP_REPEAT;
 
 /**
+ * How far a step's own trigger may be nudged off the grid, in seconds either
+ * way. Independent of tempo and of swing — both already move a step's
+ * *scheduled* time; this moves the hit itself, the way a drummer sits a touch
+ * ahead of or behind the beat.
+ *
+ * Capped in milliseconds rather than as a fraction of the step, so the feel it
+ * dials in stays the same size at any tempo: a 20 ms push reads the same push
+ * at 90 BPM as at 160. Fifty either way is on the outer edge of what still
+ * reads as timing rather than as a second, separate hit.
+ */
+export const MIN_STEP_TIMING = -0.05;
+export const MAX_STEP_TIMING = 0.05;
+export const DEFAULT_STEP_TIMING = 0;
+
+/**
  * The channel parameters a single step is allowed to override.
  *
  * Written as keys of `Channel` rather than as a list of their own, so the two
@@ -1272,6 +1287,13 @@ export type Step = {
    */
   slice: number;
   /**
+   * Seconds this step's trigger is moved off the grid, positive later and
+   * negative earlier. Applied on top of the step's scheduled time — tempo and
+   * swing included — so it is a nudge on the hit itself rather than a second
+   * say over when the grid places it.
+   */
+  timingOffset: number;
+  /**
    * What this step overrides, or undefined for a step that plays the channel as
    * its sliders show it. Left off rather than held as an empty object, since
    * most steps lock nothing and 64 of them across 16 channels is a thousand
@@ -1287,6 +1309,7 @@ export function createStep(): Step {
     probability: DEFAULT_STEP_PROBABILITY,
     repeatCount: DEFAULT_STEP_REPEAT,
     slice: DEFAULT_STEP_SLICE,
+    timingOffset: DEFAULT_STEP_TIMING,
   };
 }
 
@@ -1328,6 +1351,17 @@ export function clampStepRepeat(value: number): number {
 
 export function formatStepRepeat(value: number): string {
   return `×${clampStepRepeat(value)}`;
+}
+
+export function clampStepTiming(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_STEP_TIMING;
+  return Math.min(Math.max(value, MIN_STEP_TIMING), MAX_STEP_TIMING);
+}
+
+/** Signed, so the readout says which way the hit is moved and not just by how much. */
+export function formatStepTiming(value: number): string {
+  const ms = Math.round(clampStepTiming(value) * 1000);
+  return ms === 0 ? "0 ms" : `${ms > 0 ? "+" : ""}${ms} ms`;
 }
 
 /**
@@ -2193,6 +2227,23 @@ export function setStepSliceAt(
   }));
 }
 
+/**
+ * Nudges a step's trigger off the grid, switching it on if it wasn't — the
+ * same reasoning as velocity: reaching for a step's timing is a request to
+ * hear it, not to leave it silent regardless of when it would have landed.
+ */
+export function setStepTimingAt(
+  steps: Step[],
+  index: number,
+  timingOffset: number,
+): Step[] {
+  return withStep(steps, index, (step) => ({
+    ...step,
+    on: true,
+    timingOffset: clampStepTiming(timingOffset),
+  }));
+}
+
 /** Overrides one of the channel's parameters on one step. */
 export function setStepLockAt(
   steps: Step[],
@@ -2254,6 +2305,7 @@ export function isStepCleared(step: Step): boolean {
     step.probability === DEFAULT_STEP_PROBABILITY &&
     step.repeatCount === DEFAULT_STEP_REPEAT &&
     step.slice === DEFAULT_STEP_SLICE &&
+    step.timingOffset === DEFAULT_STEP_TIMING &&
     !hasStepLocks(step)
   );
 }
@@ -2274,6 +2326,7 @@ export function pasteStepAt(
     probability: source.probability,
     repeatCount: source.repeatCount,
     slice: source.slice,
+    timingOffset: source.timingOffset,
     ...(source.locks ? { locks: { ...source.locks } } : {}),
   }));
 }

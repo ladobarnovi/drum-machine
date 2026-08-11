@@ -24,6 +24,15 @@ type RotaryKnobProps = {
    * happen to be locked — pass it to all of them or to none.
    */
   onClearLock?: () => void;
+  /**
+   * Shown rather than hidden, so a row of knobs keeps its count and its
+   * layout even where one of them has nothing to turn — a channel with no
+   * slices to position a hit within, say. Takes both drag and keyboard out of
+   * the loop rather than trusting the caller's `value`/`onChange` to already
+   * be inert, since a knob otherwise stays draggable however meaningless the
+   * number it would land on.
+   */
+  disabled?: boolean;
 };
 
 /**
@@ -98,6 +107,7 @@ export default function RotaryKnob({
   onChange,
   locked = false,
   onClearLock,
+  disabled = false,
 }: RotaryKnobProps) {
   /**
    * Where the pointer was at the last move, and the unrounded value the drag
@@ -125,6 +135,7 @@ export default function RotaryKnob({
     range > 0 ? (Math.min(Math.max(value, min), max) - min) / range : 0;
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
     // Anything but the primary button is somebody else's gesture.
     if (event.button !== 0) return;
 
@@ -154,6 +165,8 @@ export default function RotaryKnob({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+
     // A hundredth of the range per press, or one step where the steps are
     // coarser than that — a knob with 24 positions should move by one of them
     // rather than by a fraction that rounds back to where it started.
@@ -201,19 +214,24 @@ export default function RotaryKnob({
     <div className="flex flex-col items-center gap-1">
       <div
         role="slider"
-        tabIndex={0}
+        tabIndex={disabled ? -1 : 0}
         aria-label={ariaLabel ?? label}
         aria-valuemin={min}
         aria-valuemax={max}
         aria-valuenow={value}
         aria-valuetext={readout}
+        aria-disabled={disabled}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onKeyDown={handleKeyDown}
         // `touch-none` keeps the browser from claiming the drag for scrolling,
         // which would swallow it before it arrived — the same reason the step
         // grid and the trim handles set it.
-        className="size-12 md:size-14 cursor-ns-resize touch-none rounded-full outline-none select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+        className={`size-12 touch-none rounded-full outline-none select-none md:size-14 ${
+          disabled
+            ? "cursor-not-allowed opacity-40"
+            : "cursor-ns-resize focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+        }`}
       >
         <svg viewBox="0 0 100 100" aria-hidden className="size-full">
           {/* The travel itself, unlit — the same circle the value rides, so the
@@ -229,8 +247,9 @@ export default function RotaryKnob({
 
           {/* How far along it the value sits. Skipped outright at the very
               bottom of the range, where an arc of no length still paints a cap
-              and would read as a value that isn't there. */}
-          {fraction > 0.001 && (
+              and would read as a value that isn't there — and outright while
+              disabled, where the value isn't a level to read at all. */}
+          {!disabled && fraction > 0.001 && (
             <path
               d={arcPath(fraction)}
               fill="none"
@@ -267,15 +286,21 @@ export default function RotaryKnob({
           overridden knob can be picked out of the row at a glance — the same
           mark `ControlSlider` puts on its rows. */}
       <span
-        className={`text-center text-[10px] leading-tight ${locked ? "text-select" : ""}`}
+        className={`text-center text-[10px] leading-tight ${
+          disabled ? "text-muted opacity-40" : locked ? "text-select" : ""
+        }`}
       >
         {label}
       </span>
 
       <div className="flex items-center gap-0.5">
-        <span className="text-muted text-[10px] tabular-nums">{readout}</span>
+        <span
+          className={`text-muted text-[10px] tabular-nums ${disabled ? "opacity-40" : ""}`}
+        >
+          {readout}
+        </span>
 
-        {onClearLock && locked && (
+        {!disabled && onClearLock && locked && (
           <button
             type="button"
             onClick={onClearLock}
