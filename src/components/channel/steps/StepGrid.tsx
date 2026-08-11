@@ -52,29 +52,34 @@ export default function StepGrid({
   const beatCount = Math.ceil(visible.length / STEPS_PER_BEAT);
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {Array.from({ length: beatCount }, (_, beat) => {
-        const offset = beat * STEPS_PER_BEAT;
-        return (
-          <StepBeat
-            key={offset}
-            channelLabel={channelLabel}
-            steps={visible.slice(offset, offset + STEPS_PER_BEAT)}
-            channelPitch={channelPitch}
-            sliceCount={sliceCount}
-            swipeTarget={swipeTarget}
-            offset={offset}
-            currentStep={currentStep}
-            editingStep={editingStep}
-            onStepClick={onStepClick}
-            onStepHold={onStepHold}
-            onStepVelocityChange={onStepVelocityChange}
-            onStepPitchChange={onStepPitchChange}
-            onStepSliceChange={onStepSliceChange}
-            onStepContextMenu={onStepContextMenu}
-          />
-        );
-      })}
-    </div>
+    <>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {Array.from({ length: beatCount }, (_, beat) => {
+          const offset = beat * STEPS_PER_BEAT;
+          return (
+            <StepBeat
+              key={offset}
+              channelLabel={channelLabel}
+              steps={visible.slice(offset, offset + STEPS_PER_BEAT)}
+              channelPitch={channelPitch}
+              sliceCount={sliceCount}
+              swipeTarget={swipeTarget}
+              offset={offset}
+              currentStep={currentStep}
+              editingStep={editingStep}
+              onStepClick={onStepClick}
+              onStepHold={onStepHold}
+              onStepVelocityChange={onStepVelocityChange}
+              onStepPitchChange={onStepPitchChange}
+              onStepSliceChange={onStepSliceChange}
+              onStepContextMenu={onStepContextMenu}
+            />
+          );
+        })}
+      </div>
+      <p className="text-xs text-gray-500">
+        Press and hold to enter step edit mode for parameter locking
+      </p>
+    </>
   );
 }

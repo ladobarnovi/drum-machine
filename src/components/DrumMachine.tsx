@@ -1753,6 +1753,8 @@ export default function DrumMachine() {
               onStepVelocityChange={handleStepVelocityChange}
               onStepPitchChange={handleStepPitchChange}
               onStepSliceChange={handleStepSliceChange}
+              onStepProbabilityChange={handleStepProbabilityChange}
+              onStepRepeatChange={handleStepRepeatChange}
               onStepContextMenu={handleStepContextMenu}
               onSwipeTargetChange={setSwipeTarget}
               onApplyStepFill={handleApplyStepFill}

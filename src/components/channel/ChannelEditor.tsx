@@ -17,19 +17,34 @@ import Accordion from "@/components/ui/Accordion";
 import RotaryKnob from "@/components/ui/RotaryKnob";
 import type { LibraryEntry } from "@/lib/sampleLibrary";
 import {
+  DEFAULT_STEP_PROBABILITY,
+  DEFAULT_STEP_REPEAT,
+  DEFAULT_STEP_SLICE,
+  DEFAULT_STEP_VELOCITY,
   MAX_PAN,
   MAX_PITCH,
+  MAX_STEP_PROBABILITY,
+  MAX_STEP_REPEAT,
+  MAX_STEP_VELOCITY,
   MAX_VOLUME,
   MIN_PAN,
   MIN_PITCH,
+  MIN_STEP_PROBABILITY,
+  MIN_STEP_REPEAT,
+  MIN_STEP_VELOCITY,
   MIN_VOLUME,
   channelDisplayName,
   clampPan,
   clampPitch,
+  clampStepSlice,
   clampVolume,
   formatPan,
   formatPitch,
+  formatProbability,
   formatSeconds,
+  formatStepRepeat,
+  formatStepSlice,
+  formatVelocity,
   isSliced,
   resolveSwipeTarget,
   swipeTargetsFor,
@@ -120,6 +135,8 @@ type SequencerSectionProps = {
   onStepVelocityChange: (stepIndex: number, velocity: number) => void;
   onStepPitchChange: (stepIndex: number, semitones: number) => void;
   onStepSliceChange: (stepIndex: number, slice: number) => void;
+  onStepProbabilityChange: (stepIndex: number, probability: number) => void;
+  onStepRepeatChange: (stepIndex: number, repeatCount: number) => void;
   onStepContextMenu: (stepIndex: number, x: number, y: number) => void;
   onSwipeTargetChange: (target: SwipeTarget) => void;
   onApplyStepFill: (fill: StepFill) => void;
@@ -343,6 +360,12 @@ export default function ChannelEditor(props: ChannelEditorProps) {
     // the step buttons — there are no parts for a hit to be at.
     const sliceCount = isSliced(channel.sampleMode) ? channel.sliceCount : null;
 
+    // The step the grid below has open, if any — held by index so the knobs
+    // below can write back to it the same way the grid's own gestures do.
+    const editingStepIndex = props.editingStep;
+    const openStep =
+      editingStepIndex === null ? null : channel.steps[editingStepIndex];
+
     // No `Card` here, unlike the other two sections: this one shares its card
     // with the Patterns and Banks tabs it sits alongside, and that wrapper —
     // along with the tab strip that used to be this section's own "Sequencer"
@@ -365,6 +388,101 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           onStepSliceChange={props.onStepSliceChange}
           onStepContextMenu={props.onStepContextMenu}
         />
+
+        {/*
+          Only up while a step is held open — the same condition that puts the
+          grid into edit mode in the first place. Position joins the row only
+          on a sliced channel, the same rule the grid itself uses to decide
+          whether a step has a part to point at.
+        */}
+        {openStep && editingStepIndex !== null && (
+          <div className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold">
+              {`Step ${editingStepIndex + 1}`}
+            </h3>
+
+            <div className="grid grid-cols-3 justify-items-center gap-x-2 gap-y-4 sm:grid-cols-4 sm:gap-x-6">
+              <RotaryKnob
+                label="Velocity"
+                min={MIN_STEP_VELOCITY}
+                max={MAX_STEP_VELOCITY}
+                step={0.01}
+                value={openStep.velocity}
+                readout={formatVelocity(openStep.velocity)}
+                onChange={(velocity) =>
+                  props.onStepVelocityChange(editingStepIndex, velocity)
+                }
+                locked={openStep.velocity < MAX_STEP_VELOCITY}
+                onClearLock={() =>
+                  props.onStepVelocityChange(
+                    editingStepIndex,
+                    DEFAULT_STEP_VELOCITY,
+                  )
+                }
+              />
+
+              <RotaryKnob
+                label="Repeat"
+                min={MIN_STEP_REPEAT}
+                max={MAX_STEP_REPEAT}
+                step={1}
+                value={openStep.repeatCount}
+                readout={formatStepRepeat(openStep.repeatCount)}
+                onChange={(repeatCount) =>
+                  props.onStepRepeatChange(editingStepIndex, repeatCount)
+                }
+                locked={openStep.repeatCount > MIN_STEP_REPEAT}
+                onClearLock={() =>
+                  props.onStepRepeatChange(editingStepIndex, DEFAULT_STEP_REPEAT)
+                }
+              />
+
+              <RotaryKnob
+                label="Probability"
+                min={MIN_STEP_PROBABILITY}
+                max={MAX_STEP_PROBABILITY}
+                step={0.01}
+                value={openStep.probability}
+                readout={formatProbability(openStep.probability)}
+                onChange={(probability) =>
+                  props.onStepProbabilityChange(editingStepIndex, probability)
+                }
+                locked={openStep.probability < MAX_STEP_PROBABILITY}
+                onClearLock={() =>
+                  props.onStepProbabilityChange(
+                    editingStepIndex,
+                    DEFAULT_STEP_PROBABILITY,
+                  )
+                }
+              />
+
+              {sliceCount !== null &&
+                (() => {
+                  const slice = clampStepSlice(openStep.slice, sliceCount);
+                  return (
+                    <RotaryKnob
+                      label="Position"
+                      min={1}
+                      max={sliceCount}
+                      step={1}
+                      value={slice + 1}
+                      readout={formatStepSlice(slice, sliceCount)}
+                      onChange={(value) =>
+                        props.onStepSliceChange(editingStepIndex, value - 1)
+                      }
+                      locked={slice > DEFAULT_STEP_SLICE}
+                      onClearLock={() =>
+                        props.onStepSliceChange(
+                          editingStepIndex,
+                          DEFAULT_STEP_SLICE,
+                        )
+                      }
+                    />
+                  );
+                })()}
+            </div>
+          </div>
+        )}
 
         <StepPatternControls
           steps={channel.steps}
