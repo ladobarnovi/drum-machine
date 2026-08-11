@@ -1,7 +1,6 @@
 "use client";
 
 import LengthControl from "./LengthControl";
-import Accordion from "@/components/ui/Accordion";
 import {
   HUMANIZE_VELOCITY_AMOUNT,
   STEP_FILLS,
@@ -104,7 +103,7 @@ export default function StepPatternControls({
   const headingClass = "text-xs font-semibold";
 
   return (
-    <Accordion title="Sequencer Options" defaultOpen={false}>
+    <div className="flex flex-col gap-4">
       <div className={groupClass}>
         <h2 className={headingClass}>Length</h2>
 
@@ -244,6 +243,6 @@ export default function StepPatternControls({
           ))}
         </div>
       </div>
-    </Accordion>
+    </div>
   );
 }

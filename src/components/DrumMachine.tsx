@@ -19,6 +19,7 @@ import SequencerTabsSection from "@/components/patterns/SequencerTabsSection";
 import PresetPicker from "@/components/session/PresetPicker";
 import SnapshotControls from "@/components/session/SnapshotControls";
 import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
+import MidiControls from "@/components/shell/MidiControls";
 import MobileFooterNav, {
   type MobilePage,
 } from "@/components/shell/MobileFooterNav";
@@ -33,6 +34,9 @@ import { useBanks } from "@/hooks/useBanks";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
+import { useMidiAccess } from "@/hooks/useMidiAccess";
+import { useMidiClockOutput } from "@/hooks/useMidiClockOutput";
+import { useMidiInput } from "@/hooks/useMidiInput";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSequencer } from "@/hooks/useSequencer";
 import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
@@ -1001,11 +1005,15 @@ export default function DrumMachine() {
    * without starting playback. Mute and solo are deliberately ignored: this is
    * a direct request to hear that one channel, not a change to the mix.
    *
+   * `velocityGain` scales the hit on top of the channel's own volume, exactly
+   * as a step's velocity does — 1 by a plain pad click, and whatever a MIDI
+   * note arrived with when this is what `useMidiInput` calls.
+   *
    * The context is created and resumed inside the click gesture, which is what
    * browsers require before any sound can come out.
    */
   const handlePreviewChannel = useCallback(
-    (channelId: string) => {
+    (channelId: string, velocityGain = 1) => {
       const context = ensureContext();
       if (context.state === "suspended") {
         void context.resume();
@@ -1014,11 +1022,11 @@ export default function DrumMachine() {
       const channel = channelsRef.current.find((item) => item.id === channelId);
       if (!channel) return;
 
-      trigger(
-        channelId,
-        context.currentTime,
-        triggerOptionsForChannel(channel),
-      );
+      const options = triggerOptionsForChannel(channel);
+      trigger(channelId, context.currentTime, {
+        ...options,
+        gain: options.gain * velocityGain,
+      });
       flashChannels([channelId], context.currentTime);
 
       // Chokes apply here as well: what a pad does to the rest of the kit is
@@ -1031,6 +1039,54 @@ export default function DrumMachine() {
     },
     [choke, ensureContext, flashChannels, trigger],
   );
+
+  /**
+   * A note-on from the selected MIDI input: the same direct trigger a pad's
+   * alt-click makes, just addressed by channel index — see `lib/midi` for how
+   * a note number gets there — with the note's own velocity standing in for
+   * the click's implicit full gain.
+   */
+  const handleMidiNoteOn = useCallback(
+    (channelIndex: number, velocityGain: number) => {
+      if (channelIndex >= channels.length) return;
+      handlePreviewChannel(channelIdForIndex(channelIndex), velocityGain);
+    },
+    [channels.length, handlePreviewChannel],
+  );
+
+  // Requested once and shared: `useMidiInput` and `useMidiClockOutput` each
+  // read ports off this rather than asking for access again themselves, so
+  // there's one permission prompt regardless of how many of the two are used.
+  const midiAccess = useMidiAccess();
+
+  const {
+    inputs: midiInputs,
+    selectedInputId: midiInputId,
+    selectInput: selectMidiInput,
+  } = useMidiInput({ access: midiAccess, onNoteOn: handleMidiNoteOn });
+
+  /**
+   * Picking a device from the rail is a click, and so — unlike a note arriving
+   * from the device afterwards — is a gesture browsers trust to unlock audio.
+   * Resuming here means the very first note played is heard even if nothing
+   * else on the page has been clicked yet.
+   */
+  const handleSelectMidiInput = useCallback(
+    (id: string | null) => {
+      const context = ensureContext();
+      if (context.state === "suspended") {
+        void context.resume();
+      }
+      selectMidiInput(id);
+    },
+    [ensureContext, selectMidiInput],
+  );
+
+  const {
+    outputs: midiOutputs,
+    selectedOutputId: midiOutputId,
+    selectOutput: selectMidiOutput,
+  } = useMidiClockOutput({ access: midiAccess, isPlaying, bpm, ensureContext });
 
   /**
    * Moves the editor to another channel, closing whichever step was open.
@@ -1550,6 +1606,16 @@ export default function DrumMachine() {
             onTogglePlay={handleTogglePlay}
             onBpmChange={setBpm}
             onSwingChange={setSwing}
+          />
+
+          <MidiControls
+            supported={midiAccess.supported}
+            inputs={midiInputs}
+            selectedInputId={midiInputId}
+            onSelectInput={handleSelectMidiInput}
+            outputs={midiOutputs}
+            selectedOutputId={midiOutputId}
+            onSelectOutput={selectMidiOutput}
           />
 
           <PresetPicker
