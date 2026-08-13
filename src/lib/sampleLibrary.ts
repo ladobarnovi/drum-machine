@@ -119,8 +119,36 @@ export const CATEGORY_808 = defineCategory(
   ],
 );
 
+export const CATEGORY_707 = defineCategory(
+  {
+    id: "707",
+    name: "707",
+    description: "Crisp digital hits, built for tight Latin-tinged grooves.",
+    directory: "/presets/707",
+  },
+  [
+    { name: "Kick", file: "Kick 707.wav" },
+    { name: "Snare", file: "Snare 707.wav" },
+    { name: "Low Tom", file: "Tom 707 Low.wav" },
+    { name: "Mid Tom", file: "Tom 707 Mid.wav" },
+    { name: "High Tom", file: "Tom 707 Hi.wav" },
+    { name: "Rim Shot", file: "Rim 707.wav" },
+    { name: "Clap", file: "Clap 707.wav" },
+    { name: "Hihat Closed", file: "Hihat Closed 707.wav" },
+    { name: "Hihat Open", file: "Hihat Open 707.wav" },
+    { name: "Tambourine", file: "Tamb 707.wav" },
+    { name: "Cowbell", file: "Cowbell 707.wav" },
+    { name: "Crash", file: "Crash 707.wav" },
+    { name: "Ride", file: "Ride 707.wav" },
+  ],
+);
+
 /** Every category on offer, in the order the browser lists them. */
-export const SAMPLE_LIBRARY: SampleCategory[] = [CATEGORY_909, CATEGORY_808];
+export const SAMPLE_LIBRARY: SampleCategory[] = [
+  CATEGORY_909,
+  CATEGORY_808,
+  CATEGORY_707,
+];
 
 /**
  * Built once at module load rather than searched each time: a kit resolves

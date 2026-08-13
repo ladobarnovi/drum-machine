@@ -1,4 +1,5 @@
 import {
+  CATEGORY_707,
   CATEGORY_808,
   CATEGORY_909,
   findLibrarySample,
@@ -37,6 +38,12 @@ export const PRESET_808: Preset = {
   sampleIds: CATEGORY_808.samples.map((sample) => sample.id),
 };
 
+export const PRESET_707: Preset = {
+  id: "707",
+  name: "707",
+  sampleIds: CATEGORY_707.samples.map((sample) => sample.id),
+};
+
 /**
  * The blank kit: no samples of its own, because it is defined by what it takes
  * away rather than by what it loads. Picking it empties every channel — samples
@@ -53,7 +60,12 @@ export const PRESET_EMPTY: Preset = {
  * Every kit on offer, in the order the picker lists them. The blank one comes
  * last: it is what you reach for to start over, not something to play.
  */
-export const PRESETS: Preset[] = [PRESET_909, PRESET_808, PRESET_EMPTY];
+export const PRESETS: Preset[] = [
+  PRESET_909,
+  PRESET_808,
+  PRESET_707,
+  PRESET_EMPTY,
+];
 
 /**
  * The kit the machine loads itself with on startup, so the page opens on
