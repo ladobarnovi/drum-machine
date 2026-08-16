@@ -1,33 +1,21 @@
 "use client";
 
+import { useState } from "react";
+
+import MidiSettingsDialog, {
+  type MidiSettings,
+} from "@/components/shell/MidiSettingsDialog";
 import RailGroup from "@/components/ui/RailGroup";
-import type { MidiInputDevice } from "@/hooks/useMidiInput";
-import type { MidiOutputDevice } from "@/hooks/useMidiClockOutput";
-import type { MidiClockSource } from "@/lib/midi";
 
-const NONE_OPTION = "";
-const INTERNAL_OPTION = "internal";
-const EXTERNAL_OPTION = "external";
-
-type MidiControlsProps = {
+type MidiControlsProps = MidiSettings & {
   supported: boolean;
-  inputs: MidiInputDevice[];
-  selectedInputId: string | null;
-  onSelectInput: (id: string | null) => void;
-  outputs: MidiOutputDevice[];
-  selectedOutputId: string | null;
-  onSelectOutput: (id: string | null) => void;
-  /** Whether the transport follows the BPM slider or the incoming clock. */
-  clockSource: MidiClockSource;
-  onClockSourceChange: (source: MidiClockSource) => void;
-  /** The live tempo read off the input, or null while nothing's arrived recently. */
-  estimatedBpm: number | null;
 };
 
 /**
- * Picks which MIDI input plays the kit and which output follows its tempo —
- * a pad controller or keyboard on one side, a synth or drum machine slaved to
- * this one's clock on the other.
+ * The MIDI band in the controls rail: what's patched right now, and a way in
+ * to change it. The pickers themselves live in `MidiSettingsDialog` — they are
+ * set once when the gear is plugged in, so they earn a click rather than a
+ * permanent share of the rail.
  *
  * Renders nothing outside a browser that implements Web MIDI — Safari and
  * Firefox chief among them — so the rail shows nothing for a control that
@@ -36,103 +24,47 @@ type MidiControlsProps = {
  */
 export default function MidiControls({
   supported,
-  inputs,
-  selectedInputId,
-  onSelectInput,
-  outputs,
-  selectedOutputId,
-  onSelectOutput,
-  clockSource,
-  onClockSourceChange,
-  estimatedBpm,
+  ...settings
 }: MidiControlsProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
   if (!supported) return null;
+
+  const { inputs, selectedInputId, outputs, selectedOutputId, clockSource } =
+    settings;
+
+  const inputName = inputs.find((input) => input.id === selectedInputId)?.name;
+  const outputName = outputs.find(
+    (output) => output.id === selectedOutputId,
+  )?.name;
+
+  /**
+   * Stands in for the pickers now that they're a click away: the rail still
+   * answers "is anything patched, and is this machine keeping its own time?"
+   * without opening anything.
+   */
+  const summary: string[] = [];
+  if (inputName) summary.push(`In ${inputName}`);
+  if (outputName) summary.push(`Out ${outputName}`);
+  if (clockSource === "external") summary.push("External clock");
 
   return (
     <RailGroup title="MIDI">
-      <label className="flex flex-col gap-1 text-xs">
-        <span>Input</span>
-        <select
-          value={selectedInputId ?? NONE_OPTION}
-          onChange={(event) =>
-            onSelectInput(
-              event.target.value === NONE_OPTION ? null : event.target.value,
-            )
-          }
-          aria-label="MIDI input"
-          className="border-edge bg-field w-full rounded border px-2 py-1 text-xs"
-        >
-          <option value={NONE_OPTION}>
-            {inputs.length === 0 ? "No devices found" : "None"}
-          </option>
-          {inputs.map((input) => (
-            <option key={input.id} value={input.id}>
-              {input.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="border-edge hover:bg-raised w-full cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
+      >
+        MIDI settings
+      </button>
 
-      <p className="text-muted text-xs">
-        Notes 36–51 (C1–D#2 on most controllers) play channels 1–16.
+      <p className="text-muted truncate text-xs">
+        {summary.length > 0 ? summary.join(" · ") : "No devices connected"}
       </p>
 
-      <label className="flex flex-col gap-1 text-xs">
-        <span>Clock source</span>
-        <select
-          value={clockSource}
-          onChange={(event) =>
-            onClockSourceChange(
-              event.target.value === EXTERNAL_OPTION
-                ? EXTERNAL_OPTION
-                : INTERNAL_OPTION,
-            )
-          }
-          aria-label="MIDI clock source"
-          className="border-edge bg-field w-full rounded border px-2 py-1 text-xs"
-        >
-          <option value={INTERNAL_OPTION}>Internal</option>
-          <option value={EXTERNAL_OPTION}>External</option>
-        </select>
-      </label>
-
-      {/* Only worth a line while it says something the select doesn't
-          already: which way External is actually going right now. */}
-      {clockSource === EXTERNAL_OPTION && (
-        <p className="text-muted text-xs">
-          {estimatedBpm !== null
-            ? `Following incoming clock — ${estimatedBpm} BPM.`
-            : "Waiting for a clock signal…"}
-        </p>
+      {isOpen && (
+        <MidiSettingsDialog {...settings} onClose={() => setIsOpen(false)} />
       )}
-
-      <label className="flex flex-col gap-1 text-xs">
-        <span>Output</span>
-        <select
-          value={selectedOutputId ?? NONE_OPTION}
-          onChange={(event) =>
-            onSelectOutput(
-              event.target.value === NONE_OPTION ? null : event.target.value,
-            )
-          }
-          aria-label="MIDI output"
-          className="border-edge bg-field w-full rounded border px-2 py-1 text-xs"
-        >
-          <option value={NONE_OPTION}>
-            {outputs.length === 0 ? "No devices found" : "None"}
-          </option>
-          {outputs.map((output) => (
-            <option key={output.id} value={output.id}>
-              {output.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <p className="text-muted text-xs">
-        Sends clock and start/stop, so another device can follow this
-        machine&rsquo;s tempo and transport.
-      </p>
     </RailGroup>
   );
 }
