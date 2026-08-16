@@ -51,32 +51,51 @@ export async function setContextSink(
   }
 }
 
-/**
- * The output devices this browser is willing to name, minus the two aliases
- * Chrome adds for the system's own choices — "default" and "communications"
- * both mean "follow the OS", which is what `SYSTEM_DEFAULT_SINK_ID` already
- * says, and listing them beside it would offer the same thing three times.
- *
- * Names are blank until the page has been granted audio-device access, so
- * each unnamed device gets a position instead — enough to tell them apart and
- * try them, if not to recognise them.
- */
-export async function listAudioOutputs(): Promise<AudioOutputDevice[]> {
-  const devices = await navigator.mediaDevices.enumerateDevices();
+export type AudioOutputList = {
+  devices: AudioOutputDevice[];
+  /**
+   * True while the browser is holding the real list back behind a permission,
+   * so there is a point in asking for it.
+   */
+  namesHidden: boolean;
+};
 
-  return devices
-    .filter(
-      (device) =>
-        device.kind === "audiooutput" &&
-        device.deviceId !== "" &&
-        device.deviceId !== "default" &&
-        device.deviceId !== "communications",
-    )
-    .map((device, index) => ({
-      id: device.deviceId,
-      name: device.label || `Output ${index + 1}`,
-      named: device.label !== "",
-    }));
+/**
+ * The output devices this browser is willing to hand over, minus the entries
+ * that aren't a device to route to: the empty-id placeholder, and the two
+ * aliases Chrome adds for the system's own choices — "default" and
+ * "communications" both mean "follow the OS", which is what
+ * `SYSTEM_DEFAULT_SINK_ID` already says, and listing them beside it would
+ * offer the same thing three times.
+ *
+ * Until the page has been granted audio-device access, Chrome answers with a
+ * single unnamed placeholder instead of the real list — so an unnamed entry
+ * anywhere in the raw results, filtered out below or not, is what
+ * `namesHidden` reports on. Reading it after the filter instead would leave
+ * the commonest case, one placeholder and nothing else, looking like a machine
+ * with no outputs at all rather than one behind a prompt.
+ */
+export async function listAudioOutputs(): Promise<AudioOutputList> {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const outputs = devices.filter((device) => device.kind === "audiooutput");
+
+  return {
+    devices: outputs
+      .filter(
+        (device) =>
+          device.deviceId !== "" &&
+          device.deviceId !== "default" &&
+          device.deviceId !== "communications",
+      )
+      // A device the browser named partially — listed but not labelled — gets
+      // a position instead, enough to tell them apart and try them by ear.
+      .map((device, index) => ({
+        id: device.deviceId,
+        name: device.label || `Output ${index + 1}`,
+        named: device.label !== "",
+      })),
+    namesHidden: outputs.some((device) => device.label === ""),
+  };
 }
 
 /**

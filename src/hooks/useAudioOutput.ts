@@ -52,14 +52,16 @@ export function useAudioOutput({ applyAudioOutput }: UseAudioOutputOptions) {
   );
 
   const [outputs, setOutputs] = useState<AudioOutputDevice[]>([]);
+  const [namesHidden, setNamesHidden] = useState(false);
   const [selectedOutputId, setSelectedOutputId] = useState(
     SYSTEM_DEFAULT_SINK_ID,
   );
 
   const refresh = useCallback(async () => {
-    const devices = await listAudioOutputs();
-    setOutputs(devices);
-    return devices;
+    const list = await listAudioOutputs();
+    setOutputs(list.devices);
+    setNamesHidden(list.namesHidden);
+    return list.devices;
   }, []);
 
   // Restores a previous session's choice once there is something to restore it
@@ -120,9 +122,6 @@ export function useAudioOutput({ applyAudioOutput }: UseAudioOutputOptions) {
     },
     [applyAudioOutput],
   );
-
-  /** True once at least one device is listed without a name to go with it. */
-  const namesHidden = outputs.length > 0 && outputs.some((one) => !one.named);
 
   const revealNames = useCallback(async () => {
     const granted = await requestAudioOutputNames();

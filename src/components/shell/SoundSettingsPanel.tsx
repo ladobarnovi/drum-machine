@@ -81,15 +81,19 @@ export default function SoundSettingsPanel({
       </label>
 
       {/*
-        Only while there is something the names would actually fix. Kept as a
-        button rather than run on open: unlocking them costs a microphone
+        Only while there is something the prompt would actually fix. Kept as a
+        button rather than run on open: unlocking the list costs a microphone
         prompt, and one nobody asked for is its own kind of rude.
       */}
       {namesHidden && (
         <div className="border-line flex flex-col gap-2 rounded-md border p-3">
           <p className="text-muted text-xs">
-            The browser hides device names until it has been given audio access
-            once. Granting it names the outputs above — nothing is recorded.
+            {outputs.length === 0
+              ? // The usual state on a first visit: the browser answers with a
+                // placeholder rather than the devices, so the picker above has
+                // nothing in it but the default until this is granted.
+                "The browser keeps the device list behind a permission. Granting it fills the picker above — nothing is recorded."
+              : "The browser hides device names until it has been given audio access once. Granting it names the outputs above — nothing is recorded."}
           </p>
 
           <button
@@ -98,13 +102,17 @@ export default function SoundSettingsPanel({
             disabled={revealing}
             className="border-edge hover:bg-raised w-full cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-default disabled:opacity-60"
           >
-            {revealing ? "Waiting for permission…" : "Show device names"}
+            {revealing
+              ? "Waiting for permission…"
+              : outputs.length === 0
+                ? "Show devices"
+                : "Show device names"}
           </button>
 
           {refused && (
             <p className="text-muted text-xs">
-              Access was refused, so the outputs stay numbered. They still work
-              — it&rsquo;s a matter of trying them.
+              Access was refused, so this stays as it is. The machine keeps
+              playing out of the system default.
             </p>
           )}
         </div>
