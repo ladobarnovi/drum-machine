@@ -19,7 +19,7 @@ import SequencerTabsSection from "@/components/patterns/SequencerTabsSection";
 import PresetPicker from "@/components/session/PresetPicker";
 import SnapshotControls from "@/components/session/SnapshotControls";
 import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
-import MidiControls from "@/components/shell/MidiControls";
+import SettingsButton from "@/components/shell/SettingsButton";
 import MobileFooterNav, {
   type MobilePage,
 } from "@/components/shell/MobileFooterNav";
@@ -34,6 +34,7 @@ import { useBanks } from "@/hooks/useBanks";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
+import { useAudioOutput } from "@/hooks/useAudioOutput";
 import { useMidiAccess } from "@/hooks/useMidiAccess";
 import { useMidiClockInput } from "@/hooks/useMidiClockInput";
 import { useMidiClockOutput } from "@/hooks/useMidiClockOutput";
@@ -348,6 +349,7 @@ export default function DrumMachine() {
 
   const {
     ensureContext,
+    applyAudioOutput,
     applyMasterDrive,
     applyMasterFilter,
     applyMasterDelay,
@@ -1148,6 +1150,32 @@ export default function DrumMachine() {
   );
 
   const {
+    supported: audioOutputSupported,
+    outputs: audioOutputs,
+    selectedOutputId: audioOutputId,
+    selectOutput: selectAudioOutput,
+    namesHidden: audioOutputNamesHidden,
+    revealNames: revealAudioOutputNames,
+  } = useAudioOutput({ applyAudioOutput });
+
+  /**
+   * Same reasoning as `handleSelectMidiInput`: picking a device is a click, so
+   * it's a gesture the browser trusts to unlock audio. Building the context
+   * here also means `setSinkId` has something to act on straight away, rather
+   * than the choice sitting in a ref until the first pad is hit.
+   */
+  const handleSelectAudioOutput = useCallback(
+    (id: string) => {
+      const context = ensureContext();
+      if (context.state === "suspended") {
+        void context.resume();
+      }
+      selectAudioOutput(id);
+    },
+    [ensureContext, selectAudioOutput],
+  );
+
+  const {
     outputs: midiOutputs,
     selectedOutputId: midiOutputId,
     selectOutput: selectMidiOutput,
@@ -1681,17 +1709,27 @@ export default function DrumMachine() {
             onSwingChange={setSwing}
           />
 
-          <MidiControls
-            supported={midiAccess.supported}
-            inputs={midiInputs}
-            selectedInputId={midiInputId}
-            onSelectInput={handleSelectMidiInput}
-            outputs={midiOutputs}
-            selectedOutputId={midiOutputId}
-            onSelectOutput={selectMidiOutput}
-            clockSource={midiClockSource}
-            onClockSourceChange={setMidiClockSource}
-            estimatedBpm={midiClockInput.estimatedBpm}
+          <SettingsButton
+            midi={{
+              supported: midiAccess.supported,
+              inputs: midiInputs,
+              selectedInputId: midiInputId,
+              onSelectInput: handleSelectMidiInput,
+              outputs: midiOutputs,
+              selectedOutputId: midiOutputId,
+              onSelectOutput: selectMidiOutput,
+              clockSource: midiClockSource,
+              onClockSourceChange: setMidiClockSource,
+              estimatedBpm: midiClockInput.estimatedBpm,
+            }}
+            sound={{
+              supported: audioOutputSupported,
+              outputs: audioOutputs,
+              selectedOutputId: audioOutputId,
+              onSelectOutput: handleSelectAudioOutput,
+              namesHidden: audioOutputNamesHidden,
+              onRevealNames: revealAudioOutputNames,
+            }}
           />
 
           <PresetPicker

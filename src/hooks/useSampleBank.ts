@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
+import { SYSTEM_DEFAULT_SINK_ID, setContextSink } from "@/lib/audioOutput";
 import {
   COMPRESSOR_KNEE_DB,
   DEFAULT_BPM,
@@ -1429,6 +1430,9 @@ export function useSampleBank() {
   // the next read overwrites it, so there is never more than one in use.
   const meterSamplesRef = useRef<Float32Array<ArrayBuffer> | null>(null);
   const volumeRef = useRef(DEFAULT_MASTER_VOLUME);
+  // Which device the context plays out of, held here for the same reason as the
+  // stages above: it can be chosen before the first gesture builds the context.
+  const sinkIdRef = useRef(SYSTEM_DEFAULT_SINK_ID);
   // The sample-and-hold table, built on first use and then shared by every
   // voice: it runs to a few hundred kilobytes, and a fresh one per hit would
   // allocate that on every step of every channel using a random LFO.
@@ -1462,6 +1466,10 @@ export function useSampleBank() {
       context = new AudioContext();
       contextRef.current = context;
 
+      // Before the chain, so a device chosen in an earlier session is already
+      // in force by the time the first hit reaches the end of it.
+      void setContextSink(context, sinkIdRef.current);
+
       const chain = createMasterChain(context);
       masterRef.current = chain;
       applyDrive(context, chain, driveRef.current);
@@ -1474,6 +1482,20 @@ export function useSampleBank() {
     }
 
     return context;
+  }, []);
+
+  /**
+   * Points the machine at an output device, creating no context of its own —
+   * an empty id hands it back to whatever the system is using.
+   */
+  const applyAudioOutput = useCallback((sinkId: string) => {
+    sinkIdRef.current = sinkId;
+
+    const context = contextRef.current;
+    // Nothing to route yet; `ensureContext` applies this when it builds one.
+    if (!context) return;
+
+    void setContextSink(context, sinkId);
   }, []);
 
   /** Points the master drive stage at `drive`, creating no context of its own. */
@@ -2145,6 +2167,7 @@ export function useSampleBank() {
 
   return {
     ensureContext,
+    applyAudioOutput,
     applyMasterDrive,
     applyMasterFilter,
     applyMasterDelay,

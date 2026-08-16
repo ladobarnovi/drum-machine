@@ -45,7 +45,7 @@ export default function Sidebar({
     <aside
       id={id}
       aria-label={label}
-      className={`quiet-scrollbar border-line bg-surface w-full min-h-0 flex-col gap-6 overflow-y-auto p-4 md:p-6 lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64 ${SIDE_CLASSES[side]} ${
+      className={`quiet-scrollbar border-line bg-surface min-h-0 w-full flex-col gap-6 overflow-y-auto p-4 md:p-6 lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64 ${SIDE_CLASSES[side]} ${
         mobileActive ? "flex flex-1" : "hidden"
       }`}
     >
