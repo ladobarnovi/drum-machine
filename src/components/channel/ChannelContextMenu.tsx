@@ -57,13 +57,9 @@ export default function ChannelContextMenu({
       onClose={onClose}
       width="w-44"
     >
-      <ContextMenuItem onClick={run(onClearSteps)}>
-        Clear Steps
-      </ContextMenuItem>
+      <ContextMenuItem onClick={run(onClearSteps)}>Clear Steps</ContextMenuItem>
 
-      <ContextMenuItem onClick={run(onCopySteps)}>
-        Copy Steps
-      </ContextMenuItem>
+      <ContextMenuItem onClick={run(onCopySteps)}>Copy Steps</ContextMenuItem>
 
       <ContextMenuItem
         disabled={pasteStepsDisabled}

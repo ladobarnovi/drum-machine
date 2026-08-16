@@ -79,7 +79,11 @@ export function midiVelocityToGain(velocity: number): number {
 }
 
 /** A MIDI CC value (0..127), scaled linearly onto whatever range a mapped control's own slider covers. */
-export function ccValueToRange(value: number, min: number, max: number): number {
+export function ccValueToRange(
+  value: number,
+  min: number,
+  max: number,
+): number {
   const clamped = Math.min(Math.max(value, 0), 127);
   return min + (clamped / 127) * (max - min);
 }
@@ -157,8 +161,7 @@ export function estimateBpmFromPulseTimestamps(
   if (count < 2) return null;
 
   const meanIndex = (count - 1) / 2;
-  const meanTime =
-    timestampsMs.reduce((sum, value) => sum + value, 0) / count;
+  const meanTime = timestampsMs.reduce((sum, value) => sum + value, 0) / count;
 
   let numerator = 0;
   let denominator = 0;

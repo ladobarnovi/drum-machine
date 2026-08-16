@@ -14,7 +14,8 @@
  * independently: pointing a custom domain at this repo replaces the origin and
  * empties the base path at the same time.
  */
-const origin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://ladobarnovi.github.io";
+const origin =
+  process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://ladobarnovi.github.io";
 
 /**
  * Set by the Pages workflow to the project-page subpath, exactly as it is for

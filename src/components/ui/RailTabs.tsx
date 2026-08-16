@@ -59,7 +59,11 @@ const TABPANEL_CLASS: Record<"rail" | "panel", string> = {
  * has nothing to lose by not existing — and mounting all of them to keep them
  * hidden would leave the rail's scroll height set by the longest one.
  */
-export default function RailTabs({ label, tabs, variant = "rail" }: RailTabsProps) {
+export default function RailTabs({
+  label,
+  tabs,
+  variant = "rail",
+}: RailTabsProps) {
   const [activeId, setActiveId] = useState(tabs[0].id);
   const buttonsRef = useRef<Array<HTMLButtonElement | null>>([]);
 

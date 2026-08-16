@@ -44,52 +44,50 @@ const STEPS = Array.from({ length: 16 }, (_, index) => index % 4 === 0);
 
 export default function Image() {
   return new ImageResponse(
-    (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        background: SURFACE,
+        padding: "80px",
+        // Satori has no default font stack of its own to fall back on, so
+        // naming a common one keeps the text from rendering as boxes.
+        fontFamily: "Helvetica, Arial, sans-serif",
+      }}
+    >
       <div
         style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          background: SURFACE,
-          padding: "80px",
-          // Satori has no default font stack of its own to fall back on, so
-          // naming a common one keeps the text from rendering as boxes.
-          fontFamily: "Helvetica, Arial, sans-serif",
+          fontSize: 78,
+          fontWeight: 700,
+          color: FOREGROUND,
+          letterSpacing: "-0.03em",
         }}
       >
-        <div
-          style={{
-            fontSize: 78,
-            fontWeight: 700,
-            color: FOREGROUND,
-            letterSpacing: "-0.03em",
-          }}
-        >
-          {SITE_NAME}
-        </div>
-        <div style={{ fontSize: 34, color: MUTED, marginTop: 20 }}>
-          A free 16-step drum sequencer, right in the browser
-        </div>
-        <div style={{ display: "flex", gap: 12, marginTop: 64 }}>
-          {STEPS.map((on, index) => (
-            <div
-              key={index}
-              style={{
-                width: 54,
-                height: 54,
-                borderRadius: 10,
-                background: on ? ACCENT : STEP_OFF,
-              }}
-            />
-          ))}
-        </div>
-        <div style={{ fontSize: 26, color: MUTED, marginTop: 52 }}>
-          909 &amp; 808 kits · pitch, filter, LFO · delay, reverb, drive · offline
-        </div>
+        {SITE_NAME}
       </div>
-    ),
+      <div style={{ fontSize: 34, color: MUTED, marginTop: 20 }}>
+        A free 16-step drum sequencer, right in the browser
+      </div>
+      <div style={{ display: "flex", gap: 12, marginTop: 64 }}>
+        {STEPS.map((on, index) => (
+          <div
+            key={index}
+            style={{
+              width: 54,
+              height: 54,
+              borderRadius: 10,
+              background: on ? ACCENT : STEP_OFF,
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ fontSize: 26, color: MUTED, marginTop: 52 }}>
+        909 &amp; 808 kits · pitch, filter, LFO · delay, reverb, drive · offline
+      </div>
+    </div>,
     size,
   );
 }

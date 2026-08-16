@@ -47,6 +47,7 @@ src/
 ## Key Features
 
 ### Channels
+
 - Sample playback with pitch control
 - ADSR envelope
 - Resonant filter (cutoff + resonance)
@@ -54,22 +55,26 @@ src/
 - LFO modulation
 
 ### Patterns & Banks
+
 - Save/load patterns in named banks
 - Multiple slot management
 - Persistent storage via localStorage
 
 ### Transport
+
 - Play/stop with playback position
 - Tempo control
 - Pattern length adjustment
 
 ### Master FX
+
 - Reverb
 - Phaser
 - Delay
 - Compressor with gain reduction meter
 
 ### Shortcuts
+
 - Keyboard bindings for transport, channels, and master controls
 - See `src/lib/shortcuts.ts` for definitions
 
@@ -84,12 +89,14 @@ src/
 ## Development
 
 ### Setup
+
 ```bash
 npm install
 npm run dev          # Start dev server at http://localhost:3000
 ```
 
 ### Build & Deploy
+
 ```bash
 npm run build        # Production build
 npm run start        # Start production server
@@ -98,6 +105,7 @@ npm run icons        # Generate app icons
 ```
 
 ### Code Quality
+
 ```bash
 npm run lint         # Run ESLint
 npm run format       # Format with Prettier
@@ -105,6 +113,7 @@ npm run format:check # Check formatting
 ```
 
 ### Service Worker
+
 - PWA support via Service Worker (`scripts/build-service-worker.mjs`)
 - Runs after build in postbuild script
 - Enables offline functionality

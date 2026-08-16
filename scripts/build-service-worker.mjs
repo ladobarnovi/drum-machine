@@ -74,7 +74,10 @@ function fixOgImageReferences() {
     if (!TEXT_FILE_PATTERN.test(file)) continue;
 
     const content = readFileSync(file, "utf8");
-    const fixed = content.replaceAll("opengraph-image?", "opengraph-image.png?");
+    const fixed = content.replaceAll(
+      "opengraph-image?",
+      "opengraph-image.png?",
+    );
     if (fixed !== content) {
       writeFileSync(file, fixed);
     }

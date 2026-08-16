@@ -439,7 +439,10 @@ export default function ChannelEditor(props: ChannelEditorProps) {
                 }
                 locked={openStep.repeatCount > MIN_STEP_REPEAT}
                 onClearLock={() =>
-                  props.onStepRepeatChange(editingStepIndex, DEFAULT_STEP_REPEAT)
+                  props.onStepRepeatChange(
+                    editingStepIndex,
+                    DEFAULT_STEP_REPEAT,
+                  )
                 }
               />
 
@@ -475,7 +478,10 @@ export default function ChannelEditor(props: ChannelEditorProps) {
                 }
                 locked={openStep.timingOffset !== DEFAULT_STEP_TIMING}
                 onClearLock={() =>
-                  props.onStepTimingChange(editingStepIndex, DEFAULT_STEP_TIMING)
+                  props.onStepTimingChange(
+                    editingStepIndex,
+                    DEFAULT_STEP_TIMING,
+                  )
                 }
               />
 

@@ -207,7 +207,9 @@ function ReverbTile({ send }: { send: number }) {
             (point, index) =>
               `${index === 0 ? "M" : "L"} ${toX(point.position)} ${toY(point.level)}`,
           )
-          .join(" ")} L ${toX(tail[tail.length - 1].position)} ${BASELINE} L ${toX(
+          .join(
+            " ",
+          )} L ${toX(tail[tail.length - 1].position)} ${BASELINE} L ${toX(
           tail[0].position,
         )} ${BASELINE} Z`;
 

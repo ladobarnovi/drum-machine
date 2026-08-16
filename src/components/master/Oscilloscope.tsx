@@ -48,7 +48,12 @@ type OscilloscopeProps = {
  * system flips between light and dark — `classic` follows the system, so the
  * theme id alone does not say what colour anything is.
  */
-export default function Oscilloscope({ getWaveform, compact = false, isPlaying = false, onTogglePlay }: OscilloscopeProps) {
+export default function Oscilloscope({
+  getWaveform,
+  compact = false,
+  isPlaying = false,
+  onTogglePlay,
+}: OscilloscopeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleClick = () => {
@@ -101,7 +106,12 @@ export default function Oscilloscope({ getWaveform, compact = false, isPlaying =
 
     let frame = 0;
 
-    const drawPlayIcon = (ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number) => {
+    const drawPlayIcon = (
+      ctx: CanvasRenderingContext2D,
+      centerX: number,
+      centerY: number,
+      size: number,
+    ) => {
       ctx.fillStyle = trace;
       ctx.beginPath();
       // Triangle pointing right
@@ -112,14 +122,29 @@ export default function Oscilloscope({ getWaveform, compact = false, isPlaying =
       ctx.fill();
     };
 
-    const drawPauseIcon = (ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number) => {
+    const drawPauseIcon = (
+      ctx: CanvasRenderingContext2D,
+      centerX: number,
+      centerY: number,
+      size: number,
+    ) => {
       ctx.fillStyle = trace;
       const barWidth = size / 4;
       const barHeight = size;
       // Left bar
-      ctx.fillRect(centerX - size / 3 - barWidth / 2, centerY - barHeight / 2, barWidth, barHeight);
+      ctx.fillRect(
+        centerX - size / 3 - barWidth / 2,
+        centerY - barHeight / 2,
+        barWidth,
+        barHeight,
+      );
       // Right bar
-      ctx.fillRect(centerX + size / 3 - barWidth / 2, centerY - barHeight / 2, barWidth, barHeight);
+      ctx.fillRect(
+        centerX + size / 3 - barWidth / 2,
+        centerY - barHeight / 2,
+        barWidth,
+        barHeight,
+      );
     };
 
     const draw = () => {
@@ -168,9 +193,19 @@ export default function Oscilloscope({ getWaveform, compact = false, isPlaying =
 
         // Draw play/pause icon in the center
         if (isPlaying) {
-          drawPauseIcon(context, centerX, centerY, Math.min(centerX, centerY) * 0.4);
+          drawPauseIcon(
+            context,
+            centerX,
+            centerY,
+            Math.min(centerX, centerY) * 0.4,
+          );
         } else {
-          drawPlayIcon(context, centerX, centerY, Math.min(centerX, centerY) * 0.4);
+          drawPlayIcon(
+            context,
+            centerX,
+            centerY,
+            Math.min(centerX, centerY) * 0.4,
+          );
         }
       } else {
         // Linear waveform display for sidebar
@@ -225,7 +260,10 @@ export default function Oscilloscope({ getWaveform, compact = false, isPlaying =
         aria-hidden
         onClick={handleClick}
         className="block cursor-pointer"
-        style={{ width: `${SCOPE_COMPACT_SIZE_PX}px`, height: `${SCOPE_COMPACT_SIZE_PX}px` }}
+        style={{
+          width: `${SCOPE_COMPACT_SIZE_PX}px`,
+          height: `${SCOPE_COMPACT_SIZE_PX}px`,
+        }}
       />
     );
   }

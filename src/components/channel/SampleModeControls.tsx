@@ -142,14 +142,16 @@ export default function SampleModeControls({
             event.preventDefault();
             onReversedChange(!reversed);
           }}
-          className={`relative h-4 w-7 shrink-0 cursor-pointer rounded-full border outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
+          className={`relative h-4 w-7 shrink-0 cursor-pointer rounded-full border transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
             reversed ? "border-accent bg-accent" : "border-edge bg-field"
           }`}
         >
           <span
             aria-hidden
             className={`absolute top-0.5 size-2.5 rounded-full transition-transform ${
-              reversed ? "bg-on-accent translate-x-3.5" : "bg-fg translate-x-0.5"
+              reversed
+                ? "bg-on-accent translate-x-3.5"
+                : "bg-fg translate-x-0.5"
             }`}
           />
         </span>

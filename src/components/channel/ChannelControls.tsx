@@ -436,7 +436,6 @@ export default function ChannelControls({
             />
           </div>
         </div>
-
       </div>
     </section>
   );

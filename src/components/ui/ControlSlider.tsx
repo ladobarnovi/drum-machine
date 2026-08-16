@@ -76,7 +76,9 @@ export default function ControlSlider({
     <>
       {/* Locked labels take the colour of what is being looked at, so the
           overridden rows can be picked out of the panel at a glance. */}
-      <span className={`flex w-14 shrink-0 items-center gap-1 ${locked ? "text-select" : ""}`}>
+      <span
+        className={`flex w-14 shrink-0 items-center gap-1 ${locked ? "text-select" : ""}`}
+      >
         {label}
 
         {/* A MIDI dot: solid once mapped, pulsing while listening for the CC

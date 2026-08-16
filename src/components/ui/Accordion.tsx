@@ -21,11 +21,8 @@ export default function Accordion({
   defaultOpen = true,
 }: AccordionProps) {
   return (
-    <details
-      className="border-line group rounded-md border"
-      open={defaultOpen}
-    >
-      <summary className="marker:content-none flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-semibold select-none [&::-webkit-details-marker]:hidden">
+    <details className="border-line group rounded-md border" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-semibold select-none marker:content-none [&::-webkit-details-marker]:hidden">
         {title}
 
         <span className="text-muted transition-transform group-open:rotate-180">

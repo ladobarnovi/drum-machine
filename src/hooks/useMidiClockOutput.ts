@@ -38,9 +38,7 @@ export function useMidiClockOutput({
   ensureContext,
 }: UseMidiClockOutputOptions) {
   const { supported, outputs, outputPortsRef } = access;
-  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(
-    null,
-  );
+  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
 
   const selectedPortRef = useRef<MIDIOutput | null>(null);
   const bpmRef = useRef(bpm);

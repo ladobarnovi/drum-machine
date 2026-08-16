@@ -1,6 +1,11 @@
 "use client";
 
-import { useRef, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import {
+  useRef,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+} from "react";
 
 import { useMidiLearnControl } from "@/hooks/useMidiLearnControl";
 
