@@ -480,16 +480,36 @@ export default function DrumMachine() {
     onStep: handleStep,
   });
 
-  /** Applies a partial update to a single channel. */
-  const updateChannel = useCallback(
-    (channelId: string, patch: Partial<Channel>) => {
+  /**
+   * Applies a partial update to a single channel, working out the patch from
+   * that channel as it stands at the moment the update runs.
+   *
+   * The form `updateChannel` can't offer: a caller that has to read the
+   * channel before it can say what to write — an LFO, where one knob's value
+   * has to be folded into the object the others live in — would otherwise read
+   * it from a render that may already be stale, and hand back a patch that
+   * undoes whatever landed in between. See `useMidiParameterRegistry`, whose
+   * writes arrive from outside React's flow and can land two to a tick.
+   */
+  const updateChannelWith = useCallback(
+    (channelId: string, makePatch: (channel: Channel) => Partial<Channel>) => {
       setChannels((prev) =>
         prev.map((channel) =>
-          channel.id === channelId ? { ...channel, ...patch } : channel,
+          channel.id === channelId
+            ? { ...channel, ...makePatch(channel) }
+            : channel,
         ),
       );
     },
     [],
+  );
+
+  /** Applies a partial update to a single channel. */
+  const updateChannel = useCallback(
+    (channelId: string, patch: Partial<Channel>) => {
+      updateChannelWith(channelId, () => patch);
+    },
+    [updateChannelWith],
   );
 
   /** Rewrites one channel's pattern, whichever channel that is. */
@@ -1121,20 +1141,13 @@ export default function DrumMachine() {
    */
   useMidiParameterRegistry({
     channels,
-    updateChannel,
-    masterVolume,
+    updateChannelWith,
     setMasterVolume,
-    masterDrive,
     setMasterDrive,
-    masterFilter,
     setMasterFilter,
-    masterDelay,
     setMasterDelay,
-    masterReverb,
     setMasterReverb,
-    masterPhaser,
     setMasterPhaser,
-    masterCompressor,
     setMasterCompressor,
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, type Dispatch, type SetStateAction } from "react";
 
 import {
   CHANNEL_MIDI_PARAMETERS,
@@ -29,22 +29,19 @@ import {
 } from "@/lib/sequencer";
 
 type UseMidiParameterRegistryOptions = {
+  /** Only the ids are read: what each CC writes is resolved at the moment it lands. */
   channels: Channel[];
-  updateChannel: (channelId: string, patch: Partial<Channel>) => void;
-  masterVolume: number;
-  setMasterVolume: (volume: number) => void;
-  masterDrive: MasterDrive;
-  setMasterDrive: (drive: MasterDrive) => void;
-  masterFilter: MasterFilter;
-  setMasterFilter: (filter: MasterFilter) => void;
-  masterDelay: MasterDelay;
-  setMasterDelay: (delay: MasterDelay) => void;
-  masterReverb: MasterReverb;
-  setMasterReverb: (reverb: MasterReverb) => void;
-  masterPhaser: MasterPhaser;
-  setMasterPhaser: (phaser: MasterPhaser) => void;
-  masterCompressor: MasterCompressor;
-  setMasterCompressor: (compressor: MasterCompressor) => void;
+  updateChannelWith: (
+    channelId: string,
+    makePatch: (channel: Channel) => Partial<Channel>,
+  ) => void;
+  setMasterVolume: Dispatch<SetStateAction<number>>;
+  setMasterDrive: Dispatch<SetStateAction<MasterDrive>>;
+  setMasterFilter: Dispatch<SetStateAction<MasterFilter>>;
+  setMasterDelay: Dispatch<SetStateAction<MasterDelay>>;
+  setMasterReverb: Dispatch<SetStateAction<MasterReverb>>;
+  setMasterPhaser: Dispatch<SetStateAction<MasterPhaser>>;
+  setMasterCompressor: Dispatch<SetStateAction<MasterCompressor>>;
 };
 
 /**
@@ -62,55 +59,29 @@ type UseMidiParameterRegistryOptions = {
  */
 export function useMidiParameterRegistry({
   channels,
-  updateChannel,
-  masterVolume,
+  updateChannelWith,
   setMasterVolume,
-  masterDrive,
   setMasterDrive,
-  masterFilter,
   setMasterFilter,
-  masterDelay,
   setMasterDelay,
-  masterReverb,
   setMasterReverb,
-  masterPhaser,
   setMasterPhaser,
-  masterCompressor,
   setMasterCompressor,
 }: UseMidiParameterRegistryOptions) {
   /*
-   * The current values are read through a ref at the moment a CC lands rather
-   * than captured when the registration is made. A CC that arrives has to act
-   * on the mix as it is right now, and depending on the values directly would
-   * mean tearing down and rebuilding all ~110 registrations on every turn of
-   * every knob — including the one the CC itself just moved.
+   * Every write below goes through the updater form rather than reading the
+   * current value from a prop or a ref.
+   *
+   * Not merely tidier — required. A CC lands outside React's own flow, so two
+   * arriving in the same tick both see the state as it was before either of
+   * them, and a parameter that writes a nested object (an LFO's rate, any of
+   * the master stages) would rebuild it from that stale copy and quietly undo
+   * the other's work. A controller sending its whole state at once, or a hand
+   * on two knobs, is enough to hit it. The updater form composes instead.
    */
-  const latest = useRef({
-    channels,
-    masterVolume,
-    masterDrive,
-    masterFilter,
-    masterDelay,
-    masterReverb,
-    masterPhaser,
-    masterCompressor,
-  });
-  useEffect(() => {
-    latest.current = {
-      channels,
-      masterVolume,
-      masterDrive,
-      masterFilter,
-      masterDelay,
-      masterReverb,
-      masterPhaser,
-      masterCompressor,
-    };
-  });
 
-  // Only the ids matter to the registration itself — the values behind them
-  // are reached through the ref — so this rebuilds when a channel is added or
-  // removed and at no other time.
+  // Only the ids matter to the registration itself, so this rebuilds when a
+  // channel is added or removed and at no other time.
   const channelIds = channels.map((channel) => channel.id).join(",");
 
   useEffect(() => {
@@ -119,13 +90,12 @@ export function useMidiParameterRegistry({
     /** Registers one group of master parameters against its own setter. */
     function registerMasterGroup<T>(
       parameters: Record<string, MasterMidiParameter<T>>,
-      read: () => T,
-      write: (next: T) => void,
+      setGroup: Dispatch<SetStateAction<T>>,
     ): void {
       for (const [mapId, parameter] of Object.entries(parameters)) {
         cleanups.push(
           registerMidiControl(mapId, parameter.min, parameter.max, (value) => {
-            write(parameter.write(value, read()));
+            setGroup((current) => parameter.write(value, current));
           }),
         );
       }
@@ -141,11 +111,9 @@ export function useMidiParameterRegistry({
             parameter.min,
             parameter.max,
             (value) => {
-              const channel = latest.current.channels.find(
-                (candidate) => candidate.id === channelId,
+              updateChannelWith(channelId, (channel) =>
+                parameter.write(value, channel),
               );
-              if (!channel) return;
-              updateChannel(channelId, parameter.write(value, channel));
             },
           ),
         );
@@ -161,43 +129,19 @@ export function useMidiParameterRegistry({
       ),
     );
 
-    registerMasterGroup(
-      MASTER_DRIVE_PARAMETERS,
-      () => latest.current.masterDrive,
-      setMasterDrive,
-    );
-    registerMasterGroup(
-      MASTER_FILTER_PARAMETERS,
-      () => latest.current.masterFilter,
-      setMasterFilter,
-    );
-    registerMasterGroup(
-      MASTER_DELAY_PARAMETERS,
-      () => latest.current.masterDelay,
-      setMasterDelay,
-    );
-    registerMasterGroup(
-      MASTER_REVERB_PARAMETERS,
-      () => latest.current.masterReverb,
-      setMasterReverb,
-    );
-    registerMasterGroup(
-      MASTER_PHASER_PARAMETERS,
-      () => latest.current.masterPhaser,
-      setMasterPhaser,
-    );
-    registerMasterGroup(
-      MASTER_COMPRESSOR_PARAMETERS,
-      () => latest.current.masterCompressor,
-      setMasterCompressor,
-    );
+    registerMasterGroup(MASTER_DRIVE_PARAMETERS, setMasterDrive);
+    registerMasterGroup(MASTER_FILTER_PARAMETERS, setMasterFilter);
+    registerMasterGroup(MASTER_DELAY_PARAMETERS, setMasterDelay);
+    registerMasterGroup(MASTER_REVERB_PARAMETERS, setMasterReverb);
+    registerMasterGroup(MASTER_PHASER_PARAMETERS, setMasterPhaser);
+    registerMasterGroup(MASTER_COMPRESSOR_PARAMETERS, setMasterCompressor);
 
     return () => {
       for (const cleanup of cleanups) cleanup();
     };
   }, [
     channelIds,
-    updateChannel,
+    updateChannelWith,
     setMasterVolume,
     setMasterDrive,
     setMasterFilter,

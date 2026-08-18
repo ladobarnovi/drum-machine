@@ -28,7 +28,7 @@ export function useMidiAccess() {
 
   useEffect(() => {
     if (!supported) return;
-    // hmr-nudge
+
     let cancelled = false;
 
     const sync = (access: MIDIAccess) => {
