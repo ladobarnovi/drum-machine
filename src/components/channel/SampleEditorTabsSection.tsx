@@ -201,6 +201,7 @@ export default function SampleEditorTabsSection({
           label: "Filter",
           panel: (
             <ChannelFilterSection
+              channelId={channel.id}
               channelName={channelName}
               settings={filterSettings}
               filterSlope={filterSlope}
@@ -219,6 +220,7 @@ export default function SampleEditorTabsSection({
           label: "Env",
           panel: (
             <ChannelEnvelopeSection
+              channelId={channel.id}
               channelName={channelName}
               settings={envelopeSettings}
               playing={playingEnvelope}
@@ -233,13 +235,20 @@ export default function SampleEditorTabsSection({
         {
           id: "lfo",
           label: "LFO",
-          panel: <ChannelLfoSection lfo={lfo} onChange={onLfoChange} />,
+          panel: (
+            <ChannelLfoSection
+              channelId={channel.id}
+              lfo={lfo}
+              onChange={onLfoChange}
+            />
+          ),
         },
         {
           id: "fx",
           label: "FX",
           panel: (
             <ChannelFxSection
+              channelId={channel.id}
               settings={fxSettings}
               playing={playingFx}
               onDelaySendChange={onDelaySendChange}

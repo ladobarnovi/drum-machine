@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 import {
   clearMidiCcBinding,
@@ -8,7 +8,6 @@ import {
   getMidiLearnSnapshot,
   getServerMidiCcMapSnapshot,
   getServerMidiLearnSnapshot,
-  registerMidiControl,
   startMidiLearn,
   stopMidiLearn,
   subscribeToMidiCcMap,
@@ -29,9 +28,14 @@ export type MidiLearnControl = {
 };
 
 /**
- * Wires one control into the shared MIDI CC map: registers its live range and
- * setter so an incoming CC can reach it (see `lib/midiCcMap`), and reads back
- * whether it's mapped or currently the one being learned.
+ * Reads back what a control's MIDI binding currently is — which CC it answers
+ * to, and whether it's the one waiting to learn the next one — and offers the
+ * three gestures that change it.
+ *
+ * Only the binding, deliberately. What an incoming CC actually *does* is wired
+ * up once in `useMidiParameterRegistry`, against the state rather than against
+ * the widget, so that a mapping keeps working while this control is off screen
+ * on a closed tab or belongs to a channel that isn't the selected one.
  *
  * Returns null while `mapId` is undefined, so a caller can pass the same hook
  * result straight through to a knob or slider whether or not this particular
@@ -39,9 +43,6 @@ export type MidiLearnControl = {
  */
 export function useMidiLearnControl(
   mapId: string | undefined,
-  min: number,
-  max: number,
-  onChange: (value: number) => void,
 ): MidiLearnControl | null {
   const ccMap = useSyncExternalStore(
     subscribeToMidiCcMap,
@@ -53,21 +54,6 @@ export function useMidiLearnControl(
     getMidiLearnSnapshot,
     getServerMidiLearnSnapshot,
   );
-
-  // Read through a ref rather than depended on directly, so a caller passing
-  // a fresh inline closure every render — which every one of these controls
-  // does — doesn't re-register the control on every render along with it.
-  const onChangeRef = useRef(onChange);
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    if (!mapId) return;
-    return registerMidiControl(mapId, min, max, (value) =>
-      onChangeRef.current(value),
-    );
-  }, [mapId, min, max]);
 
   if (!mapId) return null;
 

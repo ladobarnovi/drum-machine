@@ -41,7 +41,7 @@ export default function RailSlider({
   onChange,
   midiMapId,
 }: RailSliderProps) {
-  const midiLearn = useMidiLearnControl(midiMapId, min, max, onChange);
+  const midiLearn = useMidiLearnControl(midiMapId);
 
   /**
    * A right click, while this row has a MIDI identity: starts listening for

@@ -1467,8 +1467,12 @@ export function useSampleBank() {
       contextRef.current = context;
 
       // Before the chain, so a device chosen in an earlier session is already
-      // in force by the time the first hit reaches the end of it.
-      void setContextSink(context, sinkIdRef.current);
+      // in force by the time the first hit reaches the end of it. Skipped
+      // entirely at the default, where a fresh context is pointed already —
+      // there is nothing to route, and nothing gained by asking.
+      if (sinkIdRef.current !== SYSTEM_DEFAULT_SINK_ID) {
+        void setContextSink(context, sinkIdRef.current);
+      }
 
       const chain = createMasterChain(context);
       masterRef.current = chain;

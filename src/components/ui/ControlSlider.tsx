@@ -44,7 +44,7 @@ export default function ControlSlider({
   onClearLock,
   midiMapId,
 }: ControlSliderProps) {
-  const midiLearn = useMidiLearnControl(midiMapId, min, max, onChange);
+  const midiLearn = useMidiLearnControl(midiMapId);
 
   /**
    * A right click, while this row has a MIDI identity: starts listening for

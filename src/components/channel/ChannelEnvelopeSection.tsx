@@ -4,6 +4,7 @@ import { useState, type FocusEvent } from "react";
 
 import EnvelopeGraph from "./EnvelopeGraph";
 import RotaryKnob from "@/components/ui/RotaryKnob";
+import { channelMidiMapId } from "@/lib/midiParameters";
 import {
   MAX_SUSTAIN_LEVEL,
   MIN_SUSTAIN_LEVEL,
@@ -61,6 +62,9 @@ type PlayingEnvelope = {
 };
 
 type ChannelEnvelopeSectionProps = {
+  /** Whose envelope this is, so a MIDI mapping binds to that channel's knobs
+   *  rather than to whichever channel happens to be selected. */
+  channelId: string;
   /** Whose envelope this is, so the card says which channel it belongs to. */
   channelName: string;
   /** What the knobs edit: the channel's own, or an open step's. */
@@ -92,6 +96,7 @@ type ChannelEnvelopeSectionProps = {
  * still holding.
  */
 export default function ChannelEnvelopeSection({
+  channelId,
   channelName,
   settings,
   playing,
@@ -154,7 +159,7 @@ export default function ChannelEnvelopeSection({
           }
           onChange={(position) => onAttackChange(sliderToAttack(position))}
           {...lockProps("attackSeconds")}
-          midiMapId="channel:envelope:attack"
+          midiMapId={channelMidiMapId(channelId, "envelope:attack")}
         />
 
         <RotaryKnob
@@ -171,7 +176,7 @@ export default function ChannelEnvelopeSection({
           }
           onChange={(position) => onDecayChange(sliderToDecay(position))}
           {...lockProps("decaySeconds")}
-          midiMapId="channel:envelope:decay"
+          midiMapId={channelMidiMapId(channelId, "envelope:decay")}
         />
 
         <RotaryKnob
@@ -188,7 +193,7 @@ export default function ChannelEnvelopeSection({
           }
           onChange={onSustainChange}
           {...lockProps("sustainLevel")}
-          midiMapId="channel:envelope:sustain"
+          midiMapId={channelMidiMapId(channelId, "envelope:sustain")}
         />
 
         <RotaryKnob
@@ -205,7 +210,7 @@ export default function ChannelEnvelopeSection({
           }
           onChange={(position) => onReleaseChange(sliderToRelease(position))}
           {...lockProps("releaseSeconds")}
-          midiMapId="channel:envelope:release"
+          midiMapId={channelMidiMapId(channelId, "envelope:release")}
         />
       </div>
     </div>

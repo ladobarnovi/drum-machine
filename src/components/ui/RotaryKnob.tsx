@@ -123,7 +123,7 @@ export default function RotaryKnob({
   disabled = false,
   midiMapId,
 }: RotaryKnobProps) {
-  const midiLearn = useMidiLearnControl(midiMapId, min, max, onChange);
+  const midiLearn = useMidiLearnControl(midiMapId);
 
   /**
    * Where the pointer was at the last move, and the unrounded value the drag

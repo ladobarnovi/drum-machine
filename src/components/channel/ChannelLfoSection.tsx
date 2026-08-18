@@ -2,6 +2,7 @@
 
 import LfoGraph from "./LfoGraph";
 import RotaryKnob from "@/components/ui/RotaryKnob";
+import { channelMidiMapId } from "@/lib/midiParameters";
 import {
   LFO_DESTINATIONS,
   LFO_DESTINATION_LABELS,
@@ -20,6 +21,9 @@ import {
 } from "@/lib/sequencer";
 
 type ChannelLfoSectionProps = {
+  /** Whose LFO this is, so a MIDI mapping binds to that channel's knobs
+   *  rather than to whichever channel happens to be selected. */
+  channelId: string;
   /** The selected channel's modulation source. */
   lfo: ChannelLfo;
   onChange: (lfo: ChannelLfo) => void;
@@ -41,6 +45,7 @@ type ChannelLfoSectionProps = {
  * step has nothing of it to override.
  */
 export default function ChannelLfoSection({
+  channelId,
   lfo,
   onChange,
 }: ChannelLfoSectionProps) {
@@ -65,7 +70,7 @@ export default function ChannelLfoSection({
           onChange={(position) =>
             onChange({ ...lfo, rateHz: sliderToLfoRate(position) })
           }
-          midiMapId="channel:lfo:rate"
+          midiMapId={channelMidiMapId(channelId, "lfo:rate")}
         />
 
         {/* The readout is in the destination's own unit, so the same knob reads
@@ -81,7 +86,7 @@ export default function ChannelLfoSection({
           onChange={(value) =>
             onChange({ ...lfo, amount: clampLfoAmount(value) })
           }
-          midiMapId="channel:lfo:amount"
+          midiMapId={channelMidiMapId(channelId, "lfo:amount")}
         />
       </div>
 

@@ -4,6 +4,7 @@ import { useState, type FocusEvent } from "react";
 
 import FxGraph from "./FxGraph";
 import RotaryKnob from "@/components/ui/RotaryKnob";
+import { channelMidiMapId } from "@/lib/midiParameters";
 import {
   MAX_SEND,
   MIN_SEND,
@@ -50,6 +51,9 @@ type PlayingFx = {
 };
 
 type ChannelFxSectionProps = {
+  /** Whose sends these are, so a MIDI mapping binds to that channel's knobs
+   *  rather than to whichever channel happens to be selected. */
+  channelId: string;
   /** What the knobs edit: the channel's own, or an open step's. */
   settings: FxSettings;
   /**
@@ -81,6 +85,7 @@ type ChannelFxSectionProps = {
  * switching between them should find the same rules still holding.
  */
 export default function ChannelFxSection({
+  channelId,
   settings,
   playing,
   onDelaySendChange,
@@ -141,7 +146,7 @@ export default function ChannelFxSection({
           readout={readout(shown.delaySend)}
           onChange={(value) => onDelaySendChange(clampSend(value))}
           {...lockProps("delaySend")}
-          midiMapId="channel:fx:delaySend"
+          midiMapId={channelMidiMapId(channelId, "fx:delaySend")}
         />
 
         <RotaryKnob
@@ -154,7 +159,7 @@ export default function ChannelFxSection({
           readout={readout(shown.reverbSend)}
           onChange={(value) => onReverbSendChange(clampSend(value))}
           {...lockProps("reverbSend")}
-          midiMapId="channel:fx:reverbSend"
+          midiMapId={channelMidiMapId(channelId, "fx:reverbSend")}
         />
 
         <RotaryKnob
@@ -167,7 +172,7 @@ export default function ChannelFxSection({
           readout={readout(shown.phaserSend)}
           onChange={(value) => onPhaserSendChange(clampSend(value))}
           {...lockProps("phaserSend")}
-          midiMapId="channel:fx:phaserSend"
+          midiMapId={channelMidiMapId(channelId, "fx:phaserSend")}
         />
       </div>
     </div>

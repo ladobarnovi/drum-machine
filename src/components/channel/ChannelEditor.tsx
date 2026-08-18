@@ -15,6 +15,7 @@ import StepGrid from "./steps/StepGrid";
 import StepPatternControls from "./steps/StepPatternControls";
 import Accordion from "@/components/ui/Accordion";
 import RotaryKnob from "@/components/ui/RotaryKnob";
+import { channelMidiMapId } from "@/lib/midiParameters";
 import type { LibraryEntry } from "@/lib/sampleLibrary";
 import {
   DEFAULT_STEP_PROBABILITY,
@@ -274,7 +275,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             readout={`${Math.round(props.volume * 100)}%`}
             onChange={(value) => props.onVolumeChange(clampVolume(value))}
             {...lockProps("volume")}
-            midiMapId="channel:volume"
+            midiMapId={channelMidiMapId(channel.id, "volume")}
           />
 
           <RotaryKnob
@@ -287,7 +288,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             readout={formatPan(props.pan)}
             onChange={(value) => props.onPanChange(clampPan(value))}
             {...lockProps("pan")}
-            midiMapId="channel:pan"
+            midiMapId={channelMidiMapId(channel.id, "pan")}
           />
 
           <RotaryKnob
@@ -300,7 +301,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             readout={formatPitch(props.pitch)}
             onChange={(value) => props.onPitchChange(clampPitch(value))}
             {...lockProps("pitch")}
-            midiMapId="channel:pitch"
+            midiMapId={channelMidiMapId(channel.id, "pitch")}
           />
         </div>
 

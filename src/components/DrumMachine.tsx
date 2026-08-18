@@ -39,6 +39,7 @@ import { useMidiAccess } from "@/hooks/useMidiAccess";
 import { useMidiClockInput } from "@/hooks/useMidiClockInput";
 import { useMidiClockOutput } from "@/hooks/useMidiClockOutput";
 import { useMidiInput } from "@/hooks/useMidiInput";
+import { useMidiParameterRegistry } from "@/hooks/useMidiParameterRegistry";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSequencer } from "@/hooks/useSequencer";
 import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
@@ -1111,6 +1112,31 @@ export default function DrumMachine() {
     stop();
     clearFlashes();
   }, [clearFlashes, isPlaying, midiClockSource, stop]);
+
+  /*
+   * Every mappable parameter, wired to the CC map for as long as the machine
+   * is up — not merely while the knob that shows it is on screen. Kept here
+   * rather than in the controls because a mapping is a wire to a parameter,
+   * and a tab being closed is not a reason for that wire to come loose.
+   */
+  useMidiParameterRegistry({
+    channels,
+    updateChannel,
+    masterVolume,
+    setMasterVolume,
+    masterDrive,
+    setMasterDrive,
+    masterFilter,
+    setMasterFilter,
+    masterDelay,
+    setMasterDelay,
+    masterReverb,
+    setMasterReverb,
+    masterPhaser,
+    setMasterPhaser,
+    masterCompressor,
+    setMasterCompressor,
+  });
 
   const {
     inputs: midiInputs,

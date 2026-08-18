@@ -153,11 +153,13 @@ export function stopMidiLearn(): void {
 }
 
 /**
- * The live range and setter for every mapped control currently on screen,
- * keyed the same way the bindings are. Plain and imperative rather than React
- * state: it exists only to be read the instant a CC arrives, and a control
- * switching tabs or unmounting has to fall out of it immediately rather than
- * waiting on a render that has no reason to happen otherwise.
+ * The range and setter for every mappable parameter, keyed the same way the
+ * bindings are. Plain and imperative rather than React state: it exists only
+ * to be read the instant a CC arrives, which is no business of the render
+ * cycle's.
+ *
+ * Filled once by `useMidiParameterRegistry`, from the state layer, and not by
+ * the knobs and sliders themselves — see the note on `handleIncomingCc`.
  */
 type RegisteredControl = {
   min: number;
@@ -167,7 +169,7 @@ type RegisteredControl = {
 
 const registry = new Map<MidiMapId, RegisteredControl>();
 
-/** Registers a mounted control's current range and setter; returns its cleanup. */
+/** Registers one parameter's range and setter; returns its cleanup. */
 export function registerMidiControl(
   mapId: MidiMapId,
   min: number,
@@ -179,8 +181,8 @@ export function registerMidiControl(
 
   return () => {
     // Only clears the slot if this registration is still the one sitting in
-    // it — guards against an unmount's cleanup running after a re-mount (a
-    // tab switch, say) has already registered the control's new instance.
+    // it — guards against a cleanup running after a re-registration has
+    // already replaced the entry, which would otherwise leave the slot empty.
     if (registry.get(mapId) === entry) registry.delete(mapId);
   };
 }
@@ -190,9 +192,12 @@ export function registerMidiControl(
  * currently learning, or — the ordinary case — apply it to whatever control
  * is already bound to that number, scaled onto that control's own range.
  *
- * A CC for a mapId with nothing mounted right now (a control on a hidden FX
- * tab, say) is a no-op: the binding is still there in storage, waiting for
- * that control to register again.
+ * What is bound is a *parameter*, not the widget that happens to draw it: the
+ * registry is filled from the state layer once and stays filled, so a knob
+ * mapped on the Filter tab keeps working from the Env tab, and one mapped on
+ * channel 1 goes on driving channel 1 while channel 5 is the one being looked
+ * at. A CC for a mapId nothing has registered — a binding saved before that
+ * parameter existed, say — is a no-op.
  */
 export function handleIncomingCc(controller: number, value: number): void {
   if (learningMapId !== null) {

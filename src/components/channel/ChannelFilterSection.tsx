@@ -4,6 +4,7 @@ import { useState, type FocusEvent } from "react";
 
 import FilterGraph from "./FilterGraph";
 import RotaryKnob from "@/components/ui/RotaryKnob";
+import { channelMidiMapId } from "@/lib/midiParameters";
 import {
   FILTER_SLOPES,
   FILTER_SLOPE_LABELS,
@@ -62,6 +63,9 @@ type PlayingStep = {
 };
 
 type ChannelFilterSectionProps = {
+  /** Whose filter this is, so a MIDI mapping binds to that channel's knobs
+   *  rather than to whichever channel happens to be selected. */
+  channelId: string;
   /** Whose filter this is, so the card says which channel it belongs to. */
   channelName: string;
   /** What the knobs edit: the channel's own, or an open step's. */
@@ -105,6 +109,7 @@ type ChannelFilterSectionProps = {
  * is.
  */
 export default function ChannelFilterSection({
+  channelId,
   channelName,
   settings,
   filterSlope,
@@ -210,7 +215,7 @@ export default function ChannelFilterSection({
           }
           onChange={(position) => onLowCutChange(sliderToFrequency(position))}
           {...lockProps("lowCutHz")}
-          midiMapId="channel:filter:lowCutHz"
+          midiMapId={channelMidiMapId(channelId, "filter:lowCutHz")}
         />
 
         <RotaryKnob
@@ -223,7 +228,7 @@ export default function ChannelFilterSection({
           readout={formatResonance(shown.lowCutResonance)}
           onChange={onLowCutResonanceChange}
           {...lockProps("lowCutResonance")}
-          midiMapId="channel:filter:lowCutResonance"
+          midiMapId={channelMidiMapId(channelId, "filter:lowCutResonance")}
         />
 
         <RotaryKnob
@@ -240,7 +245,7 @@ export default function ChannelFilterSection({
           }
           onChange={(position) => onHighCutChange(sliderToFrequency(position))}
           {...lockProps("highCutHz")}
-          midiMapId="channel:filter:highCutHz"
+          midiMapId={channelMidiMapId(channelId, "filter:highCutHz")}
         />
 
         <RotaryKnob
@@ -253,7 +258,7 @@ export default function ChannelFilterSection({
           readout={formatResonance(shown.highCutResonance)}
           onChange={onHighCutResonanceChange}
           {...lockProps("highCutResonance")}
-          midiMapId="channel:filter:highCutResonance"
+          midiMapId={channelMidiMapId(channelId, "filter:highCutResonance")}
         />
       </div>
 
