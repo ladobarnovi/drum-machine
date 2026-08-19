@@ -103,6 +103,21 @@ export function clearMidiCcBinding(mapId: MidiMapId): void {
   notifyMap();
 }
 
+/**
+ * Drops every binding at once, for the mappings list's own reset. Kept apart
+ * from clearing them one at a time because it is a different decision — "this
+ * knob is on the wrong CC" against "start the controller over" — and because
+ * the list is the one place all of them are visible enough for that to be an
+ * informed one.
+ */
+export function clearAllMidiCcBindings(): void {
+  if (Object.keys(ccMap).length === 0) return;
+
+  ccMap = {};
+  persist(ccMap);
+  notifyMap();
+}
+
 function mapIdForCc(cc: number): MidiMapId | null {
   for (const [key, value] of Object.entries(ccMap)) {
     if (value === cc) return key;

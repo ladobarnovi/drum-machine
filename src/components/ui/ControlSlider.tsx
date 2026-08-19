@@ -1,8 +1,8 @@
 "use client";
 
-import type { MouseEvent } from "react";
-
-import { useMidiLearnControl } from "@/hooks/useMidiLearnControl";
+import MidiBadge from "@/components/ui/MidiBadge";
+import MidiLearnMenu from "@/components/ui/MidiLearnMenu";
+import { useMidiLearnMenu } from "@/hooks/useMidiLearnMenu";
 
 type ControlSliderProps = {
   label: string;
@@ -44,33 +44,7 @@ export default function ControlSlider({
   onClearLock,
   midiMapId,
 }: ControlSliderProps) {
-  const midiLearn = useMidiLearnControl(midiMapId);
-
-  /**
-   * A right click, while this row has a MIDI identity: starts listening for
-   * the next CC, clears an existing binding, or cancels listening — whichever
-   * currently applies, so one gesture covers all three without a menu.
-   */
-  const handleContextMenu = (event: MouseEvent<HTMLElement>) => {
-    if (!midiLearn) return;
-    event.preventDefault();
-
-    if (midiLearn.isLearning) {
-      midiLearn.cancelLearn();
-    } else if (midiLearn.cc !== null) {
-      midiLearn.clearBinding();
-    } else {
-      midiLearn.startLearn();
-    }
-  };
-
-  const midiTitle = !midiLearn
-    ? undefined
-    : midiLearn.isLearning
-      ? "Listening for a MIDI CC — right-click to cancel"
-      : midiLearn.cc !== null
-        ? `Mapped to MIDI CC ${midiLearn.cc} — right-click to clear`
-        : "Right-click to map a MIDI CC";
+  const midiMenu = useMidiLearnMenu(midiMapId);
 
   const slider = (
     <>
@@ -81,16 +55,7 @@ export default function ControlSlider({
       >
         {label}
 
-        {/* A MIDI dot: solid once mapped, pulsing while listening for the CC
-            that will map it. Absent otherwise. */}
-        {midiLearn && (midiLearn.cc !== null || midiLearn.isLearning) && (
-          <span
-            aria-hidden
-            className={`bg-accent inline-block size-1.5 shrink-0 rounded-full ${
-              midiLearn.isLearning ? "animate-pulse" : ""
-            }`}
-          />
-        )}
+        {midiMenu?.showBadge && <MidiBadge label={label} menu={midiMenu} />}
       </span>
       <input
         type="range"
@@ -108,43 +73,47 @@ export default function ControlSlider({
     </>
   );
 
-  if (!onClearLock) {
-    return (
-      <label
-        onContextMenu={handleContextMenu}
-        title={midiTitle}
-        className="flex items-center gap-2 text-xs"
-      >
-        {slider}
-      </label>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <label
-        onContextMenu={handleContextMenu}
-        title={midiTitle}
-        className="flex flex-1 items-center gap-2"
-      >
-        {slider}
-      </label>
-
-      {/* Held open even when there is nothing to clear, so the rows of a panel
-          stay aligned as locks come and go under them. */}
-      <span className="flex w-4 shrink-0 justify-center">
-        {locked && (
-          <button
-            type="button"
-            onClick={onClearLock}
-            aria-label={`Clear ${label} lock`}
-            title={`Clear ${label} lock`}
-            className="text-select hover:bg-raised rounded px-1 leading-none"
+    <>
+      {!onClearLock ? (
+        <label
+          onContextMenu={midiMenu?.onContextMenu}
+          title={midiMenu?.title}
+          className="flex items-center gap-2 text-xs"
+        >
+          {slider}
+        </label>
+      ) : (
+        <div className="flex items-center gap-2 text-xs">
+          <label
+            onContextMenu={midiMenu?.onContextMenu}
+            title={midiMenu?.title}
+            className="flex flex-1 items-center gap-2"
           >
-            ×
-          </button>
-        )}
-      </span>
-    </div>
+            {slider}
+          </label>
+
+          {/* Held open even when there is nothing to clear, so the rows of a
+              panel stay aligned as locks come and go under them. */}
+          <span className="flex w-4 shrink-0 justify-center">
+            {locked && (
+              <button
+                type="button"
+                onClick={onClearLock}
+                aria-label={`Clear ${label} lock`}
+                title={`Clear ${label} lock`}
+                className="text-select hover:bg-raised rounded px-1 leading-none"
+              >
+                ×
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
+      {/* Outside the label on purpose: a click on a menu item within one would
+          be forwarded to the slider as though the track had been clicked. */}
+      {midiMenu && <MidiLearnMenu label={label} menu={midiMenu} />}
+    </>
   );
 }

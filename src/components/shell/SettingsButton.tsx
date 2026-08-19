@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import type { MidiMappingsSettings } from "@/components/shell/MidiMappingsPanel";
 import type { MidiSettings } from "@/components/shell/MidiSettingsPanel";
 import SettingsDialog from "@/components/shell/SettingsDialog";
 import type { SoundSettings } from "@/components/shell/SoundSettingsPanel";
@@ -10,6 +11,7 @@ import { SYSTEM_DEFAULT_SINK_ID } from "@/lib/audioOutput";
 
 type SettingsButtonProps = {
   midi: MidiSettings;
+  mappings: MidiMappingsSettings;
   sound: SoundSettings;
 };
 
@@ -25,7 +27,11 @@ type SettingsButtonProps = {
  * `ServiceWorkerRegistrar` stays quiet where there's no service worker to
  * register.
  */
-export default function SettingsButton({ midi, sound }: SettingsButtonProps) {
+export default function SettingsButton({
+  midi,
+  mappings,
+  sound,
+}: SettingsButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   if (!midi.supported && !sound.supported) return null;
@@ -73,6 +79,7 @@ export default function SettingsButton({ midi, sound }: SettingsButtonProps) {
       {isOpen && (
         <SettingsDialog
           midi={midi}
+          mappings={mappings}
           sound={sound}
           onClose={() => setIsOpen(false)}
         />

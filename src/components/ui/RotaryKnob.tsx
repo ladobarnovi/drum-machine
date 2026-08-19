@@ -1,13 +1,10 @@
 "use client";
 
-import {
-  useRef,
-  type KeyboardEvent,
-  type MouseEvent,
-  type PointerEvent,
-} from "react";
+import { useRef, type KeyboardEvent, type PointerEvent } from "react";
 
-import { useMidiLearnControl } from "@/hooks/useMidiLearnControl";
+import MidiBadge from "@/components/ui/MidiBadge";
+import MidiLearnMenu from "@/components/ui/MidiLearnMenu";
+import { useMidiLearnMenu } from "@/hooks/useMidiLearnMenu";
 
 type RotaryKnobProps = {
   label: string;
@@ -123,7 +120,7 @@ export default function RotaryKnob({
   disabled = false,
   midiMapId,
 }: RotaryKnobProps) {
-  const midiLearn = useMidiLearnControl(midiMapId);
+  const midiMenu = useMidiLearnMenu(midiMapId);
 
   /**
    * Where the pointer was at the last move, and the unrounded value the drag
@@ -217,33 +214,6 @@ export default function RotaryKnob({
     event.preventDefault();
   };
 
-  /**
-   * A right click, while this knob has a MIDI identity: starts listening for
-   * the next CC, clears an existing binding, or cancels listening — whichever
-   * of the three currently applies, so one gesture covers all of it rather
-   * than needing a menu to choose between them.
-   */
-  const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
-    if (!midiLearn) return;
-    event.preventDefault();
-
-    if (midiLearn.isLearning) {
-      midiLearn.cancelLearn();
-    } else if (midiLearn.cc !== null) {
-      midiLearn.clearBinding();
-    } else {
-      midiLearn.startLearn();
-    }
-  };
-
-  const midiTitle = !midiLearn
-    ? undefined
-    : midiLearn.isLearning
-      ? "Listening for a MIDI CC — right-click to cancel"
-      : midiLearn.cc !== null
-        ? `Mapped to MIDI CC ${midiLearn.cc} — right-click to clear`
-        : "Right-click to map a MIDI CC";
-
   const pointerFrom = pointAt(
     START_ANGLE + fraction * SWEEP_ANGLE,
     POINTER_INNER,
@@ -267,8 +237,8 @@ export default function RotaryKnob({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onKeyDown={handleKeyDown}
-        onContextMenu={handleContextMenu}
-        title={midiTitle}
+        onContextMenu={midiMenu?.onContextMenu}
+        title={midiMenu?.title}
         // `touch-none` keeps the browser from claiming the drag for scrolling,
         // which would swallow it before it arrived — the same reason the step
         // grid and the trim handles set it.
@@ -337,17 +307,8 @@ export default function RotaryKnob({
       >
         {label}
 
-        {/* A MIDI dot: solid once mapped, pulsing while listening for the CC
-            that will map it. Absent otherwise, so a knob with no MIDI
-            identity — or one that's never been mapped — looks exactly as it
-            always has. */}
-        {midiLearn && (midiLearn.cc !== null || midiLearn.isLearning) && (
-          <span
-            aria-hidden
-            className={`bg-accent inline-block size-1.5 rounded-full ${
-              midiLearn.isLearning ? "animate-pulse" : ""
-            }`}
-          />
+        {midiMenu?.showBadge && (
+          <MidiBadge label={ariaLabel ?? label} menu={midiMenu} />
         )}
       </span>
 
@@ -370,6 +331,8 @@ export default function RotaryKnob({
           </button>
         )}
       </div>
+
+      {midiMenu && <MidiLearnMenu label={ariaLabel ?? label} menu={midiMenu} />}
     </div>
   );
 }

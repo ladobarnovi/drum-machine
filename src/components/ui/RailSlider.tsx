@@ -1,8 +1,8 @@
 "use client";
 
-import type { MouseEvent } from "react";
-
-import { useMidiLearnControl } from "@/hooks/useMidiLearnControl";
+import MidiBadge from "@/components/ui/MidiBadge";
+import MidiLearnMenu from "@/components/ui/MidiLearnMenu";
+import { useMidiLearnMenu } from "@/hooks/useMidiLearnMenu";
 
 type RailSliderProps = {
   label: string;
@@ -41,67 +41,40 @@ export default function RailSlider({
   onChange,
   midiMapId,
 }: RailSliderProps) {
-  const midiLearn = useMidiLearnControl(midiMapId);
-
-  /**
-   * A right click, while this row has a MIDI identity: starts listening for
-   * the next CC, clears an existing binding, or cancels listening — whichever
-   * currently applies, so one gesture covers all three without a menu.
-   */
-  const handleContextMenu = (event: MouseEvent<HTMLLabelElement>) => {
-    if (!midiLearn) return;
-    event.preventDefault();
-
-    if (midiLearn.isLearning) {
-      midiLearn.cancelLearn();
-    } else if (midiLearn.cc !== null) {
-      midiLearn.clearBinding();
-    } else {
-      midiLearn.startLearn();
-    }
-  };
-
-  const midiTitle = !midiLearn
-    ? undefined
-    : midiLearn.isLearning
-      ? "Listening for a MIDI CC — right-click to cancel"
-      : midiLearn.cc !== null
-        ? `Mapped to MIDI CC ${midiLearn.cc} — right-click to clear`
-        : "Right-click to map a MIDI CC";
+  const midiMenu = useMidiLearnMenu(midiMapId);
 
   return (
-    <label
-      onContextMenu={handleContextMenu}
-      title={midiTitle}
-      className="flex flex-col gap-1 text-xs"
-    >
-      <span className="flex items-baseline justify-between">
-        <span className="flex items-center gap-1">
-          {label}
+    <>
+      <label
+        onContextMenu={midiMenu?.onContextMenu}
+        title={midiMenu?.title}
+        className="flex flex-col gap-1 text-xs"
+      >
+        <span className="flex items-baseline justify-between">
+          <span className="flex items-center gap-1">
+            {label}
 
-          {/* A MIDI dot: solid once mapped, pulsing while listening for the CC
-              that will map it. Absent otherwise. */}
-          {midiLearn && (midiLearn.cc !== null || midiLearn.isLearning) && (
-            <span
-              aria-hidden
-              className={`bg-accent inline-block size-1.5 rounded-full ${
-                midiLearn.isLearning ? "animate-pulse" : ""
-              }`}
-            />
-          )}
+            {midiMenu?.showBadge && (
+              <MidiBadge label={ariaLabel} menu={midiMenu} />
+            )}
+          </span>
+          <span className="text-muted tabular-nums">{readout}</span>
         </span>
-        <span className="text-muted tabular-nums">{readout}</span>
-      </span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        aria-label={ariaLabel}
-        className="w-full"
-      />
-    </label>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          aria-label={ariaLabel}
+          className="w-full"
+        />
+      </label>
+
+      {/* Outside the label on purpose: a click on a menu item within one would
+          be forwarded to the slider as though the track had been clicked. */}
+      {midiMenu && <MidiLearnMenu label={ariaLabel} menu={midiMenu} />}
+    </>
   );
 }

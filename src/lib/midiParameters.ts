@@ -383,3 +383,109 @@ export const MASTER_COMPRESSOR_PARAMETERS: Record<
     }),
   },
 };
+
+/*
+ * How a binding reads once it is away from the control it belongs to.
+ *
+ * The mappings list in the device settings shows every CC the machine answers
+ * to at once, with nothing else on the row to say what "Feedback" is the
+ * feedback of — the delay's and the phaser's are both mappable and both spelt
+ * that way on their own panels. So each id carries its group along with it
+ * here, and the second half is the label the control actually wears on screen,
+ * so a row and the knob it names can be matched up by eye.
+ */
+
+/** Every master id, spelt as "<stage> · <control>". */
+export const MASTER_MIDI_LABELS: Record<string, string> = {
+  [MASTER_VOLUME_MAP_ID]: "Output · Volume",
+
+  "master:drive:amount": "Drive · Amount",
+  "master:drive:level": "Drive · Volume",
+
+  "master:filter:lowCut": "Master filter · Low cut",
+  "master:filter:highCut": "Master filter · High cut",
+
+  "master:delay:time": "Delay · Time",
+  "master:delay:feedback": "Delay · Feedback",
+  "master:delay:tone": "Delay · Tone",
+  "master:delay:level": "Delay · Level",
+  "master:delay:reverbSend": "Delay · To reverb",
+
+  "master:reverb:decay": "Reverb · Decay",
+  "master:reverb:tone": "Reverb · Tone",
+  "master:reverb:level": "Reverb · Level",
+  "master:reverb:phaserSend": "Reverb · To phaser",
+
+  "master:phaser:rate": "Phaser · Rate",
+  "master:phaser:depth": "Phaser · Depth",
+  "master:phaser:feedback": "Phaser · Feedback",
+  "master:phaser:level": "Phaser · Level",
+
+  "master:compressor:threshold": "Compressor · Threshold",
+  "master:compressor:ratio": "Compressor · Ratio",
+  "master:compressor:attack": "Compressor · Attack",
+  "master:compressor:release": "Compressor · Release",
+  "master:compressor:makeup": "Compressor · Makeup",
+};
+
+/**
+ * Keyed by the suffix in a channel map id, matching
+ * `CHANNEL_MIDI_PARAMETERS`. The channel's own name is put in front of these
+ * at read time, so the row says which drum it moves.
+ *
+ * The three sends and the two LFO controls say what they belong to where the
+ * panel doesn't have to: on the FX tab "Delay" can only be the delay send, but
+ * on a list beside the master delay's own controls it could be either.
+ */
+export const CHANNEL_MIDI_LABELS: Record<string, string> = {
+  volume: "Gain",
+  pan: "Pan",
+  pitch: "Pitch",
+
+  "filter:lowCutHz": "HPF",
+  "filter:lowCutResonance": "HPF Res",
+  "filter:highCutHz": "LPF",
+  "filter:highCutResonance": "LPF Res",
+
+  "envelope:attack": "Attack",
+  "envelope:decay": "Decay",
+  "envelope:sustain": "Sustain",
+  "envelope:release": "Release",
+
+  "fx:delaySend": "Delay send",
+  "fx:reverbSend": "Reverb send",
+  "fx:phaserSend": "Phaser send",
+
+  "lfo:rate": "LFO Rate",
+  "lfo:amount": "LFO Amount",
+};
+
+/**
+ * What a map id is called on screen, given the names the channels are
+ * currently going by.
+ *
+ * Falls back to the raw id rather than to nothing, so a binding saved against
+ * a parameter that has since been renamed or dropped still shows up as a row
+ * that can be cleared — a mapping nobody can see is a mapping nobody can undo.
+ */
+export function midiMapLabel(
+  mapId: string,
+  channelNames: Record<string, string>,
+): string {
+  const master = MASTER_MIDI_LABELS[mapId];
+  if (master) return master;
+
+  // Channel ids carry no colon of their own, so the first one is the seam
+  // between the channel and the parameter within it.
+  const seam = mapId.indexOf(":");
+  if (seam === -1) return mapId;
+
+  const channelId = mapId.slice(0, seam);
+  const suffix = mapId.slice(seam + 1);
+
+  const channelName = channelNames[channelId];
+  const parameter = CHANNEL_MIDI_LABELS[suffix];
+  if (!channelName || !parameter) return mapId;
+
+  return `${channelName} · ${parameter}`;
+}

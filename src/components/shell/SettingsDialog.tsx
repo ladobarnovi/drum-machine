@@ -2,16 +2,20 @@
 
 import { useEffect } from "react";
 
+import MidiMappingsPanel, {
+  type MidiMappingsSettings,
+} from "@/components/shell/MidiMappingsPanel";
 import MidiSettingsPanel, {
   type MidiSettings,
 } from "@/components/shell/MidiSettingsPanel";
 import SoundSettingsPanel, {
   type SoundSettings,
 } from "@/components/shell/SoundSettingsPanel";
-import RailTabs from "@/components/ui/RailTabs";
+import RailTabs, { type RailTab } from "@/components/ui/RailTabs";
 
 type SettingsDialogProps = {
   midi: MidiSettings;
+  mappings: MidiMappingsSettings;
   sound: SoundSettings;
   onClose: () => void;
 };
@@ -34,9 +38,38 @@ type SettingsDialogProps = {
  */
 export default function SettingsDialog({
   midi,
+  mappings,
   sound,
   onClose,
 }: SettingsDialogProps) {
+  /*
+   * Mappings sit next to the input that sends them, and only where there is
+   * one: without Web MIDI there is no way a binding could have been made in
+   * this browser, so the tab would open on an empty list explaining a gesture
+   * that does nothing here.
+   */
+  const tabs: RailTab[] = [
+    {
+      id: "midi-settings",
+      label: "MIDI",
+      panel: <MidiSettingsPanel {...midi} />,
+    },
+    ...(midi.supported
+      ? [
+          {
+            id: "midi-mappings",
+            label: "Mappings",
+            panel: <MidiMappingsPanel {...mappings} />,
+          },
+        ]
+      : []),
+    {
+      id: "sound-settings",
+      label: "Sound",
+      panel: <SoundSettingsPanel {...sound} />,
+    },
+  ];
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -85,21 +118,7 @@ export default function SettingsDialog({
           </div>
 
           <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-            <RailTabs
-              label="Device settings"
-              tabs={[
-                {
-                  id: "midi-settings",
-                  label: "MIDI",
-                  panel: <MidiSettingsPanel {...midi} />,
-                },
-                {
-                  id: "sound-settings",
-                  label: "Sound",
-                  panel: <SoundSettingsPanel {...sound} />,
-                },
-              ]}
-            />
+            <RailTabs label="Device settings" tabs={tabs} />
           </div>
 
           <div className="border-line flex items-center justify-end border-t p-3">

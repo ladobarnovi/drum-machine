@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ChannelContextMenu from "@/components/channel/ChannelContextMenu";
 import ChannelGrid from "@/components/channel/ChannelGrid";
@@ -1604,6 +1604,23 @@ export default function DrumMachine() {
     (channel) => channel.sample.status === "loaded",
   );
 
+  /**
+   * What each channel is going by right now, for the mappings list in the
+   * device settings: a binding held against `channel-1` has to read as the
+   * drum it actually moves, and follow it when the channel is renamed.
+   *
+   * Memoised on the channels rather than rebuilt every render, since this
+   * component re-renders on every step of the transport and the names change
+   * only when a channel is renamed or a kit is loaded.
+   */
+  const channelNames = useMemo(
+    () =>
+      Object.fromEntries(
+        channels.map((channel) => [channel.id, channelDisplayName(channel)]),
+      ),
+    [channels],
+  );
+
   // Stopping always works; starting needs at least one loaded sample, matching
   // the transport button's own disabled rule.
   const handleTogglePlay = useCallback(() => {
@@ -1761,6 +1778,7 @@ export default function DrumMachine() {
               onClockSourceChange: setMidiClockSource,
               estimatedBpm: midiClockInput.estimatedBpm,
             }}
+            mappings={{ channelNames }}
             sound={{
               supported: audioOutputSupported,
               outputs: audioOutputs,
