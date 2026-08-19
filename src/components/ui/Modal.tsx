@@ -6,7 +6,6 @@ import {
   useRef,
   type MouseEvent,
   type ReactNode,
-  type SyntheticEvent,
 } from "react";
 
 type ModalProps = {
@@ -48,9 +47,56 @@ export default function Modal({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
+  /**
+   * The latest `onClose`, for the listeners below to call.
+   *
+   * They are hung once, on open, and must not be rebound afterwards — their
+   * cleanup closes the dialog, so an effect that re-ran whenever the callers'
+   * inline arrow got a new identity would shut the panel on the next render.
+   */
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
+
+    /**
+     * Escape, which the browser now routes to this element rather than to the
+     * window. The default is prevented so the dialog stays open and React does
+     * the closing, in that order: letting the browser close it first would
+     * leave a hidden dialog that the state above still believes is on screen.
+     */
+    const handleCancel = (event: Event) => {
+      event.preventDefault();
+      onCloseRef.current();
+    };
+
+    /** Any other route to closed — so the state above cannot fall out of step
+     *  with an element that has already gone. */
+    const handleClose = () => onCloseRef.current();
+
+    // Bound natively rather than through React's `onCancel`/`onClose` props:
+    // neither event bubbles, which is exactly the case React's delegated
+    // listeners are least reliable for, and there is nothing to gain by
+    // routing a dialog's own events through the synthetic system.
+    dialog.addEventListener("cancel", handleCancel);
+    dialog.addEventListener("close", handleClose);
+
+    /*
+     * Noted before opening, because `showModal` is about to take the focus
+     * away from it.
+     *
+     * A dialog closed by hand hands focus back to whatever opened it, and this
+     * has to do that itself rather than leaning on it: React takes the element
+     * out of the document as the state that renders it goes away, and the
+     * `close()` below then runs against a node already detached — too late for
+     * the browser to give the focus to anyone. Left alone it lands on the body,
+     * and the keyboard is back at the top of the page.
+     */
+    const trigger = document.activeElement;
 
     // Opened here rather than through the `open` attribute, which would show
     // the panel without any of the modality: only `showModal` reaches the top
@@ -58,24 +104,31 @@ export default function Modal({
     // inert.
     dialog.showModal();
 
-    // Closed on the way out so the browser can drop the top layer and hand
-    // focus back. Safe against the `cancel` path below, which unmounts this
-    // and arrives here having never closed the dialog itself.
-    return () => dialog.close();
-  }, []);
+    /*
+     * Where the caller wants the keyboard to start, if it says.
+     *
+     * After `showModal` rather than before, and by hand rather than through
+     * React's `autoFocus`: that prop is applied as the child mounts, which is
+     * before this effect runs, and `showModal` then puts the focus on the
+     * first thing in the panel regardless — landing the keyboard on the close
+     * button of a dialog whose whole top row is a search field.
+     */
+    dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus();
 
-  /**
-   * Escape, which the browser sends here rather than to the window now that
-   * this is a real dialog.
-   *
-   * The default is prevented so the element stays open and React does the
-   * closing, in that order: letting the browser close it first would leave a
-   * hidden dialog that the state above still believes is on screen.
-   */
-  const handleCancel = (event: SyntheticEvent<HTMLDialogElement>) => {
-    event.preventDefault();
-    onClose();
-  };
+    return () => {
+      // Unhooked before closing, so the `close` this is about to fire cannot
+      // run back into state that is already on its way out.
+      dialog.removeEventListener("cancel", handleCancel);
+      dialog.removeEventListener("close", handleClose);
+      dialog.close();
+
+      // Guarded for the opener that has gone in the meantime — the sample
+      // library is raised from a slot that a pick can rebuild underneath it.
+      if (trigger instanceof HTMLElement && trigger.isConnected) {
+        trigger.focus();
+      }
+    };
+  }, []);
 
   /**
    * A click on the dimmed surround. The backdrop belongs to the dialog rather
@@ -90,7 +143,6 @@ export default function Modal({
   return (
     <dialog
       ref={dialogRef}
-      onCancel={handleCancel}
       onClick={handleClick}
       aria-labelledby={titleId}
       // `p-0` matters: the padding a dialog carries by default would be part

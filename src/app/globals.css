@@ -29,7 +29,16 @@
   --muted: #737373; /* readouts, captions, off-state labels */
 
   --line: #e5e5e5; /* hairline round a card */
-  --edge: #d4d4d4; /* border of a control */
+  --edge: #939393; /*
+    Border of a control. Every theme's is kept at or above 3:1 against its
+    own `--surface`, which is what WCAG asks of a boundary carrying meaning —
+    and here they nearly all do: an unlit mute button, an empty pattern slot,
+    a step that is off and a slider's own track are each drawn as a border
+    and nothing else, so at the 1.5:1 these used to sit at, the control was
+    the one thing on the page you could not quite see. `--line` below is the
+    quiet hairline this used to be, and still is, for boxes that only group
+    what is inside them.
+  */
 
   /* What is switched on: active steps, slider thumbs, lit toggles. */
   --accent: #f97316;
@@ -83,7 +92,7 @@
     --muted: #a3a3a3;
 
     --line: #262626;
-    --edge: #404040;
+    --edge: #656565;
 
     --accent: #f97316;
     --accent-soft: #fb923c;
@@ -127,7 +136,7 @@
   --muted: #9b93d1;
 
   --line: #241f52;
-  --edge: #372f74;
+  --edge: #5d51b8;
 
   /* Dark ink on the accent: white on a turquoise this bright is unreadable. */
   --accent: #22e2d2;
@@ -171,7 +180,7 @@
   --muted: #86b3a6;
 
   --line: #14433c;
-  --edge: #1e5a51;
+  --edge: #2a7d71;
 
   --accent: #ff8a3d;
   --accent-soft: #ffab6b;
@@ -211,10 +220,10 @@
   --raised: #fbe5c4;
 
   --fg: #2b1a3d;
-  --muted: #8a7797;
+  --muted: #7f6c8d;
 
   --line: #f5e1bd;
-  --edge: #e6cb95;
+  --edge: #a68d5a;
 
   --accent: #ff3b57;
   --accent-soft: #ff6b80;
@@ -258,7 +267,7 @@
   --muted: #8b8b9c;
 
   --line: #191922;
-  --edge: #302f3d;
+  --edge: #5c5a74;
 
   /* Dark ink on the accent: white on an acid green this bright is unreadable. */
   --accent: #e8ff00;

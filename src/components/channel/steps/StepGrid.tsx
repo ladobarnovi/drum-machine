@@ -77,7 +77,7 @@ export default function StepGrid({
           );
         })}
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-muted text-xs">
         Press and hold to enter step edit mode for parameter locking
       </p>
     </>

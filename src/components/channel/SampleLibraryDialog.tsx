@@ -94,7 +94,10 @@ export default function SampleLibraryDialog({
         <input
           type="search"
           value={query}
-          autoFocus
+          // Read by `Modal` once the dialog is up; `autoFocus` is applied too
+          // early to survive `showModal`. Typing to narrow the list is what
+          // this dialog is opened to do.
+          data-autofocus
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search samples"
           aria-label="Search samples"
