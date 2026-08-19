@@ -47,6 +47,7 @@ export default function ChannelPad({
 }: ChannelPadProps) {
   const displayName = channelDisplayName(channel);
   const shortcut = shortcutLabelForIndex(index);
+  const hasSample = channel.sample.status === "loaded";
 
   // Alt+click auditions the channel on top of selecting it, so a sample can be
   // heard without running the transport.
@@ -62,6 +63,11 @@ export default function ChannelPad({
 
   const selection = isSelected ? "border-select bg-select-soft" : "border-edge";
 
+  // An unfilled slot reads as a dashed outline rather than a solid one, so a
+  // glance at the strip tells loaded channels from placeholders without
+  // having to click through each one to check.
+  const emptyOutline = hasSample ? "" : "border-dashed";
+
   // A hit lights the pad instantly and then fades out, so a repeat reads as a
   // fresh pulse rather than one long glow. Carried on the ring, which leaves
   // the border and background to the selected state.
@@ -76,18 +82,20 @@ export default function ChannelPad({
       onContextMenu={handleContextMenu}
       className={`flex aspect-square flex-col rounded-md border ring-2 transition ${
         isCompact ? "gap-0.5 p-1" : "gap-1 p-1.5 sm:p-2"
-      } ${selection} ${trigger}`}
+      } ${selection} ${emptyOutline} ${trigger}`}
     >
       <button
         type="button"
         onClick={handleClick}
         aria-pressed={isSelected}
         aria-label={`Select channel ${displayName}`}
-        title={`${shortcut ? `${displayName} (${shortcut})` : displayName}\nAlt+click to preview`}
+        title={`${shortcut ? `${displayName} (${shortcut})` : displayName}\n${
+          hasSample ? "Alt+click to preview" : "No sample loaded"
+        }`}
         // A neutral overlay so the hover reads the same on the selected pad's tint.
         className={`hover:bg-pad-hover flex flex-1 cursor-pointer items-center justify-center rounded px-1 font-semibold transition-colors ${
           isCompact ? "text-[9px]" : "text-xs sm:text-sm"
-        } ${isSilenced ? "opacity-40" : ""}`}
+        } ${isSilenced ? "opacity-40" : ""} ${hasSample ? "text-fg" : "text-muted"}`}
       >
         <span className="min-w-0 truncate">{displayName}</span>
       </button>
