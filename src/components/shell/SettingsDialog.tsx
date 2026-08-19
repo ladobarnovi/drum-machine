@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-
 import MidiMappingsPanel, {
   type MidiMappingsSettings,
 } from "@/components/shell/MidiMappingsPanel";
@@ -11,6 +9,7 @@ import MidiSettingsPanel, {
 import SoundSettingsPanel, {
   type SoundSettings,
 } from "@/components/shell/SoundSettingsPanel";
+import Modal from "@/components/ui/Modal";
 import RailTabs, { type RailTab } from "@/components/ui/RailTabs";
 
 type SettingsDialogProps = {
@@ -70,68 +69,23 @@ export default function SettingsDialog({
     },
   ];
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
-    <>
-      {/*
-        Dimmed and covering the page, matching the sample library: everything
-        underneath is out of reach until this is closed.
-      */}
-      <button
-        type="button"
-        aria-label="Close device settings"
-        onClick={onClose}
-        className="bg-backdrop fixed inset-0 z-50"
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Device settings"
-        className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div className="border-line bg-surface pointer-events-auto flex max-h-[80vh] w-full max-w-md flex-col rounded-lg border shadow-lg">
-          <div className="border-line flex items-start gap-3 border-b p-4">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold">Devices</h2>
-              <p className="text-muted mt-0.5 truncate text-xs">
-                What this machine is plugged into
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close device settings"
-              className="text-muted hover:bg-raised hover:text-fg -mt-1 shrink-0 rounded px-2 py-1 text-lg leading-none"
-            >
-              ×
-            </button>
-          </div>
-
-          <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-            <RailTabs label="Device settings" tabs={tabs} />
-          </div>
-
-          <div className="border-line flex items-center justify-end border-t p-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="border-edge hover:bg-raised shrink-0 cursor-pointer rounded-md border px-3 py-1 text-xs font-medium transition-colors"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
+    <Modal
+      title="Devices"
+      subtitle="What this machine is plugged into"
+      closeLabel="Close device settings"
+      onClose={onClose}
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          className="border-edge hover:bg-raised ml-auto shrink-0 cursor-pointer rounded-md border px-3 py-1 text-xs font-medium transition-colors"
+        >
+          Done
+        </button>
+      }
+    >
+      <RailTabs label="Device settings" tabs={tabs} />
+    </Modal>
   );
 }

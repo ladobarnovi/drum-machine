@@ -55,7 +55,7 @@
   --pattern: #8b5cf6;
   --bank: #ec4899;
 
-  --backdrop: rgb(23 23 23 / 0.4); /* behind an open drawer */
+  --backdrop: rgb(23 23 23 / 0.4); /* behind an open dialog */
   --pad-hover: rgb(
     0 0 0 / 0.05
   ); /* neutral wash, so it reads on a tinted pad */
@@ -366,6 +366,15 @@
 
 .quiet-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
+}
+
+/* The dimmed surround behind an open dialog. A `::backdrop` rather than an
+   element of its own now that both dialogs are real `<dialog>`s opened with
+   `showModal` — the browser paints it, sizes it to the viewport, and puts it
+   in the top layer under the panel, which is three things the div it replaced
+   had to be told. Painted per theme, from the same token as before. */
+dialog::backdrop {
+  background: var(--backdrop);
 }
 
 /* Range sliders are rendered fully custom (rather than just resizing the

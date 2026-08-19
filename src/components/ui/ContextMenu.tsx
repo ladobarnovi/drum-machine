@@ -27,9 +27,9 @@ type ContextMenuProps = {
  * since a trigger near any edge of the page would otherwise raise a menu
  * partly off screen.
  *
- * The backdrop is deliberately invisible rather than the dimmed one the
- * sidebar drawer uses — a context menu is a small, local thing, and darkening
- * the whole page behind it would make it read as something bigger than it is.
+ * The backdrop is deliberately invisible rather than the dimmed one a dialog
+ * uses — a context menu is a small, local thing, and darkening the whole page
+ * behind it would make it read as something bigger than it is.
  */
 export default function ContextMenu({
   x,
@@ -66,13 +66,69 @@ export default function ContextMenu({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Keyboard users land straight on the menu rather than having to tab back
-  // into it from wherever the trigger left focus.
+  /**
+   * Keyboard users land straight on the menu rather than having to tab back
+   * into it from wherever the trigger left focus — and are put back on the
+   * trigger when it closes.
+   *
+   * Restoring matters most for the keystroke that opens this: a menu reached
+   * from a step, dismissed with Escape, that left focus on the body would cost
+   * a walk back through the grid to reach the step it was just on. The guard
+   * is for the trigger that has gone in the meantime — a pattern slot that
+   * cleared, say — where forcing focus onto a detached node would drop it to
+   * the body anyway.
+   */
   useEffect(() => {
+    const trigger = document.activeElement;
+
     menuRef.current
       ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
       ?.focus();
+
+    return () => {
+      if (trigger instanceof HTMLElement && trigger.isConnected) {
+        trigger.focus();
+      }
+    };
   }, []);
+
+  /**
+   * The arrows walk the items, which is what `role="menu"` promises: Tab moves
+   * between controls on a page, but inside a menu it is the arrows that are
+   * reached for, and a menu that only answered Tab would be one the keystroke
+   * that opened it does not know how to drive.
+   */
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const menu = menuRef.current;
+    if (!menu) return;
+
+    const items = Array.from(
+      menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+    );
+    if (items.length === 0) return;
+
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+
+    let next: number;
+    if (event.key === "ArrowDown") {
+      // Wrapped, so the ends of a short list run into each other rather than
+      // stopping dead — the same rule the tab strips follow.
+      next = (current + 1 + items.length) % items.length;
+    } else if (event.key === "ArrowUp") {
+      next = (current - 1 + items.length) % items.length;
+    } else if (event.key === "Home") {
+      next = 0;
+    } else if (event.key === "End") {
+      next = items.length - 1;
+    } else {
+      return;
+    }
+
+    // Only for the keys handled above: the arrows would otherwise scroll the
+    // page out from under the menu.
+    event.preventDefault();
+    items[next].focus();
+  };
 
   return (
     <>
@@ -91,6 +147,7 @@ export default function ContextMenu({
         ref={menuRef}
         role="menu"
         aria-label={label}
+        onKeyDown={handleKeyDown}
         className={`border-line bg-surface fixed z-40 flex flex-col gap-0.5 rounded-md border p-1 ${width}`}
         style={{ left: position.left, top: position.top }}
       >

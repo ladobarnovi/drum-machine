@@ -8,6 +8,7 @@ import {
   type PointerEvent,
 } from "react";
 
+import { contextMenuAnchor, isContextMenuKey } from "@/lib/contextMenu";
 import {
   DEFAULT_STEP_SLICE,
   MAX_STEP_PROBABILITY,
@@ -257,6 +258,17 @@ export default function StepButton({
     if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
       onHold();
+      return;
+    }
+
+    // The keyboard's way to the step's menu. `handleContextMenu` below cannot
+    // serve it: that one turns away everything but a genuine right click, on
+    // purpose, since a long press already opens the step for editing and would
+    // otherwise raise this on top of the editor it just opened.
+    if (isContextMenuKey(event)) {
+      event.preventDefault();
+      const { x, y } = contextMenuAnchor(event.currentTarget);
+      onContextMenu(x, y);
     }
   };
 

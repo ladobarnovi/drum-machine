@@ -1,6 +1,8 @@
 "use client";
 
-import type { MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
+
+import { contextMenuAnchor, isContextMenuKey } from "@/lib/contextMenu";
 
 type SlotButtonProps = {
   /** What's shown inside the slot itself — a bank's letter, or "A-1" for a pattern. */
@@ -46,6 +48,19 @@ export default function SlotButton({
     onContextMenu(event.clientX, event.clientY);
   };
 
+  /**
+   * The same menu, from the keyboard — which on a pattern slot is the only way
+   * to reach Save at all, since a left click on an empty one loads nothing and
+   * has nothing else to do.
+   */
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!onContextMenu || !isContextMenuKey(event)) return;
+
+    event.preventDefault();
+    const { x, y } = contextMenuAnchor(event.currentTarget);
+    onContextMenu(x, y);
+  };
+
   const fill = filled
     ? FILL_CLASS[variant]
     : "border-edge text-muted hover:bg-raised";
@@ -61,6 +76,7 @@ export default function SlotButton({
       <button
         type="button"
         onClick={onClick}
+        onKeyDown={handleKeyDown}
         aria-pressed={active}
         aria-label={`${label}${filled ? "" : ", empty"}`}
         title={label}

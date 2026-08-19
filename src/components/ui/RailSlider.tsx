@@ -68,6 +68,10 @@ export default function RailSlider({
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
           aria-label={ariaLabel}
+          // The readout rather than the raw number, matching `ControlSlider`:
+          // swing rides 0..0.75 where the panel says "35%", and the number on
+          // its own says nothing a listener could act on.
+          aria-valuetext={readout}
           className="w-full"
         />
       </label>

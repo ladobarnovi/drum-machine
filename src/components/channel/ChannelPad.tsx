@@ -1,7 +1,8 @@
 "use client";
 
-import type { MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
+import { contextMenuAnchor, isContextMenuKey } from "@/lib/contextMenu";
 import { channelDisplayName, type Channel } from "@/lib/sequencer";
 import { shortcutLabelForIndex } from "@/lib/shortcuts";
 
@@ -61,6 +62,20 @@ export default function ChannelPad({
     onContextMenu(event.clientX, event.clientY);
   };
 
+  /**
+   * The same menu, from the keyboard. On the select button rather than on the
+   * pad around it, because the button is the part that takes focus — the
+   * wrapper only exists to catch the right click, which needs no focus of its
+   * own.
+   */
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!isContextMenuKey(event)) return;
+
+    event.preventDefault();
+    const { x, y } = contextMenuAnchor(event.currentTarget);
+    onContextMenu(x, y);
+  };
+
   const selection = isSelected ? "border-select bg-select-soft" : "border-edge";
 
   // An unfilled slot reads as a dashed outline rather than a solid one, so a
@@ -87,6 +102,7 @@ export default function ChannelPad({
       <button
         type="button"
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         aria-pressed={isSelected}
         aria-label={`Select channel ${displayName}`}
         title={`${shortcut ? `${displayName} (${shortcut})` : displayName}\n${

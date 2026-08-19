@@ -65,6 +65,11 @@ export default function ControlSlider({
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
         aria-label={label}
+        // The readout, not the raw number underneath it: several of these
+        // travel on a 0..1 position rather than in the unit they display, so
+        // a screen reader left to announce `value` would say "0.62" for a
+        // cutoff the panel is calling 1.2 kHz. Same string either way.
+        aria-valuetext={readout}
         className="flex-1 sm:w-32 sm:flex-none"
       />
       <span className="text-muted w-16 shrink-0 text-right tabular-nums">
