@@ -5,7 +5,7 @@
  * wanted before anything below it is worth touching.
  *
  * The transport already greys its own button out and explains itself in the
- * rail, but below `lg` that rail is a closed drawer — so on a phone the only
+ * rail, but below `xl` that rail is a closed drawer — so on a phone the only
  * clue would be a round button that quietly does nothing when pressed. This
  * states it once, in the flow of the page, at every width.
  *

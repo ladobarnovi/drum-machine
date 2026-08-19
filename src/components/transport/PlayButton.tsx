@@ -9,11 +9,11 @@ type PlayButtonProps = {
 
 /**
  * The transport's play control as a single round button, for the header below
- * `lg` — where the left rail, and the Play button on it, is a closed drawer.
+ * `xl` — where the left rail, and the Play button on it, is a closed drawer.
  * Without it, starting the machine on a phone means opening a drawer first to
  * reach the one control the machine is useless without.
  *
- * Hidden from `lg` up, like `SidebarTab`, rather than left to the page to hide:
+ * Hidden from `xl` up, like `SidebarTab`, rather than left to the page to hide:
  * it exists for the breakpoint where the rail is away, so it carries that fact
  * itself instead of every use site having to remember it.
  *
@@ -42,7 +42,7 @@ export default function PlayButton({
           ? "Load a sample on any channel to start."
           : label
       }
-      className="bg-invert text-on-invert flex size-10 shrink-0 items-center justify-center rounded-full transition-opacity disabled:cursor-not-allowed disabled:opacity-40 lg:hidden"
+      className="bg-invert text-on-invert flex size-10 shrink-0 items-center justify-center rounded-full transition-opacity disabled:cursor-not-allowed disabled:opacity-40 xl:hidden"
     >
       <svg
         viewBox="0 0 20 20"

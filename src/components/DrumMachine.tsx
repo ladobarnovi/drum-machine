@@ -214,7 +214,7 @@ export default function DrumMachine() {
     channelIdForIndex(0),
   );
   /**
-   * Which of the three pages is showing, only meaningful below `lg` — from
+   * Which of the three pages is showing, only meaningful below `xl` — from
    * there up all three are on screen at once and this is ignored. Starts on
    * Main so the machine opens the same way it always has.
    */
@@ -1697,17 +1697,17 @@ export default function DrumMachine() {
     // Filling the viewport exactly, rather than growing past it, is what moves
     // the scrolling inside: nothing here can push the window taller, so the
     // only thing that scrolls is the content pane further down. A flex column
-    // itself now, so the footer nav below `lg` can take its own row at the
+    // itself now, so the footer nav below `xl` can take its own row at the
     // bottom rather than floating over the page as a fixed overlay.
     <div className="bg-surface text-fg flex h-full flex-col overflow-hidden">
       {/* Padding clears the fixed rails so the content centres between them,
-          from `lg` up where both are on screen at once. Below that this is
+          from `xl` up where both are on screen at once. Below that this is
           the only page showing, so it's a plain full-width column instead. */}
-      <div className="flex min-h-0 flex-1 flex-col lg:px-64">
+      <div className="flex min-h-0 flex-1 flex-col xl:px-64">
         {/*
           Outside the scrolling pane rather than sticky within it, so the
           snapshot buttons stay on screen and a mix can be saved however far
-          the channel list is scrolled. On every page below `lg`, not just
+          the channel list is scrolled. On every page below `xl`, not just
           Main, so the transport stays reachable while Settings or FX is open.
         */}
         <header className="border-line bg-surface shrink-0 border-b">
@@ -1725,13 +1725,13 @@ export default function DrumMachine() {
               that does nothing, and the play button says what the page is
               better than the words do.
             */}
-            <h1 className="sr-only text-lg font-semibold lg:not-sr-only">
+            <h1 className="sr-only text-lg font-semibold xl:not-sr-only">
               Drum Machine
             </h1>
 
-            {/* Pushed to the far edge below `lg`, away from the play button, so
+            {/* Pushed to the far edge below `xl`, away from the play button, so
                 a snapshot is never saved by a thumb aiming for the transport.
-                From `lg` up it stays beside the title, as before. */}
+                From `xl` up it stays beside the title, as before. */}
             <div className="ml-auto">
               <SnapshotControls
                 hasSnapshot={snapshot !== null}
@@ -1745,7 +1745,7 @@ export default function DrumMachine() {
         {/*
           Everything that acts on the machine as a whole rather than on one
           channel: what it plays with, how it plays, and how loud it comes out.
-          A fixed rail from `lg` up, so it stays put however far the channel
+          A fixed rail from `xl` up, so it stays put however far the channel
           list is scrolled; below that it's the Settings page, standing in for
           the whole column whenever that's the page showing.
         */}
@@ -1814,12 +1814,12 @@ export default function DrumMachine() {
           The one scrolling box on the page. `min-h-0` is what lets it shrink
           below its content's height — without it a flex item refuses to, and
           the overflow would push the column past the viewport instead of
-          scrolling here. Below `lg` this is the Main page, and hidden — but
+          scrolling here. Below `xl` this is the Main page, and hidden — but
           still mounted — whenever Settings or FX is the page showing, so
           nothing here is torn down mid-pattern by a switch to another page.
         */}
         <div
-          className={`quiet-scrollbar min-h-0 flex-1 overflow-y-auto lg:flex ${
+          className={`quiet-scrollbar min-h-0 flex-1 overflow-y-auto xl:flex ${
             mobilePage === "main" ? "flex" : "hidden"
           }`}
         >
@@ -2033,7 +2033,7 @@ export default function DrumMachine() {
         </div>
 
         {/*
-          What the mix is put through: a fixed rail from `lg` up, and the FX
+          What the mix is put through: a fixed rail from `xl` up, and the FX
           page below that, standing in for the column the same way Settings
           does on its own turn.
         */}

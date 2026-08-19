@@ -71,7 +71,7 @@ const TABS: TabDef[] = [
 
 /**
  * The phone's way between the three pages the machine shows one at a time
- * below `lg` — what it plays with, the pattern itself, and what it's put
+ * below `xl` — what it plays with, the pattern itself, and what it's put
  * through — in place of the sliding drawers `Sidebar` used to open over the
  * content. Its own row at the bottom of the app shell rather than
  * `position: fixed`, so nothing above it needs bottom padding to clear it:
@@ -89,7 +89,7 @@ export default function MobileFooterNav({
   return (
     <nav
       aria-label="Pages"
-      className="border-line bg-surface shrink-0 border-t lg:hidden"
+      className="border-line bg-surface shrink-0 border-t xl:hidden"
     >
       <div className="grid grid-cols-3">
         {TABS.map((tab) => {
