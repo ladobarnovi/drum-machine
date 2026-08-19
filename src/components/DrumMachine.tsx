@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChannelContextMenu from "@/components/channel/ChannelContextMenu";
 import ChannelGrid from "@/components/channel/ChannelGrid";
 import SampleEditorTabsSection from "@/components/channel/SampleEditorTabsSection";
+import StepEditBanner from "@/components/channel/StepEditBanner";
 import StepContextMenu from "@/components/channel/steps/StepContextMenu";
 import MasterCompressorControls from "@/components/master/MasterCompressorControls";
 import MasterDelayControls from "@/components/master/MasterDelayControls";
@@ -1818,6 +1819,25 @@ export default function DrumMachine() {
           still mounted — whenever Settings or FX is the page showing, so
           nothing here is torn down mid-pattern by a switch to another page.
         */}
+        {/*
+          Between the header and the pane, so the one mode this page has stays
+          legible from either end of a column too long to see at once — the
+          steps that open it are at the bottom, the controls it redirects are
+          at the top. Shown with the Main page and only there, since those
+          controls are on it.
+        */}
+        {editingStepIndex !== null && (
+          <div
+            className={`xl:block ${mobilePage === "main" ? "block" : "hidden"}`}
+          >
+            <StepEditBanner
+              stepIndex={editingStepIndex}
+              channelName={channelDisplayName(selectedChannel)}
+              onClose={() => setRawEditingStepIndex(null)}
+            />
+          </div>
+        )}
+
         <div
           className={`quiet-scrollbar min-h-0 flex-1 overflow-y-auto xl:flex ${
             mobilePage === "main" ? "flex" : "hidden"

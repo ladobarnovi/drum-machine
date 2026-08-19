@@ -9,6 +9,11 @@ export type RailTab = {
 };
 
 type RailTabsProps = {
+  /**
+   * Put on the section itself, for anything that needs to find this card on
+   * the page — the step-edit bar scrolls back to one by id.
+   */
+  id?: string;
   /** Names the tab strip for a screen reader, e.g. "Effects". */
   label: string;
   /** At least one; the first is what shows until another is picked. */
@@ -60,6 +65,7 @@ const TABPANEL_CLASS: Record<"rail" | "panel", string> = {
  * hidden would leave the rail's scroll height set by the longest one.
  */
 export default function RailTabs({
+  id,
   label,
   tabs,
   variant = "rail",
@@ -105,7 +111,7 @@ export default function RailTabs({
   };
 
   return (
-    <section className={CONTAINER_CLASS[variant]}>
+    <section id={id} className={CONTAINER_CLASS[variant]}>
       <div
         role="tablist"
         aria-label={label}

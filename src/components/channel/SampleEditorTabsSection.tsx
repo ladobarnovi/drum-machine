@@ -99,6 +99,13 @@ type SampleEditorTabsSectionProps = {
 };
 
 /**
+ * Names this card on the page. `StepEditBanner` scrolls back to it: the
+ * controls it warns about are these, and on a phone they are a screen away
+ * from the grid that opened them.
+ */
+export const SAMPLE_EDITOR_SECTION_ID = "sample-editor";
+
+/**
  * What used to be two separate cards — the sample's waveform, and the filter
  * pictured beside its knobs — are now five tabs sharing one. Env came third:
  * the same envelope `ChannelControls`' Shaping group already has sliders for,
@@ -163,6 +170,7 @@ export default function SampleEditorTabsSection({
 
   return (
     <RailTabs
+      id={SAMPLE_EDITOR_SECTION_ID}
       label="Sample editor view"
       variant="panel"
       tabs={[
