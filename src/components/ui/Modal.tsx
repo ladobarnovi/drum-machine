@@ -7,6 +7,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 type ModalProps = {
   /** The heading, and the dialog's accessible name. */
@@ -74,9 +75,27 @@ export default function Modal({
       onCloseRef.current();
     };
 
-    /** Any other route to closed — so the state above cannot fall out of step
-     *  with an element that has already gone. */
-    const handleClose = () => onCloseRef.current();
+    /*
+     * Any other route to closed — so the state above cannot fall out of step
+     * with an element that has already gone.
+     *
+     * Guarded on the element's own state, because `close()` does not announce
+     * itself on the spot: it queues a task, and the event arrives whenever the
+     * browser gets to it. The teardown below closes and the setup immediately
+     * reopens — StrictMode in development does that pair on every mount, and a
+     * Fast Refresh does it again on every edit — so a close asked for by a
+     * previous life can land here after the panel has already been reopened,
+     * and shut a dialog the reader has only just asked for. Chromium currently
+     * drops that event when the pair happens inside one task; that is a
+     * courtesy, not a promise, and it is not one every build makes.
+     *
+     * An open dialog is therefore evidence that this event is about a life
+     * that has already ended, and the state above should be left alone.
+     */
+    const handleClose = () => {
+      if (dialog.open) return;
+      onCloseRef.current();
+    };
 
     // Bound natively rather than through React's `onCancel`/`onClose` props:
     // neither event bubbles, which is exactly the case React's delegated
@@ -143,18 +162,60 @@ export default function Modal({
   }, []);
 
   /**
+   * Whether the press that is currently in flight started on the surround.
+   *
+   * A `click` is reported against the nearest common ancestor of where the
+   * button went down and where it came up, so a drag that begins on a word
+   * inside the panel and releases past its edge — the ordinary way anyone
+   * selects a line of text — arrives here indistinguishable from a press on
+   * the backdrop. Dismissing on the release alone throws the dialog away
+   * mid-sentence. The press is what carries the intent, so it is the press
+   * that is remembered.
+   */
+  const pressedOnBackdropRef = useRef(false);
+
+  const handlePointerDown = (event: MouseEvent<HTMLDialogElement>) => {
+    pressedOnBackdropRef.current = event.target === dialogRef.current;
+  };
+
+  /**
    * A click on the dimmed surround. The backdrop belongs to the dialog rather
    * than being an element of its own, so a press on it lands on the dialog
    * itself — which nothing else can do, since the panel inside covers every
    * pixel of it.
+   *
+   * Both ends of the press have to have been out there: a release on the
+   * surround only dismisses if that is where the finger went down, so a stray
+   * click arriving on a panel that has just opened cannot take it straight
+   * back off the screen.
    */
   const handleClick = (event: MouseEvent<HTMLDialogElement>) => {
-    if (event.target === dialogRef.current) onClose();
+    const pressedOnBackdrop = pressedOnBackdropRef.current;
+    pressedOnBackdropRef.current = false;
+
+    if (pressedOnBackdrop && event.target === dialogRef.current) onClose();
   };
 
-  return (
+  /*
+   * Rendered into the body rather than where it was written.
+   *
+   * The top layer decides what paints over what, but it does not exempt an
+   * element from its ancestors: a `<dialog>` still inherits their `display`,
+   * and every caller of this sits inside a rail that is `display: none`
+   * whenever its page is not the one showing below `xl`. Left in place, the
+   * panel opened from the `?` key on the Main page took the top layer and made
+   * the document inert for real — while painting nothing, because a hidden
+   * ancestor had already collapsed it to nothing. An invisible modal with the
+   * whole app dead behind it, and no visible way back out.
+   *
+   * The body is the one parent that can never be hidden out from under it, and
+   * a dialog owes nothing to where it was declared: it is positioned by the
+   * viewport and painted in the top layer either way.
+   */
+  const panel = (
     <dialog
       ref={dialogRef}
+      onPointerDown={handlePointerDown}
       onClick={handleClick}
       aria-labelledby={titleId}
       // `p-0` matters: the padding a dialog carries by default would be part
@@ -193,4 +254,11 @@ export default function Modal({
       )}
     </dialog>
   );
+
+  // Guarded for the server, where there is no body to portal into. Nothing
+  // renders a Modal until something has been clicked, so this only ever holds
+  // on a prerender that could not have shown one anyway.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(panel, document.body);
 }

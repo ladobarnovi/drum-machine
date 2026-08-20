@@ -32,11 +32,32 @@ export default function ShortcutsButton() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // `?` already carries Shift on every layout that has to press it for the
-      // character, so asking for the modifier as well would turn the shortcut
-      // off wherever the key is unshifted.
-      if (event.key !== "?") return;
-      if (event.ctrlKey || event.altKey || event.metaKey) return;
+      // Left to the OS, which claims this one on macOS.
+      if (event.metaKey) return;
+
+      /*
+       * Two ways of asking, because one is not enough to cover a keyboard.
+       *
+       * The character first, however the layout arrives at it — and
+       * deliberately without turning Ctrl or Alt away, which is what broke
+       * this to begin with: plenty of layouts put `?` behind AltGr, and
+       * Windows reports AltGr as Ctrl and Alt held together. Refusing those
+       * modifiers switched the shortcut off for every one of them.
+       *
+       * Then the physical key, for the other half of the problem: on a layout
+       * that puts something else on Shift+Slash, the character above never
+       * appears, but the key under the finger is still the one the US-shaped
+       * hint on the button is pointing at. `code` is what the channel digits
+       * use, and for the same reason — it does not move with the layout.
+       */
+      const asksForHelp =
+        event.key === "?" ||
+        (event.code === "Slash" &&
+          event.shiftKey &&
+          !event.ctrlKey &&
+          !event.altKey);
+
+      if (!asksForHelp) return;
       if (isTextEntryTarget(event.target)) return;
 
       event.preventDefault();
