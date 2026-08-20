@@ -219,16 +219,7 @@ export default function StepPatternControls({
       </div>
 
       <div className={groupClass}>
-        <h2 className={headingClass}>Swipe</h2>
-
-        {/* Spelt out under the heading, because a swipe is the one thing on
-            this page that cannot be discovered by looking at it — there is
-            nothing on a step button that says it can be dragged. */}
-        <p className="text-muted text-xs">
-          Hold a step to open it, and drag up or down to set its{" "}
-          {SWIPE_TARGET_LABELS[swipeTarget].toLowerCase()}.
-        </p>
-
+        <h2 className={headingClass}>Swipe Control</h2>
         <div className="flex flex-wrap gap-2">
           {swipeTargets.map((target) => (
             <button

@@ -21,6 +21,7 @@ import PresetPicker from "@/components/session/PresetPicker";
 import SnapshotControls from "@/components/session/SnapshotControls";
 import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
 import SettingsButton from "@/components/shell/SettingsButton";
+import ShortcutsButton from "@/components/shell/ShortcutsButton";
 import MobileFooterNav, {
   type MobilePage,
 } from "@/components/shell/MobileFooterNav";
@@ -1809,6 +1810,11 @@ export default function DrumMachine() {
             things that are reached for while playing.
           */}
           <ThemeSelector />
+
+          {/* Below even the theme: the rail runs from what is reached for
+              while playing down to what is reached for once, and a list of
+              keys is only wanted when one has been forgotten. */}
+          <ShortcutsButton />
         </Sidebar>
 
         {/*

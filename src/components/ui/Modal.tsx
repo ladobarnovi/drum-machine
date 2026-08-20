@@ -105,15 +105,27 @@ export default function Modal({
     dialog.showModal();
 
     /*
-     * Where the caller wants the keyboard to start, if it says.
+     * Where the keyboard starts.
      *
-     * After `showModal` rather than before, and by hand rather than through
-     * React's `autoFocus`: that prop is applied as the child mounts, which is
-     * before this effect runs, and `showModal` then puts the focus on the
-     * first thing in the panel regardless — landing the keyboard on the close
-     * button of a dialog whose whole top row is a search field.
+     * The caller's choice first, if it marked one. After `showModal` rather
+     * than before, and by hand rather than through React's `autoFocus`: that
+     * prop is applied as the child mounts, which is before this effect runs,
+     * and `showModal` then puts the focus on the first thing in the panel
+     * regardless — landing the keyboard on the close button of a dialog whose
+     * whole top row is a search field.
+     *
+     * Failing that, the first thing that will take it. `showModal` is supposed
+     * to see to this by itself and mostly does, but a dialog opened while
+     * nothing on the page was focused — from a keyboard shortcut rather than
+     * from a button — can come up with the focus still on the body, inside a
+     * modal that will not let it back out to anything else.
      */
-    dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    const marked = dialog.querySelector<HTMLElement>("[data-autofocus]");
+    if (marked) {
+      marked.focus();
+    } else if (!dialog.contains(document.activeElement)) {
+      dialog.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    }
 
     return () => {
       // Unhooked before closing, so the `close` this is about to fire cannot

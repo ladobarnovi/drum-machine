@@ -63,3 +63,105 @@ export function shortcutLabelForIndex(index: number): string | null {
   const digit = (index % SHORTCUT_BANK_SIZE) + 1;
   return index < SHORTCUT_BANK_SIZE ? `Ctrl+${digit}` : `Ctrl+Shift+${digit}`;
 }
+
+/**
+ * Every shortcut the machine answers to, written down.
+ *
+ * They were all real and none of them were listed: the channel digits showed
+ * up in a pad's tooltip, and the other dozen — the transport, the filter
+ * bypass, the two ways into a step, the whole of what a knob does under the
+ * arrow keys — could only be found by trying them. A shortcut nobody can
+ * discover is one nobody uses, which is the same as not having built it.
+ *
+ * A table rather than prose in the dialog, so the list is one thing to keep
+ * current when a binding moves. It cannot enforce that — the handlers are
+ * spread across the hooks and the widgets that own them — but it does put the
+ * whole set in one place to check against.
+ */
+export type Shortcut = {
+  /** The chord, one cap per entry: `["Ctrl", "F"]` prints Ctrl + F. */
+  keys: string[];
+  description: string;
+};
+
+export type ShortcutGroup = {
+  title: string;
+  shortcuts: Shortcut[];
+};
+
+export const SHORTCUT_GROUPS: ShortcutGroup[] = [
+  {
+    title: "Transport",
+    shortcuts: [
+      { keys: ["Space"], description: "Play or stop, unless you are typing" },
+    ],
+  },
+  {
+    title: "Channels",
+    shortcuts: [
+      { keys: ["Ctrl", "1…8"], description: "Select channels 1 to 8" },
+      {
+        keys: ["Ctrl", "Shift", "1…8"],
+        description: "Select channels 9 to 16",
+      },
+      {
+        keys: ["Alt", "Click"],
+        description: "Audition a pad without running the transport",
+      },
+    ],
+  },
+  {
+    title: "Steps",
+    shortcuts: [
+      { keys: ["Click"], description: "Switch a step on or off" },
+      {
+        keys: ["Hold"],
+        description: "Open a step for editing — or Shift + click",
+      },
+      { keys: ["Shift", "Enter"], description: "Open the focused step" },
+      {
+        keys: ["Drag ↑↓"],
+        description: "Set what the Swipe switch is pointed at",
+      },
+      { keys: ["↑", "↓"], description: "The same, on the focused step" },
+    ],
+  },
+  {
+    title: "Master",
+    shortcuts: [
+      {
+        keys: ["Ctrl", "F"],
+        description: "Bypass or re-engage the master filter",
+      },
+    ],
+  },
+  {
+    title: "Knobs, sliders and trim handles",
+    shortcuts: [
+      { keys: ["↑", "↓"], description: "Move by one step — or ← and →" },
+      { keys: ["Page ↑", "Page ↓"], description: "Move by ten" },
+      {
+        keys: ["Home", "End"],
+        description: "Jump to either end of the travel",
+      },
+      { keys: ["Shift", "Drag"], description: "Fine adjustment" },
+    ],
+  },
+  {
+    title: "Menus and dialogs",
+    shortcuts: [
+      {
+        keys: ["Right-click"],
+        description:
+          "Open a menu — on pads, steps, pattern slots, knobs and sliders",
+      },
+      { keys: ["Shift", "F10"], description: "The same, from the keyboard" },
+      { keys: ["↑", "↓"], description: "Move between menu items" },
+      { keys: ["Esc"], description: "Close a menu or dialog" },
+    ],
+  },
+  {
+    title: "Help",
+    shortcuts: [{ keys: ["?"], description: "Open this list" }],
+  },
+];
