@@ -2043,17 +2043,10 @@ export default function DrumMachine() {
             onLoadPreset={(preset) => void handleLoadPreset(preset)}
           />
 
-          {/* Last of the controls, because it is last in the signal too. */}
-          <MasterVolumeControls
-            volume={masterVolume}
-            onChange={setMasterVolume}
-          />
-
           {/*
-            Below the fader with the shortcuts, and above them: sharing is not
-            a control on the instrument — nothing here changes what the next
-            hit sounds like — but it is the one that acts on the beat rather
-            than on the page.
+            Above the shortcuts: sharing is not a control on the instrument
+            — nothing here changes what the next hit sounds like — but it is
+            the one that acts on the beat rather than on the page.
           */}
           <SharePanel
             canShare={isWorthSharing(channels)}
@@ -2391,13 +2384,25 @@ export default function DrumMachine() {
                       onChange={setMasterFilter}
                     />
 
-                    {/* Last of the stages, and last in the signal too: it is
-                        levelling what the drive and the cuts have already made
-                        rather than a mix still about to change under it. */}
+                    {/* Last of the stages, and last of them in the signal too:
+                        it is levelling what the drive and the cuts have already
+                        made rather than a mix still about to change under it. */}
                     <MasterCompressorControls
                       compressor={masterCompressor}
                       getGainReduction={getGainReduction}
                       onChange={setMasterCompressor}
+                    />
+
+                    {/*
+                      The foot of the chain, under the stages that shape what it
+                      is setting the level of — it used to sit in the controls
+                      rail, a page away on mobile from every other thing done to
+                      the whole mix. Boxed like the stages above it, minus the
+                      bypass button no fader has any use for.
+                    */}
+                    <MasterVolumeControls
+                      volume={masterVolume}
+                      onChange={setMasterVolume}
                     />
                   </>
                 ),

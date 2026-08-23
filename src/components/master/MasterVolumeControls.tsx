@@ -1,6 +1,6 @@
 "use client";
 
-import RailGroup from "@/components/ui/RailGroup";
+import MasterFxSection from "./MasterFxSection";
 import RailSlider from "@/components/ui/RailSlider";
 import { MAX_VOLUME, MIN_VOLUME, clampVolume } from "@/lib/sequencer";
 
@@ -10,10 +10,14 @@ type MasterVolumeControlsProps = {
 };
 
 /**
- * The output fader. Unlike the master stages in the other rail this gets no
- * bypass button and no box: there is no version of the mix with the volume
- * switched out, and pulling the slider to zero is already what silencing it
- * means.
+ * The output fader, at the foot of the Master FX tab: it is the last thing the
+ * mix passes through, so it sits under the stages that shaped it, boxed like
+ * them — the chain reads as one series of stages, and a bare slider under three
+ * bordered ones would look like something that had fallen out of the tab.
+ *
+ * The one thing it does without is the bypass button: there is no version of
+ * the mix with the volume switched out, and pulling the slider to zero is
+ * already what silencing it means.
  *
  * It runs to 150% like every other level here, so a quiet kit can be brought up
  * rather than only ever turned down.
@@ -23,7 +27,7 @@ export default function MasterVolumeControls({
   onChange,
 }: MasterVolumeControlsProps) {
   return (
-    <RailGroup title="Output">
+    <MasterFxSection title="Output">
       <RailSlider
         label="Volume"
         ariaLabel="Master volume"
@@ -35,6 +39,6 @@ export default function MasterVolumeControls({
         onChange={(value) => onChange(clampVolume(value))}
         midiMapId="master:volume"
       />
-    </RailGroup>
+    </MasterFxSection>
   );
 }

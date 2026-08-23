@@ -7,11 +7,12 @@ type RailGroupProps = {
 
 /**
  * Labelled band in one of the side rails. The controls rail carries several of
- * them — the transport, the kit, the output fader, the settings — so they read
- * as distinct kinds of thing rather than one undifferentiated stack.
+ * them — the transport, the kit, the settings — so they read as distinct kinds
+ * of thing rather than one undifferentiated stack.
  *
  * The effects rail reaches for `RailTabs` instead: it carries enough stages
- * that stacking them all would make the lower ones a scroll away.
+ * that stacking them all would make the lower ones a scroll away, and what
+ * sits inside those tabs is boxed by `MasterFxSection` rather than banded.
  */
 export default function RailGroup({ title, children }: RailGroupProps) {
   return (
