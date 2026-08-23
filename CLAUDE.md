@@ -64,12 +64,22 @@ src/
 ### Sharing
 
 - "Copy link" packs the live machine into a URL fragment (`#p=…`)
-- Carries steps, mix, per-channel sample edits, kit, tempo and swing
-- Deflated and base64url-encoded; a full kit fits in ~300 characters
-- Opening a link replaces the whole machine, including unmentioned channels
+- Carries steps, mix, per-channel sample edits, kit, tempo, swing, and all six
+  master FX stages (drive, filter, compressor, delay, reverb, phaser)
+- **Not** the output fader: how loud a beat arrives is the listener's business
+- Deflated and base64url-encoded; a full kit with effects fits in ~380 characters
+- Opening a link replaces the whole machine — unmentioned channels are emptied
+  and the effects rail is set from the link, so a beat can't be heard through a
+  stranger's reverb
 - Uploaded samples cannot travel — those slots arrive empty, steps intact
 - A shared beat is a **superset of `Pattern`**: patterns deliberately omit the
   kit (see `lib/patterns.ts`), which a link cannot assume the recipient has
+
+Wire format is versioned (`v`). Version 2 added the master stages; version 1
+links still open, and decode to the six stages at their defaults (all bypassed).
+Bump `FORMAT_VERSION` when adding fields, and keep the decoder tolerant of
+older ones — every value arriving from a link goes through the `clamp*` that
+owns it, since a URL is a string someone else wrote.
 
 ### Transport
 

@@ -16,6 +16,15 @@ export type SharedBeatStatus =
        * case of a beat built entirely from the bundled kits.
        */
       missingSamples: string[];
+      /**
+       * Whether the beat switched any of the six effects stages on.
+       *
+       * Said only when it did. Opening a link replaces the whole effects rail
+       * either way, but a beat that arrives with everything bypassed has
+       * replaced it with silence — there is nothing there to account for, and
+       * announcing it would be noise on almost every link.
+       */
+      effectsActive: boolean;
     }
   | { kind: "failed"; reason: string };
 
@@ -82,7 +91,8 @@ export default function SharedBeatNotice({
               <span className="text-muted">
                 — {status.channelCount} channel
                 {status.channelCount === 1 ? "" : "s"} at{" "}
-                {Math.round(status.bpm)} BPM.
+                {Math.round(status.bpm)} BPM
+                {status.effectsActive ? ", with its own effects" : ""}.
                 {status.missingSamples.length > 0 && (
                   <>
                     {" "}

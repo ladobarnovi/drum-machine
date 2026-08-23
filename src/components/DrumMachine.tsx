@@ -1616,9 +1616,26 @@ export default function DrumMachine() {
 
   /** Everything the machine is playing right now, packed into a link. */
   const handleBuildShareLink = useCallback(async () => {
-    const beat = captureSharedBeat(channels, bpm, swing);
+    const beat = captureSharedBeat(channels, bpm, swing, {
+      drive: masterDrive,
+      filter: masterFilter,
+      delay: masterDelay,
+      reverb: masterReverb,
+      phaser: masterPhaser,
+      compressor: masterCompressor,
+    });
     return buildShareUrl(await encodeSharedBeat(beat));
-  }, [bpm, channels, swing]);
+  }, [
+    bpm,
+    channels,
+    masterCompressor,
+    masterDelay,
+    masterDrive,
+    masterFilter,
+    masterPhaser,
+    masterReverb,
+    swing,
+  ]);
 
   /**
    * Puts a decoded beat into the machine — steps, mix, tempo and kit.
@@ -1652,6 +1669,23 @@ export default function DrumMachine() {
 
       setBpm(beat.bpm);
       setSwing(beat.swing);
+
+      /*
+       * The effects rail, wholesale. Set from the beat even where the link
+       * carried no master block at all — an older one, or a machine whose rail
+       * was never touched — because `decodeSharedBeat` answers both of those
+       * with the six stages at their defaults, and applying that is what keeps
+       * the receiving machine's own reverb from ending up over someone else's
+       * beat. The output fader is deliberately not among them: how loud this
+       * arrives is the listener's business.
+       */
+      setMasterDrive(beat.master.drive);
+      setMasterFilter(beat.master.filter);
+      setMasterDelay(beat.master.delay);
+      setMasterReverb(beat.master.reverb);
+      setMasterPhaser(beat.master.phaser);
+      setMasterCompressor(beat.master.compressor);
+
       // The step the panel was pointed at belonged to a pattern that has gone.
       setRawEditingStepIndex(null);
       setLoadingSharedBeat(entries.size > 0);
@@ -1742,6 +1776,9 @@ export default function DrumMachine() {
         missingSamples: Object.values(result.beat.channels)
           .map((channel) => channel.missingSampleName)
           .filter((name): name is string => name !== undefined),
+        effectsActive: Object.values(result.beat.master).some(
+          (stage) => stage.enabled,
+        ),
       });
 
       return true;

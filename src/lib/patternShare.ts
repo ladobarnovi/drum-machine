@@ -8,6 +8,12 @@ import {
   DEFAULT_FILTER_SLOPE,
   DEFAULT_HIGH_CUT_HZ,
   DEFAULT_LOW_CUT_HZ,
+  DEFAULT_MASTER_COMPRESSOR,
+  DEFAULT_MASTER_DELAY,
+  DEFAULT_MASTER_DRIVE,
+  DEFAULT_MASTER_FILTER,
+  DEFAULT_MASTER_PHASER,
+  DEFAULT_MASTER_REVERB,
   DEFAULT_PAN,
   DEFAULT_PITCH,
   DEFAULT_RELEASE_SECONDS,
@@ -29,7 +35,14 @@ import {
   clampBpm,
   clampChannelName,
   clampChokeSource,
+  clampCompressorAttack,
+  clampCompressorRelease,
   clampDecay,
+  clampDelayDivision,
+  clampDelaySeconds,
+  clampDrive,
+  clampDriveType,
+  clampFeedback,
   clampFilterSlope,
   clampFrequency,
   clampLength,
@@ -38,9 +51,15 @@ import {
   clampLfoRate,
   clampLfoShape,
   clampPan,
+  clampPhaserDepth,
+  clampPhaserFeedback,
+  clampPhaserRate,
+  clampPhaserStages,
   clampPitch,
+  clampRatio,
   clampRelease,
   clampResonance,
+  clampReverbDecay,
   clampSampleEnd,
   clampSampleMode,
   clampSampleStart,
@@ -53,12 +72,19 @@ import {
   clampStepVelocity,
   clampSustain,
   clampSwing,
+  clampThresholdDb,
   clampVolume,
   createStep,
   type Channel,
   type ChannelLfo,
   type ChannelSnapshot,
   type LockableParameter,
+  type MasterCompressor,
+  type MasterDelay,
+  type MasterDrive,
+  type MasterFilter,
+  type MasterPhaser,
+  type MasterReverb,
   type SampleMode,
   type SliceCount,
   type Step,
@@ -108,9 +134,30 @@ export type SharedChannel = ChannelSnapshot & {
   missingSampleName?: string;
 };
 
+/**
+ * The six stages of the effects rail — the three sends and the three the whole
+ * mix passes through — as a link carries them.
+ *
+ * The output fader is not among them, and the line is the one the machine
+ * already draws: these six are the FX rail, where Volume sits in the controls
+ * rail under Output. It is also the more useful line. The six shape what the
+ * beat *sounds* like and travel with it for the same reason the kit does; the
+ * fader only decides how loud it arrives, which is the listener's business and
+ * not something a sender should be able to set from the other end.
+ */
+export type SharedMaster = {
+  drive: MasterDrive;
+  filter: MasterFilter;
+  delay: MasterDelay;
+  reverb: MasterReverb;
+  phaser: MasterPhaser;
+  compressor: MasterCompressor;
+};
+
 export type SharedBeat = {
   bpm: number;
   swing: number;
+  master: SharedMaster;
   /** Keyed by channel id, like `Pattern`. Silent channels are left out. */
   channels: Record<string, SharedChannel>;
 };
@@ -123,8 +170,15 @@ export type SharedBeat = {
  * the machine has moved on by the time it is opened. A version is what lets
  * that link either still work or fail with something worth reading, rather than
  * being parsed hopefully into a beat that is subtly not the one that was sent.
+ *
+ * 2 added the master stages. A version 1 link still opens: it carries no master
+ * block, and no block decodes to the six stages at their defaults — every one of
+ * which is bypassed, so the beat is heard dry. That is the honest reading rather
+ * than a lenient one. A link is the whole of what was sent, and an older one
+ * simply never said what the mix was going through; leaving whatever the
+ * receiving machine had switched on would put a stranger's reverb over it.
  */
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
 
 /** Marks how the bytes were packed, so a link says how to read itself. */
 const DEFLATED = "z";
@@ -208,10 +262,62 @@ type WireChannel = {
   sc?: number;
 };
 
+/*
+ * The master stages. Each is written only as far as it differs from its own
+ * default, and a stage that matches it outright is left out entirely — which is
+ * every one of them on a machine nobody has touched the effects rail on, so the
+ * six cost a link that isn't using them nothing at all.
+ *
+ * `enabled` is the exception worth naming: every stage ships bypassed, so `e: 1`
+ * is what a switched-on stage says, and its absence is a stage left off.
+ */
+
+type WireDrive = { e?: 1; t?: string; a?: number; l?: number };
+type WireFilter = { e?: 1; lc?: number; hc?: number };
+type WireDelay = {
+  e?: 1;
+  /** Synced is the default, so this marks a delay running free. */
+  f?: 1;
+  d?: string;
+  t?: number;
+  fb?: number;
+  pp?: 1;
+  tn?: number;
+  l?: number;
+  rs?: number;
+};
+type WireReverb = { e?: 1; d?: number; tn?: number; l?: number; ps?: number };
+type WirePhaser = {
+  e?: 1;
+  s?: number;
+  r?: number;
+  d?: number;
+  fb?: number;
+  l?: number;
+};
+type WireCompressor = {
+  e?: 1;
+  th?: number;
+  ra?: number;
+  a?: number;
+  r?: number;
+  l?: number;
+};
+
+type WireMaster = {
+  dr?: WireDrive;
+  fi?: WireFilter;
+  dl?: WireDelay;
+  rv?: WireReverb;
+  ph?: WirePhaser;
+  cp?: WireCompressor;
+};
+
 type WireBeat = {
   v: number;
   b?: number;
   s?: number;
+  m?: WireMaster;
   /** Keyed by channel *index*, not id: "3" rather than "channel-4". */
   c: Record<string, WireChannel>;
 };
@@ -234,6 +340,26 @@ function unlessDefault<T>(value: T, fallback: T): T | undefined {
   return value === fallback ? undefined : value;
 }
 
+/**
+ * Drops the keys that came out `undefined`.
+ *
+ * JSON has no use for them either way, but they are what `unlessDefault`
+ * returns for everything already at its default, and leaving them in place
+ * would have `Object.keys` disagree with what is actually being sent.
+ */
+function dropUndefined<T extends object>(wire: T): T {
+  for (const key of Object.keys(wire) as (keyof T)[]) {
+    if (wire[key] === undefined) delete wire[key];
+  }
+  return wire;
+}
+
+/** The same, reporting a wholly default object as nothing worth writing. */
+function compact<T extends object>(wire: T): T | undefined {
+  dropUndefined(wire);
+  return Object.keys(wire).length === 0 ? undefined : wire;
+}
+
 // ---------------------------------------------------------------------------
 // Capture
 // ---------------------------------------------------------------------------
@@ -251,6 +377,7 @@ export function captureSharedBeat(
   channels: Channel[],
   bpm: number,
   swing: number,
+  master: SharedMaster,
 ): SharedBeat {
   const shared: Record<string, SharedChannel> = {};
 
@@ -297,7 +424,21 @@ export function captureSharedBeat(
     };
   }
 
-  return { bpm, swing, channels: shared };
+  return {
+    bpm,
+    swing,
+    // Copied, so a stage moved after the link is built cannot reach back into
+    // the beat that was captured — the same care the channels take over steps.
+    master: {
+      drive: { ...master.drive },
+      filter: { ...master.filter },
+      delay: { ...master.delay },
+      reverb: { ...master.reverb },
+      phaser: { ...master.phaser },
+      compressor: { ...master.compressor },
+    },
+    channels: shared,
+  };
 }
 
 /**
@@ -529,15 +670,73 @@ function encodeChannel(shared: SharedChannel, label: string): WireChannel {
 
   if (last >= 0) wire.t = played.slice(0, last + 1).map(encodeStep);
 
-  // Dropped here rather than guarded at each line above: the three that carry
-  // a real default (the filter slope and the two envelope ends) read better
-  // compared against the constant they came from, and JSON has no use for a
-  // key whose value is `undefined` either way.
-  for (const key of Object.keys(wire) as (keyof WireChannel)[]) {
-    if (wire[key] === undefined) delete wire[key];
-  }
+  // Dropped here rather than guarded at each line above: the values read better
+  // compared against the constant they came from, and JSON has no use for a key
+  // whose value is `undefined` either way.
+  //
+  // `dropUndefined` rather than `compact`: a channel with nothing to say is
+  // still a channel the beat mentions, and an entry in `c` is the only thing
+  // saying so. Dropping it to `undefined` here would empty the slot on the way
+  // back in.
+  return dropUndefined(wire);
+}
 
-  return wire;
+function encodeMaster(master: SharedMaster): WireMaster | undefined {
+  const { drive, filter, delay, reverb, phaser, compressor } = master;
+  const D = DEFAULT_MASTER_DRIVE;
+  const F = DEFAULT_MASTER_FILTER;
+  const L = DEFAULT_MASTER_DELAY;
+  const R = DEFAULT_MASTER_REVERB;
+  const P = DEFAULT_MASTER_PHASER;
+  const C = DEFAULT_MASTER_COMPRESSOR;
+
+  return compact<WireMaster>({
+    dr: compact<WireDrive>({
+      e: drive.enabled ? 1 : undefined,
+      t: unlessDefault(drive.type, D.type),
+      a: unlessDefault(round(drive.amount), D.amount),
+      l: unlessDefault(round(drive.level), D.level),
+    }),
+    fi: compact<WireFilter>({
+      e: filter.enabled ? 1 : undefined,
+      lc: unlessDefault(Math.round(filter.lowCutHz), F.lowCutHz),
+      hc: unlessDefault(Math.round(filter.highCutHz), F.highCutHz),
+    }),
+    dl: compact<WireDelay>({
+      e: delay.enabled ? 1 : undefined,
+      f: delay.synced ? undefined : 1,
+      d: unlessDefault(delay.division, L.division),
+      t: unlessDefault(round(delay.timeSeconds, 5), L.timeSeconds),
+      fb: unlessDefault(round(delay.feedback), L.feedback),
+      pp: delay.pingPong ? 1 : undefined,
+      tn: unlessDefault(Math.round(delay.toneHz), L.toneHz),
+      l: unlessDefault(round(delay.level), L.level),
+      rs: unlessDefault(round(delay.reverbSend), L.reverbSend),
+    }),
+    rv: compact<WireReverb>({
+      e: reverb.enabled ? 1 : undefined,
+      d: unlessDefault(round(reverb.decaySeconds, 3), R.decaySeconds),
+      tn: unlessDefault(Math.round(reverb.toneHz), R.toneHz),
+      l: unlessDefault(round(reverb.level), R.level),
+      ps: unlessDefault(round(reverb.phaserSend), R.phaserSend),
+    }),
+    ph: compact<WirePhaser>({
+      e: phaser.enabled ? 1 : undefined,
+      s: unlessDefault(phaser.stages, P.stages),
+      r: unlessDefault(round(phaser.rateHz, 3), P.rateHz),
+      d: unlessDefault(round(phaser.depth), P.depth),
+      fb: unlessDefault(round(phaser.feedback), P.feedback),
+      l: unlessDefault(round(phaser.level), P.level),
+    }),
+    cp: compact<WireCompressor>({
+      e: compressor.enabled ? 1 : undefined,
+      th: unlessDefault(round(compressor.thresholdDb, 2), C.thresholdDb),
+      ra: unlessDefault(round(compressor.ratio, 2), C.ratio),
+      a: unlessDefault(round(compressor.attackSeconds, 5), C.attackSeconds),
+      r: unlessDefault(round(compressor.releaseSeconds, 5), C.releaseSeconds),
+      l: unlessDefault(round(compressor.level), C.level),
+    }),
+  });
 }
 
 function encodeBeat(beat: SharedBeat): WireBeat {
@@ -545,6 +744,9 @@ function encodeBeat(beat: SharedBeat): WireBeat {
 
   if (beat.bpm !== DEFAULT_BPM) wire.b = Math.round(beat.bpm);
   if (beat.swing !== DEFAULT_SWING) wire.s = round(beat.swing, 3);
+
+  const master = encodeMaster(beat.master);
+  if (master) wire.m = master;
 
   for (let index = 0; index < CHANNEL_COUNT; index += 1) {
     const channelId = channelIdForIndex(index);
@@ -750,6 +952,91 @@ function decodeLfo(value: unknown): ChannelLfo {
   };
 }
 
+/**
+ * The six stages a link asked for, laid over their defaults.
+ *
+ * Always answers with a full set, whatever turned up. A version 1 link has no
+ * master block at all, and a version 2 link made on a machine whose effects rail
+ * was never touched has none either — both mean the same thing, and both get six
+ * bypassed stages, which is the beat heard dry.
+ *
+ * Every value goes back through the clamp that owns it, the same rule the
+ * channels follow: a hand-edited link must not be able to put a negative decay
+ * or a ratio of ten thousand into the audio graph.
+ */
+function decodeMaster(value: unknown): SharedMaster {
+  const wire = isRecord(value) ? value : {};
+  const stage = (key: string): Record<string, unknown> =>
+    isRecord(wire[key]) ? wire[key] : {};
+
+  const dr = stage("dr");
+  const fi = stage("fi");
+  const dl = stage("dl");
+  const rv = stage("rv");
+  const ph = stage("ph");
+  const cp = stage("cp");
+
+  const D = DEFAULT_MASTER_DRIVE;
+  const F = DEFAULT_MASTER_FILTER;
+  const L = DEFAULT_MASTER_DELAY;
+  const R = DEFAULT_MASTER_REVERB;
+  const P = DEFAULT_MASTER_PHASER;
+  const C = DEFAULT_MASTER_COMPRESSOR;
+
+  return {
+    drive: {
+      enabled: dr.e === 1,
+      type: clampDriveType(readString(dr.t, D.type)),
+      amount: clampDrive(readNumber(dr.a, D.amount)),
+      level: clampVolume(readNumber(dr.l, D.level)),
+    },
+    filter: {
+      enabled: fi.e === 1,
+      lowCutHz: clampFrequency(readNumber(fi.lc, F.lowCutHz)),
+      highCutHz: clampFrequency(readNumber(fi.hc, F.highCutHz)),
+    },
+    delay: {
+      enabled: dl.e === 1,
+      // Synced is the default, so the flag marks a delay running free.
+      synced: dl.f !== 1,
+      division: clampDelayDivision(readString(dl.d, L.division)),
+      timeSeconds: clampDelaySeconds(readNumber(dl.t, L.timeSeconds)),
+      feedback: clampFeedback(readNumber(dl.fb, L.feedback)),
+      pingPong: dl.pp === 1,
+      toneHz: clampFrequency(readNumber(dl.tn, L.toneHz)),
+      level: clampVolume(readNumber(dl.l, L.level)),
+      reverbSend: clampSend(readNumber(dl.rs, L.reverbSend)),
+    },
+    reverb: {
+      enabled: rv.e === 1,
+      decaySeconds: clampReverbDecay(readNumber(rv.d, R.decaySeconds)),
+      toneHz: clampFrequency(readNumber(rv.tn, R.toneHz)),
+      level: clampVolume(readNumber(rv.l, R.level)),
+      phaserSend: clampSend(readNumber(rv.ps, R.phaserSend)),
+    },
+    phaser: {
+      enabled: ph.e === 1,
+      // Written as a number and narrowed from a string, which is the shape the
+      // `<select>` this normally comes from hands it over in.
+      stages: clampPhaserStages(String(readNumber(ph.s, P.stages))),
+      rateHz: clampPhaserRate(readNumber(ph.r, P.rateHz)),
+      depth: clampPhaserDepth(readNumber(ph.d, P.depth)),
+      feedback: clampPhaserFeedback(readNumber(ph.fb, P.feedback)),
+      level: clampVolume(readNumber(ph.l, P.level)),
+    },
+    compressor: {
+      enabled: cp.e === 1,
+      thresholdDb: clampThresholdDb(readNumber(cp.th, C.thresholdDb)),
+      ratio: clampRatio(readNumber(cp.ra, C.ratio)),
+      attackSeconds: clampCompressorAttack(readNumber(cp.a, C.attackSeconds)),
+      releaseSeconds: clampCompressorRelease(
+        readNumber(cp.r, C.releaseSeconds),
+      ),
+      level: clampVolume(readNumber(cp.l, C.level)),
+    },
+  };
+}
+
 function decodeChannel(value: unknown, label: string): SharedChannel {
   const wire = isRecord(value) ? value : {};
 
@@ -873,6 +1160,7 @@ export async function decodeSharedBeat(
     beat: {
       bpm: clampBpm(readNumber(parsed.b, DEFAULT_BPM)),
       swing: clampSwing(readNumber(parsed.s, DEFAULT_SWING)),
+      master: decodeMaster(parsed.m),
       channels,
     },
   };

@@ -114,7 +114,7 @@ export default function SharePanel({
 
       <p className="text-muted text-xs">
         {canShare
-          ? "Steps, kit, tempo and swing. Uploaded samples can't travel — those slots arrive empty."
+          ? "Steps, kit, effects, tempo and swing — everything but the output level. Uploaded samples can't travel; those slots arrive empty."
           : "Load a sample or write a step to have something to share."}
       </p>
 
