@@ -21,6 +21,10 @@ import PresetPicker from "@/components/session/PresetPicker";
 import SnapshotControls from "@/components/session/SnapshotControls";
 import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
 import SettingsButton from "@/components/shell/SettingsButton";
+import SharePanel from "@/components/shell/SharePanel";
+import SharedBeatNotice, {
+  type SharedBeatStatus,
+} from "@/components/shell/SharedBeatNotice";
 import ShortcutsButton from "@/components/shell/ShortcutsButton";
 import MobileFooterNav, {
   type MobilePage,
@@ -132,6 +136,19 @@ import {
 import { handleIncomingCc } from "@/lib/midiCcMap";
 import { applyPattern } from "@/lib/patterns";
 import {
+  applySharedBeat,
+  buildShareUrl,
+  captureSharedBeat,
+  clearShareToken,
+  decodeSharedBeat,
+  encodeSharedBeat,
+  extractShareToken,
+  isWorthSharing,
+  readShareToken,
+  sharedBeatKit,
+  type SharedBeat,
+} from "@/lib/patternShare";
+import {
   DEFAULT_PRESET,
   PRESETS,
   presetEntries,
@@ -139,6 +156,7 @@ import {
 } from "@/lib/presets";
 import {
   channelNameFollowsSample,
+  findLibrarySample,
   librarySampleLabel,
   librarySampleUrl,
   type LibraryEntry,
@@ -1585,9 +1603,168 @@ export default function DrumMachine() {
   );
 
   /**
+   * What became of a beat that arrived by link, for the banner to report, or
+   * null once there is nothing left to say about one.
+   */
+  const [shareStatus, setShareStatus] = useState<SharedBeatStatus | null>(null);
+
+  /** Why the last link pasted into the rail didn't open, for the field to say. */
+  const [shareImportError, setShareImportError] = useState<string | null>(null);
+
+  /** True while a shared kit is being fetched, the way a preset's id is. */
+  const [loadingSharedBeat, setLoadingSharedBeat] = useState(false);
+
+  /** Everything the machine is playing right now, packed into a link. */
+  const handleBuildShareLink = useCallback(async () => {
+    const beat = captureSharedBeat(channels, bpm, swing);
+    return buildShareUrl(await encodeSharedBeat(beat));
+  }, [bpm, channels, swing]);
+
+  /**
+   * Puts a decoded beat into the machine — steps, mix, tempo and kit.
+   *
+   * Shaped like `handleLoadPreset`, because it is the same job: a whole machine
+   * arriving at once, with a fetch per filled slot and the channels marked as
+   * loading in between. The difference is that a kit fills channels from the
+   * top and leaves the rest alone, where this one speaks for all sixteen —
+   * `applySharedBeat` empties the channels the beat never mentions, and every
+   * decoded buffer is dropped here first so none of them can outlive the
+   * pattern that asked for it.
+   */
+  const loadSharedBeat = useCallback(
+    async (beat: SharedBeat) => {
+      // Created inside the gesture where there is one, matching the kit loader:
+      // the fetches below are awaited, so by the time a sample is decoded the
+      // click that asked for it is long over.
+      ensureContext();
+
+      const kit = sharedBeatKit(beat);
+      const entries = new Map(
+        kit.flatMap(({ channelId, libraryId }) => {
+          const entry = findLibrarySample(libraryId);
+          return entry ? [[channelId, entry] as const] : [];
+        }),
+      );
+
+      for (let index = 0; index < CHANNEL_COUNT; index += 1) {
+        removeSample(channelIdForIndex(index));
+      }
+
+      setBpm(beat.bpm);
+      setSwing(beat.swing);
+      // The step the panel was pointed at belonged to a pattern that has gone.
+      setRawEditingStepIndex(null);
+      setLoadingSharedBeat(entries.size > 0);
+
+      setChannels((prev) =>
+        applySharedBeat(prev, beat).map((channel) => {
+          const entry = entries.get(channel.id);
+          if (!entry) return channel;
+          return {
+            ...channel,
+            sample: { status: "loading", name: librarySampleLabel(entry) },
+          };
+        }),
+      );
+
+      await Promise.all(
+        [...entries].map(async ([channelId, entry]) => {
+          const label = librarySampleLabel(entry);
+          try {
+            const buffer = await loadSampleFromUrl(
+              channelId,
+              librarySampleUrl(entry),
+            );
+            updateChannel(channelId, {
+              sample: {
+                status: "loaded",
+                name: label,
+                libraryId: entry.sample.id,
+                peaks: computePeaks(buffer),
+                durationSeconds: buffer.duration,
+              },
+            });
+          } catch (error) {
+            console.error(`Failed to load shared sample ${label}`, error);
+            removeSample(channelId);
+            updateChannel(channelId, {
+              sample: { status: "error", message: "Couldn't load that sample" },
+            });
+          }
+        }),
+      );
+
+      setLoadingSharedBeat(false);
+    },
+    [ensureContext, loadSampleFromUrl, removeSample, updateChannel],
+  );
+
+  /**
+   * Opens a token, from wherever it arrived.
+   *
+   * The two sources differ only in where a failure belongs. A link pasted into
+   * the rail reports beside the field it was pasted into, where the person who
+   * pasted it is already looking; one that came in the address bar has no field
+   * to report to — and on a phone the rail is a page away — so it takes the
+   * banner instead.
+   */
+  const openSharedToken = useCallback(
+    async (token: string, source: "address" | "paste"): Promise<boolean> => {
+      /*
+       * Marked as loading from here rather than from inside `loadSharedBeat`,
+       * which is a decode away: the empty-kit notice is suppressed by this, and
+       * a machine opened from a link has no samples yet, so leaving the gap
+       * uncovered would flash "No samples loaded" before the beat arrived.
+       *
+       * The preset id goes at the same time. It starts out set for exactly this
+       * reason — to cover the first paint — and the kit it names is one this
+       * beat has just replaced.
+       */
+      setLoadingSharedBeat(true);
+      setLoadingPresetId(null);
+
+      const result = await decodeSharedBeat(token);
+
+      if (!result.ok) {
+        setLoadingSharedBeat(false);
+        if (source === "paste") setShareImportError(result.reason);
+        else setShareStatus({ kind: "failed", reason: result.reason });
+        return false;
+      }
+
+      setShareImportError(null);
+      await loadSharedBeat(result.beat);
+
+      setShareStatus({
+        kind: "loaded",
+        channelCount: Object.keys(result.beat.channels).length,
+        bpm: result.beat.bpm,
+        missingSamples: Object.values(result.beat.channels)
+          .map((channel) => channel.missingSampleName)
+          .filter((name): name is string => name !== undefined),
+      });
+
+      return true;
+    },
+    [loadSharedBeat],
+  );
+
+  const handleImportSharedLink = useCallback(
+    (value: string) => {
+      void openSharedToken(extractShareToken(value), "paste");
+    },
+    [openSharedToken],
+  );
+
+  /**
    * Loads the default kit once, on the way in, so the machine opens on
    * something that plays instead of on sixteen empty channels waiting to be
    * filled before anything can be heard.
+   *
+   * Unless the address bar is carrying a beat, in which case that is the kit:
+   * loading the default one first would fetch eleven samples in order to
+   * replace them a moment later, and the two loads would be racing for the same
+   * sixteen slots as they landed.
    *
    * The AudioContext this creates has no gesture behind it, so it starts
    * suspended — which decoding doesn't mind, and Play resumes. The ref is what
@@ -1599,8 +1776,41 @@ export default function DrumMachine() {
   useEffect(() => {
     if (loadedDefaultKitRef.current) return;
     loadedDefaultKitRef.current = true;
-    void handleLoadPreset(DEFAULT_PRESET);
-  }, [handleLoadPreset]);
+
+    /*
+     * The whole of the way in, as one sequence rather than a branch that starts
+     * two. What loads depends on what the address bar turns out to be carrying,
+     * and a link that fails to open falls back to the kit — three steps in
+     * order, which is what an async function says and what a pair of `void`
+     * calls beside each other does not. It also keeps the first setState off
+     * the effect body itself, where a synchronous one costs a cascading render.
+     */
+    void (async () => {
+      const token = readShareToken();
+
+      if (!token) {
+        await handleLoadPreset(DEFAULT_PRESET);
+        return;
+      }
+
+      /*
+       * Taken out of the address bar before it is read, not after: what is on
+       * screen from here on is the machine, which the reader is free to change,
+       * and an address still claiming to describe a beat would hand a stale one
+       * back on the next refresh. Cleared even if the token turns out to be
+       * unreadable, since a link that cannot be opened is no more worth keeping.
+       */
+      clearShareToken();
+
+      // A link that would not open leaves sixteen empty channels behind, which
+      // is a worse place to land than the one everyone else gets. The banner
+      // says what happened; the default kit is what makes the page usable while
+      // it is being read.
+      if (!(await openSharedToken(token, "address"))) {
+        await handleLoadPreset(DEFAULT_PRESET);
+      }
+    })();
+  }, [handleLoadPreset, openSharedToken]);
 
   const canPlay = channels.some(
     (channel) => channel.sample.status === "loaded",
@@ -1804,6 +2014,19 @@ export default function DrumMachine() {
           />
 
           {/*
+            Below the fader with the theme and the shortcuts, and above them
+            both: sharing is not a control on the instrument — nothing here
+            changes what the next hit sounds like — but it is the only one of
+            the three that acts on the beat rather than on the page.
+          */}
+          <SharePanel
+            canShare={isWorthSharing(channels)}
+            importError={shareImportError}
+            onBuildLink={handleBuildShareLink}
+            onImportLink={handleImportSharedLink}
+          />
+
+          {/*
             Below the fader, and so below everything that makes a sound: how the
             machine looks is a preference about the page rather than a control on
             the instrument, and putting it last keeps it out of the way of the
@@ -1832,6 +2055,19 @@ export default function DrumMachine() {
           at the top. Shown with the Main page and only there, since those
           controls are on it.
         */}
+        {/*
+          Above the step banner and outside the pane for the same reason it is:
+          a beat arriving by link is the largest thing that happens to this
+          machine without being asked for on screen, and the page it lands on is
+          Main — where the rail that could otherwise report it is a page away.
+        */}
+        {shareStatus !== null && (
+          <SharedBeatNotice
+            status={shareStatus}
+            onDismiss={() => setShareStatus(null)}
+          />
+        )}
+
         {editingStepIndex !== null && (
           <div
             className={`xl:block ${mobilePage === "main" ? "block" : "hidden"}`}
@@ -1870,7 +2106,9 @@ export default function DrumMachine() {
               the greyed-out transport is no longer a mystery worth explaining.
               And not while a kit is on its way in, since asking for samples at
               the moment samples are arriving would answer itself. */}
-            {!canPlay && loadingPresetId === null && <LoadSamplesNotice />}
+            {!canPlay && loadingPresetId === null && !loadingSharedBeat && (
+              <LoadSamplesNotice />
+            )}
 
             {/*
               What the channel is playing, what shape it comes out in, how its

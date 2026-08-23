@@ -1057,6 +1057,19 @@ export const SAMPLE_MODE_LABELS: Record<SampleMode, string> = {
 };
 
 /**
+ * Narrows a raw string to a mode the machine has, matching `clampDriveType`.
+ *
+ * Nothing in the UI needs this — the mode is picked from a pair of buttons that
+ * can only produce the two — but a shared link is a string someone else wrote,
+ * and everything arriving from one is put back through the clamp that owns it.
+ */
+export function clampSampleMode(value: string): SampleMode {
+  return SAMPLE_MODES.includes(value as SampleMode)
+    ? (value as SampleMode)
+    : DEFAULT_SAMPLE_MODE;
+}
+
+/**
  * How many parts the region can be cut into.
  *
  * Doublings up to 16, which is the grid's own resolution — at that count a bar

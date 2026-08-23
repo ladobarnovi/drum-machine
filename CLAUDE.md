@@ -31,6 +31,7 @@ src/
     ├── sequencer.ts  - Core sequencer engine
     ├── waveform.ts   - Sample waveform utilities
     ├── presets.ts    - Preset/snapshot management
+    ├── patternShare.ts - Beat links: wire format, encode/decode, URL hash
     ├── themes.ts     - Theme definitions
     ├── shortcuts.ts  - Keyboard shortcut definitions
     └── *Response.ts  - Audio response curves (filter, envelope, FX, LFO)
@@ -59,6 +60,16 @@ src/
 - Save/load patterns in named banks
 - Multiple slot management
 - Persistent storage via localStorage
+
+### Sharing
+
+- "Copy link" packs the live machine into a URL fragment (`#p=…`)
+- Carries steps, mix, per-channel sample edits, kit, tempo and swing
+- Deflated and base64url-encoded; a full kit fits in ~300 characters
+- Opening a link replaces the whole machine, including unmentioned channels
+- Uploaded samples cannot travel — those slots arrive empty, steps intact
+- A shared beat is a **superset of `Pattern`**: patterns deliberately omit the
+  kit (see `lib/patterns.ts`), which a link cannot assume the recipient has
 
 ### Transport
 
