@@ -2,7 +2,6 @@
 
 import { useSyncExternalStore } from "react";
 
-import RailGroup from "@/components/ui/RailGroup";
 import {
   THEMES,
   getServerThemeSnapshot,
@@ -25,8 +24,12 @@ function swatchBackground(theme: Theme): string {
 }
 
 /**
- * Picks the palette, at the foot of the left rail: it is a preference rather
- * than part of the instrument, so it sits below everything that makes a sound.
+ * Picks the palette. The appearance half of `SettingsDialog`, alongside the
+ * pickers for what the machine is plugged into: it is a preference about the
+ * page rather than a control on the instrument, and it is set about as often
+ * as the gear is — which is to say once, and then left alone. It used to sit
+ * at the foot of the controls rail, where it took a permanent share of the
+ * space reachable while playing to say something nobody reaches for mid-bar.
  *
  * Swatches rather than a list, because the names mean nothing on their own —
  * the point of a theme is what it looks like, so each button is a sample of
@@ -36,7 +39,7 @@ function swatchBackground(theme: Theme): string {
  * in the layout puts it back from `localStorage` on the way in, so it survives
  * a reload without the wrong colours flashing up first.
  */
-export default function ThemeSelector() {
+export default function ThemeSettingsPanel() {
   const themeId = useSyncExternalStore(
     subscribeToTheme,
     getThemeSnapshot,
@@ -44,7 +47,7 @@ export default function ThemeSelector() {
   );
 
   return (
-    <RailGroup title="Theme">
+    <>
       <div className="grid grid-cols-5 gap-1.5">
         {THEMES.map((theme) => {
           const isActive = theme.id === themeId;
@@ -82,6 +85,6 @@ export default function ThemeSelector() {
       </div>
 
       <p className="text-muted text-xs">{themeById(themeId).description}</p>
-    </RailGroup>
+    </>
   );
 }

@@ -20,7 +20,7 @@ src/
 │   ├── master/       - Master controls (volume, drive, effects, compression)
 │   ├── patterns/     - Pattern bank and slot management
 │   ├── transport/    - Play/stop controls
-│   ├── shell/        - App shell, sidebar, theme selector
+│   ├── shell/        - App shell, sidebar, settings dialog (MIDI, sound, theme)
 │   └── ui/           - Reusable UI components (sliders, knobs, tabs, menus)
 ├── hooks/            - Custom React hooks
 │   ├── useSequencer  - Main sequencer state and playback logic

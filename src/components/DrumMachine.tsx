@@ -33,7 +33,6 @@ import Sidebar, {
   CONTROLS_SIDEBAR_ID,
   FX_SIDEBAR_ID,
 } from "@/components/shell/Sidebar";
-import ThemeSelector from "@/components/shell/ThemeSelector";
 import Transport from "@/components/transport/Transport";
 import RailTabs from "@/components/ui/RailTabs";
 import { useBanks } from "@/hooks/useBanks";
@@ -1855,7 +1854,7 @@ export default function DrumMachine() {
 
   /**
    * What each channel is going by right now, for the mappings list in the
-   * device settings: a binding held against `channel-1` has to read as the
+   * settings dialog: a binding held against `channel-1` has to read as the
    * drum it actually moves, and follow it when the channel is renamed.
    *
    * Memoised on the channels rather than rebuilt every render, since this
@@ -2051,10 +2050,10 @@ export default function DrumMachine() {
           />
 
           {/*
-            Below the fader with the theme and the shortcuts, and above them
-            both: sharing is not a control on the instrument — nothing here
-            changes what the next hit sounds like — but it is the only one of
-            the three that acts on the beat rather than on the page.
+            Below the fader with the shortcuts, and above them: sharing is not
+            a control on the instrument — nothing here changes what the next
+            hit sounds like — but it is the one that acts on the beat rather
+            than on the page.
           */}
           <SharePanel
             canShare={isWorthSharing(channels)}
@@ -2063,17 +2062,9 @@ export default function DrumMachine() {
             onImportLink={handleImportSharedLink}
           />
 
-          {/*
-            Below the fader, and so below everything that makes a sound: how the
-            machine looks is a preference about the page rather than a control on
-            the instrument, and putting it last keeps it out of the way of the
-            things that are reached for while playing.
-          */}
-          <ThemeSelector />
-
-          {/* Below even the theme: the rail runs from what is reached for
-              while playing down to what is reached for once, and a list of
-              keys is only wanted when one has been forgotten. */}
+          {/* Last: the rail runs from what is reached for while playing down
+              to what is reached for once, and a list of keys is only wanted
+              when one has been forgotten. */}
           <ShortcutsButton />
         </Sidebar>
 

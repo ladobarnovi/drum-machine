@@ -14,7 +14,7 @@ type ModalProps = {
   title: string;
   /** The line under it, saying what the dialog is for. */
   subtitle?: string;
-  /** Names the close buttons, e.g. "Close device settings". */
+  /** Names the close buttons, e.g. "Close settings". */
   closeLabel: string;
   onClose: () => void;
   /** The bar along the bottom — a Done button, a note, or both. */

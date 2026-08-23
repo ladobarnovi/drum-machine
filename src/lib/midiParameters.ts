@@ -387,7 +387,7 @@ export const MASTER_COMPRESSOR_PARAMETERS: Record<
 /*
  * How a binding reads once it is away from the control it belongs to.
  *
- * The mappings list in the device settings shows every CC the machine answers
+ * The mappings list in the settings dialog shows every CC the machine answers
  * to at once, with nothing else on the row to say what "Feedback" is the
  * feedback of — the delay's and the phaser's are both mappable and both spelt
  * that way on their own panels. So each id carries its group along with it
