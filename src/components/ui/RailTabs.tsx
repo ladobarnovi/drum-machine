@@ -19,6 +19,13 @@ type RailTabsProps = {
   /** At least one; the first is what shows until another is picked. */
   tabs: RailTab[];
   /**
+   * Opens on this tab instead of the first, for a caller that knows which one
+   * the reader is after — the `?` shortcut jumping straight past MIDI and
+   * Sound to the shortcut list it was pressed to find. Falls back to the
+   * first tab if the id doesn't match any of them.
+   */
+  initialTabId?: string;
+  /**
    * "rail" (the default) is sized for the narrow FX sidebar this component
    * started in. "panel" is sized for a full page column — larger, sentence
    * case rather than small caps — for the Sequencer/Patterns/Banks switcher,
@@ -68,9 +75,12 @@ export default function RailTabs({
   id,
   label,
   tabs,
+  initialTabId,
   variant = "rail",
 }: RailTabsProps) {
-  const [activeId, setActiveId] = useState(tabs[0].id);
+  const [activeId, setActiveId] = useState(
+    tabs.find((tab) => tab.id === initialTabId)?.id ?? tabs[0].id,
+  );
   const buttonsRef = useRef<Array<HTMLButtonElement | null>>([]);
 
   // Falls back to the first tab rather than to nothing, so a tab removed from

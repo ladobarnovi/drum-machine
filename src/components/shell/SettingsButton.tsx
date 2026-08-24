@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import type { MidiMappingsSettings } from "@/components/shell/MidiMappingsPanel";
 import type { MidiSettings } from "@/components/shell/MidiSettingsPanel";
-import SettingsDialog from "@/components/shell/SettingsDialog";
+import SettingsDialog, {
+  SHORTCUTS_TAB_ID,
+} from "@/components/shell/SettingsDialog";
 import type { SoundSettings } from "@/components/shell/SoundSettingsPanel";
 import RailGroup from "@/components/ui/RailGroup";
 import { SYSTEM_DEFAULT_SINK_ID } from "@/lib/audioOutput";
+import { isTextEntryTarget } from "@/lib/shortcuts";
 import {
   getServerThemeSnapshot,
   getThemeSnapshot,
@@ -30,6 +33,16 @@ type SettingsButtonProps = {
  * Always shown, unlike when this band held nothing but the device pickers: the
  * theme is in here now, and every browser has one, so the button can no longer
  * open on a dialog with nothing in it worth showing.
+ *
+ * Also the way in to the shortcut list, which used to be a band of its own
+ * lower in the rail. It moved in once the theme did — a permanent share of
+ * the space reachable while playing was already hard to justify for a picker
+ * touched once, and harder still for a second control next to it that isn't
+ * touched at all, only read. The `?` key still opens straight to it, same as
+ * before, just landing on a tab now instead of a dialog of its own; the
+ * listener stays here rather than up in the machine because this component is
+ * mounted at every width — the rail is hidden below `xl`, never unmounted —
+ * so the key works on the Main page and the FX page as readily as on Settings.
  */
 export default function SettingsButton({
   midi,
@@ -37,11 +50,51 @@ export default function SettingsButton({
   sound,
 }: SettingsButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [initialTabId, setInitialTabId] = useState<string | undefined>();
   const themeId = useSyncExternalStore(
     subscribeToTheme,
     getThemeSnapshot,
     getServerThemeSnapshot,
   );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Left to the OS, which claims this one on macOS.
+      if (event.metaKey) return;
+
+      /*
+       * Two ways of asking, because one is not enough to cover a keyboard.
+       *
+       * The character first, however the layout arrives at it — and
+       * deliberately without turning Ctrl or Alt away, which is what broke
+       * this to begin with: plenty of layouts put `?` behind AltGr, and
+       * Windows reports AltGr as Ctrl and Alt held together. Refusing those
+       * modifiers switched the shortcut off for every one of them.
+       *
+       * Then the physical key, for the other half of the problem: on a layout
+       * that puts something else on Shift+Slash, the character above never
+       * appears, but the key under the finger is still the one the US-shaped
+       * hint on the button is pointing at. `code` is what the channel digits
+       * use, and for the same reason — it does not move with the layout.
+       */
+      const asksForHelp =
+        event.key === "?" ||
+        (event.code === "Slash" &&
+          event.shiftKey &&
+          !event.ctrlKey &&
+          !event.altKey);
+
+      if (!asksForHelp) return;
+      if (isTextEntryTarget(event.target)) return;
+
+      event.preventDefault();
+      setInitialTabId(SHORTCUTS_TAB_ID);
+      setIsOpen(true);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const midiInputName = midi.inputs.find(
     (input) => input.id === midi.selectedInputId,
@@ -83,10 +136,19 @@ export default function SettingsButton({
     <RailGroup title="Settings">
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
-        className="border-edge hover:bg-raised w-full cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
+        onClick={() => {
+          setInitialTabId(undefined);
+          setIsOpen(true);
+        }}
+        className="border-edge hover:bg-raised flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
       >
         Settings
+        <kbd
+          aria-hidden
+          className="border-edge bg-field rounded border px-1.5 py-0.5 font-sans text-[10px] font-medium"
+        >
+          ?
+        </kbd>
       </button>
 
       <p className="text-muted text-xs">{summary.join(" · ")}</p>
@@ -96,6 +158,7 @@ export default function SettingsButton({
           midi={midi}
           mappings={mappings}
           sound={sound}
+          initialTabId={initialTabId}
           onClose={() => setIsOpen(false)}
         />
       )}

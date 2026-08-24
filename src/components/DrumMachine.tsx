@@ -25,7 +25,6 @@ import SharePanel from "@/components/shell/SharePanel";
 import SharedBeatNotice, {
   type SharedBeatStatus,
 } from "@/components/shell/SharedBeatNotice";
-import ShortcutsButton from "@/components/shell/ShortcutsButton";
 import MobileFooterNav, {
   type MobilePage,
 } from "@/components/shell/MobileFooterNav";
@@ -2044,9 +2043,9 @@ export default function DrumMachine() {
           />
 
           {/*
-            Above the shortcuts: sharing is not a control on the instrument
-            — nothing here changes what the next hit sounds like — but it is
-            the one that acts on the beat rather than on the page.
+            Last: sharing is not a control on the instrument — nothing here
+            changes what the next hit sounds like — but it is the one that
+            acts on the beat rather than on the page.
           */}
           <SharePanel
             canShare={isWorthSharing(channels)}
@@ -2054,11 +2053,6 @@ export default function DrumMachine() {
             onBuildLink={handleBuildShareLink}
             onImportLink={handleImportSharedLink}
           />
-
-          {/* Last: the rail runs from what is reached for while playing down
-              to what is reached for once, and a list of keys is only wanted
-              when one has been forgotten. */}
-          <ShortcutsButton />
         </Sidebar>
 
         {/*

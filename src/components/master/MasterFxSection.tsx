@@ -52,9 +52,12 @@ export default function MasterFxSection({
         Kept even with nothing on the right of it, so every box in the tab has
         its title on the same line at the same weight — a heading that shifted
         up by the height of a button on the one section without one would read
-        as a different kind of thing rather than as the last stage.
+        as a different kind of thing rather than as the last stage. `min-h`
+        holds the row open to the bypass button's own height — a 16px line,
+        2px of padding and a 1px border, top and bottom — so the title keeps
+        the boxes' rhythm whether or not there is a button beside it.
       */}
-      <div className="flex items-center justify-between">
+      <div className="flex min-h-[1.375rem] items-center justify-between">
         {/*
           Top level within its rail, like the group headings on the other one:
           the boxes now sit directly in a tab panel, which is named by its tab
