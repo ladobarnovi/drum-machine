@@ -140,7 +140,6 @@ import {
   clearShareToken,
   decodeSharedBeat,
   encodeSharedBeat,
-  extractShareToken,
   isWorthSharing,
   readShareToken,
   sharedBeatKit,
@@ -1606,9 +1605,6 @@ export default function DrumMachine() {
    */
   const [shareStatus, setShareStatus] = useState<SharedBeatStatus | null>(null);
 
-  /** Why the last link pasted into the rail didn't open, for the field to say. */
-  const [shareImportError, setShareImportError] = useState<string | null>(null);
-
   /** True while a shared kit is being fetched, the way a preset's id is. */
   const [loadingSharedBeat, setLoadingSharedBeat] = useState(false);
 
@@ -1731,17 +1727,9 @@ export default function DrumMachine() {
     [ensureContext, loadSampleFromUrl, removeSample, updateChannel],
   );
 
-  /**
-   * Opens a token, from wherever it arrived.
-   *
-   * The two sources differ only in where a failure belongs. A link pasted into
-   * the rail reports beside the field it was pasted into, where the person who
-   * pasted it is already looking; one that came in the address bar has no field
-   * to report to — and on a phone the rail is a page away — so it takes the
-   * banner instead.
-   */
+  /** Opens a token from the address bar, reporting what happened in the banner. */
   const openSharedToken = useCallback(
-    async (token: string, source: "address" | "paste"): Promise<boolean> => {
+    async (token: string): Promise<boolean> => {
       /*
        * Marked as loading from here rather than from inside `loadSharedBeat`,
        * which is a decode away: the empty-kit notice is suppressed by this, and
@@ -1759,12 +1747,10 @@ export default function DrumMachine() {
 
       if (!result.ok) {
         setLoadingSharedBeat(false);
-        if (source === "paste") setShareImportError(result.reason);
-        else setShareStatus({ kind: "failed", reason: result.reason });
+        setShareStatus({ kind: "failed", reason: result.reason });
         return false;
       }
 
-      setShareImportError(null);
       await loadSharedBeat(result.beat);
 
       setShareStatus({
@@ -1782,13 +1768,6 @@ export default function DrumMachine() {
       return true;
     },
     [loadSharedBeat],
-  );
-
-  const handleImportSharedLink = useCallback(
-    (value: string) => {
-      void openSharedToken(extractShareToken(value), "paste");
-    },
-    [openSharedToken],
   );
 
   /**
@@ -1841,7 +1820,7 @@ export default function DrumMachine() {
       // is a worse place to land than the one everyone else gets. The banner
       // says what happened; the default kit is what makes the page usable while
       // it is being read.
-      if (!(await openSharedToken(token, "address"))) {
+      if (!(await openSharedToken(token))) {
         await handleLoadPreset(DEFAULT_PRESET);
       }
     })();
@@ -2049,9 +2028,7 @@ export default function DrumMachine() {
           */}
           <SharePanel
             canShare={isWorthSharing(channels)}
-            importError={shareImportError}
             onBuildLink={handleBuildShareLink}
-            onImportLink={handleImportSharedLink}
           />
         </Sidebar>
 

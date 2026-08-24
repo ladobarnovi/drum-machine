@@ -10,19 +10,15 @@ const COPIED_LABEL_MS = 1200;
 type SharePanelProps = {
   /** Builds the link for whatever the machine is playing right now. */
   onBuildLink: () => Promise<string>;
-  /** Hands a pasted link to the machine to load. */
-  onImportLink: (value: string) => void;
   /**
    * False while there is nothing worth sending — no sample loaded anywhere and
    * no step switched on. A link to silence is a link nobody wants to receive.
    */
   canShare: boolean;
-  /** Why the last pasted link didn't load, or null after one that did. */
-  importError: string | null;
 };
 
 /**
- * Sending a beat to someone, and opening one they sent.
+ * Sending a beat to someone.
  *
  * In the controls rail rather than beside the pattern slots, because what
  * travels is the machine as it stands — the kit, the tempo and the swing along
@@ -31,22 +27,17 @@ type SharePanelProps = {
  * its own (see `lib/patterns.ts`), so a link built from one would arrive
  * playing whatever the receiving machine happened to have loaded.
  *
- * Both directions in one band, because they are the same feature seen from
- * either end, and because the paste field is the answer to the one failure the
- * link itself cannot prevent: something in the middle — a chat client wrapping
- * a line, a forum eating a fragment — handing over a URL that no longer opens.
+ * Opening one someone else sent isn't done here — that happens by following
+ * the link itself, which `DrumMachine` reads off the address bar on the way
+ * in and reports through `SharedBeatNotice`. A field to paste one into by hand
+ * was tried and dropped: the address bar already does that job for every link
+ * that reaches this page intact.
  */
-export default function SharePanel({
-  onBuildLink,
-  onImportLink,
-  canShare,
-  importError,
-}: SharePanelProps) {
+export default function SharePanel({ onBuildLink, canShare }: SharePanelProps) {
   const [copied, setCopied] = useState(false);
   const [building, setBuilding] = useState(false);
   /** The link itself, shown only when the clipboard refused it. */
   const [fallbackLink, setFallbackLink] = useState<string | null>(null);
-  const [pasted, setPasted] = useState("");
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackRef = useRef<HTMLInputElement>(null);
@@ -93,16 +84,8 @@ export default function SharePanel({
     }
   };
 
-  const handleImport = () => {
-    const value = pasted.trim();
-    if (!value) return;
-
-    onImportLink(value);
-    setPasted("");
-  };
-
   return (
-    <RailGroup title="Share">
+    <RailGroup title="Share Pattern">
       <button
         type="button"
         onClick={handleCopy}
@@ -114,7 +97,7 @@ export default function SharePanel({
 
       <p className="text-muted text-xs">
         {canShare
-          ? "Steps, kit, effects, tempo and swing — everything but the output level. Uploaded samples can't travel; those slots arrive empty."
+          ? "Share steps, kit, effects, tempo and swing."
           : "Load a sample or write a step to have something to share."}
       </p>
 
@@ -135,46 +118,6 @@ export default function SharePanel({
             />
           </label>
         </div>
-      )}
-
-      <label className="text-muted flex flex-col gap-1 text-xs">
-        Or open one
-        <input
-          type="text"
-          value={pasted}
-          onChange={(event) => setPasted(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter") return;
-            // Only Enter, so nothing else typed into the field is swallowed —
-            // the rule every key handler in the machine follows.
-            event.preventDefault();
-            handleImport();
-          }}
-          placeholder="Paste a beat link"
-          aria-label="Paste a beat link"
-          aria-describedby={importError ? "share-import-error" : undefined}
-          aria-invalid={importError ? true : undefined}
-          className="border-edge bg-field w-full rounded border px-2 py-1 text-xs"
-        />
-      </label>
-
-      <button
-        type="button"
-        onClick={handleImport}
-        disabled={pasted.trim() === ""}
-        className="border-edge hover:bg-raised w-full cursor-pointer rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Load beat
-      </button>
-
-      {importError && (
-        <p
-          id="share-import-error"
-          role="status"
-          className="text-danger text-xs"
-        >
-          {importError}
-        </p>
       )}
     </RailGroup>
   );

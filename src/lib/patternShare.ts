@@ -1197,31 +1197,6 @@ function tokenFromHash(hash: string): string | null {
 }
 
 /**
- * The payload out of whatever someone pasted into the field.
- *
- * Three shapes reach it, and the difference between them is not something the
- * person pasting should have to think about: the whole link as copied, the
- * fragment alone where something in the middle kept only that, or the bare
- * token where a client turned the URL into a shortened display form and left
- * the tail behind. Anything with a recognisable payload in it is one of these;
- * anything else is handed on as-is, so the decoder is the single place that
- * decides what a valid beat is and the one voice that says why it isn't.
- */
-export function extractShareToken(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  const hashIndex = trimmed.indexOf("#");
-  if (hashIndex !== -1) {
-    return tokenFromHash(trimmed.slice(hashIndex)) ?? trimmed;
-  }
-
-  // No fragment at all: either a bare token, or a fragment whose "#" was eaten
-  // on the way — both of which `p=…` still identifies.
-  return tokenFromHash(`#${trimmed}`) ?? trimmed;
-}
-
-/**
  * Takes the payload back out of the address bar, once it has been loaded.
  *
  * `replaceState` rather than assigning to `location.hash`, which would push a
