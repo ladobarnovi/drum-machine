@@ -1991,6 +1991,22 @@ export default function DrumMachine() {
             onSwingChange={setSwing}
           />
 
+          <PresetPicker
+            presets={PRESETS}
+            loadingPresetId={loadingPresetId}
+            onLoadPreset={(preset) => void handleLoadPreset(preset)}
+          />
+
+          {/*
+            Last: sharing is not a control on the instrument — nothing here
+            changes what the next hit sounds like — but it is the one that
+            acts on the beat rather than on the page.
+          */}
+          <SharePanel
+            canShare={isWorthSharing(channels)}
+            onBuildLink={handleBuildShareLink}
+          />
+
           <SettingsButton
             midi={{
               supported: midiAccess.supported,
@@ -2013,22 +2029,6 @@ export default function DrumMachine() {
               namesHidden: audioOutputNamesHidden,
               onRevealNames: revealAudioOutputNames,
             }}
-          />
-
-          <PresetPicker
-            presets={PRESETS}
-            loadingPresetId={loadingPresetId}
-            onLoadPreset={(preset) => void handleLoadPreset(preset)}
-          />
-
-          {/*
-            Last: sharing is not a control on the instrument — nothing here
-            changes what the next hit sounds like — but it is the one that
-            acts on the beat rather than on the page.
-          */}
-          <SharePanel
-            canShare={isWorthSharing(channels)}
-            onBuildLink={handleBuildShareLink}
           />
         </Sidebar>
 
