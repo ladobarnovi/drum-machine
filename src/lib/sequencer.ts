@@ -348,9 +348,9 @@ export type MasterDrive = {
   level: number;
 };
 
-/** Starts bypassed, already dialled in so switching it on does something. */
+/** Starts on, already dialled in so it does something from the first hit. */
 export const DEFAULT_MASTER_DRIVE: MasterDrive = {
-  enabled: false,
+  enabled: true,
   type: DEFAULT_DRIVE_TYPE,
   amount: DEFAULT_DRIVE,
   level: DEFAULT_VOLUME,
@@ -370,11 +370,11 @@ export type MasterFilter = {
 };
 
 /**
- * Starts bypassed and flat. Unlike drive, a master filter is a control you
+ * Starts on and flat. Unlike drive, a master filter is a control you
  * sweep, so switching it in should be silent until a cutoff is moved.
  */
 export const DEFAULT_MASTER_FILTER: MasterFilter = {
-  enabled: false,
+  enabled: true,
   lowCutHz: DEFAULT_LOW_CUT_HZ,
   highCutHz: DEFAULT_HIGH_CUT_HZ,
 };
@@ -424,7 +424,7 @@ export type MasterDelay = {
  * switching to it lands somewhere sensible.
  */
 export const DEFAULT_MASTER_DELAY: MasterDelay = {
-  enabled: false,
+  enabled: true,
   synced: true,
   division: DEFAULT_DELAY_DIVISION,
   timeSeconds: DEFAULT_DELAY_SECONDS,
@@ -456,7 +456,7 @@ export type MasterReverb = {
 };
 
 export const DEFAULT_MASTER_REVERB: MasterReverb = {
-  enabled: false,
+  enabled: true,
   decaySeconds: DEFAULT_REVERB_DECAY_SECONDS,
   toneHz: DEFAULT_REVERB_TONE_HZ,
   level: DEFAULT_VOLUME,
@@ -552,7 +552,7 @@ export type MasterPhaser = {
 
 /** Starts silent but already dialled in, exactly like the other two buses. */
 export const DEFAULT_MASTER_PHASER: MasterPhaser = {
-  enabled: false,
+  enabled: true,
   stages: DEFAULT_PHASER_STAGES,
   rateHz: DEFAULT_PHASER_RATE_HZ,
   depth: DEFAULT_PHASER_DEPTH,
@@ -636,9 +636,9 @@ export type MasterCompressor = {
   level: number;
 };
 
-/** Starts bypassed, already dialled in so switching it on does something. */
+/** Starts on, already dialled in so it does something from the first hit. */
 export const DEFAULT_MASTER_COMPRESSOR: MasterCompressor = {
-  enabled: false,
+  enabled: true,
   thresholdDb: DEFAULT_THRESHOLD_DB,
   ratio: DEFAULT_RATIO,
   attackSeconds: DEFAULT_COMPRESSOR_ATTACK_SECONDS,
