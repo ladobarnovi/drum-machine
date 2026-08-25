@@ -49,3 +49,18 @@ export function computePeaks(
 
   return peaks;
 }
+
+/**
+ * A fraction of the file as a fraction of the strip, and back again — the same
+ * flip either way, which is why one function does both directions.
+ *
+ * Reversing turns the picture round without touching the trim: `start` and
+ * `end` go on meaning the same two points of the file they always did, and the
+ * same audio goes on playing. It is only where those points *are shown* that
+ * moves, and everything drawn on the strip goes through here so that the shape,
+ * the handles and the line following the hit can never be mirrored
+ * independently of one another.
+ */
+export function onStrip(fraction: number, reversed: boolean): number {
+  return reversed ? 1 - fraction : fraction;
+}

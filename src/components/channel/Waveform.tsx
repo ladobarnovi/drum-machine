@@ -1,14 +1,10 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  type KeyboardEvent,
-  type PointerEvent,
-} from "react";
+import { useCallback, useRef } from "react";
 
 import { anchorFromEvent, type SampleSourceAnchor } from "./SampleSourceMenu";
+import TrimHandle from "./TrimHandle";
+import WaveformPlayhead from "./WaveformPlayhead";
 import {
   formatSeconds,
   isSampleTrimmed,
@@ -20,6 +16,7 @@ import {
   type SampleState,
   type SliceCount,
 } from "@/lib/sequencer";
+import { onStrip } from "@/lib/waveform";
 
 type WaveformProps = {
   sample: SampleState;
@@ -59,33 +56,6 @@ type WaveformProps = {
 const VIEWBOX_HEIGHT = 100;
 
 /**
- * How far one press of an arrow key moves a handle, as a fraction of the file.
- *
- * A hundredth of the sample per press, so a handle crosses the strip in a
- * hundred presses rather than a thousand; the modifier below is what a
- * transient is actually placed with, and is offered for the same reason the
- * step grid offers Shift — a control reachable only by dragging is not one
- * every input device can work.
- */
-const KEY_STEP = 0.01;
-const FINE_KEY_STEP = 0.001;
-
-/**
- * A fraction of the file as a fraction of the strip, and back again — the same
- * flip either way, which is why one function does both directions.
- *
- * Reversing turns the picture round without touching the trim: `start` and
- * `end` go on meaning the same two points of the file they always did, and the
- * same audio goes on playing. It is only where those points *are shown* that
- * moves, and everything drawn on the strip goes through here so that the shape,
- * the handles and the line following the hit can never be mirrored
- * independently of one another.
- */
-function onStrip(fraction: number, reversed: boolean): number {
-  return reversed ? 1 - fraction : fraction;
-}
-
-/**
  * Builds a filled, centre-mirrored outline: left-to-right on top, back along
  * the bottom.
  *
@@ -106,189 +76,6 @@ function buildPath(peaks: number[], reversed: boolean): string {
     bottom.push(`L ${index} ${half + peakAt(index) * half}`);
   }
   return `M 0 ${half} ${top.join(" ")} ${bottom.join(" ")} Z`;
-}
-
-type TrimHandleProps = {
-  edge: "start" | "end";
-  /**
-   * Where this handle sits, as a fraction of the strip — which is the file read
-   * left to right, or the file read backwards once it has been reversed.
-   */
-  position: number;
-  /** How far into the strip that is, for the readout a screen reader speaks. */
-  seconds: number;
-  onChange: (fraction: number) => void;
-  /** Where a pointer at `clientX` falls along the strip, as a fraction. */
-  fractionAt: (clientX: number) => number;
-};
-
-/**
- * One edge of the played region, dragged along the strip.
- *
- * A div rather than an input: a range slider cannot be laid over a waveform at
- * an arbitrary height, and two of them side by side cannot express a pair of
- * edges that may not cross. So it carries the slider role by hand, which is
- * also what gets it the arrow keys — the drag is the gesture this is for, but
- * it must not be the only way in.
- */
-function TrimHandle({
-  edge,
-  position,
-  seconds,
-  onChange,
-  fractionAt,
-}: TrimHandleProps) {
-  /**
-   * How far the handle sat from the pointer when it was grabbed. Dragging moves
-   * it by that much less, so the edge tracks the pointer's own travel rather
-   * than jumping under it — the grab area is wider than the line it draws, and
-   * without this every press would first snap the edge to the middle of it.
-   */
-  const grabOffsetRef = useRef(0);
-
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    // Anything but the primary button is somebody else's gesture.
-    if (event.button !== 0) return;
-
-    // Captured so a drag that runs off the strip — or off the card — keeps
-    // reporting here, and focused by hand, which a press on a div does not do.
-    event.currentTarget.setPointerCapture(event.pointerId);
-    event.currentTarget.focus();
-    grabOffsetRef.current = position - fractionAt(event.clientX);
-  };
-
-  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    onChange(fractionAt(event.clientX) + grabOffsetRef.current);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const distance = event.shiftKey ? FINE_KEY_STEP : KEY_STEP;
-
-    switch (event.key) {
-      case "ArrowLeft":
-      case "ArrowDown":
-        onChange(position - distance);
-        break;
-      case "ArrowRight":
-      case "ArrowUp":
-        onChange(position + distance);
-        break;
-      // The far ends, which is also how a handle is put back on its own.
-      case "Home":
-        onChange(0);
-        break;
-      case "End":
-        onChange(1);
-        break;
-      default:
-        return;
-    }
-
-    // Only for the keys handled above, so nothing else on the page is swallowed.
-    event.preventDefault();
-  };
-
-  const label = edge === "start" ? "Sample start" : "Sample end";
-
-  return (
-    <div
-      role="slider"
-      tabIndex={0}
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(position * 100)}
-      aria-valuetext={`${seconds.toFixed(2)} seconds`}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onKeyDown={handleKeyDown}
-      // `touch-none` keeps the browser from claiming the drag for scrolling,
-      // which would swallow it before it arrived — the same reason the step
-      // grid sets it. The strip is short, so the page still scrolls from
-      // anywhere either side of the two handles.
-      className="group absolute inset-y-0 flex w-4 -translate-x-1/2 cursor-ew-resize touch-none flex-col items-center outline-none select-none"
-      style={{ left: `${position * 100}%` }}
-    >
-      {/*
-        `--select`, the colour of whatever is being looked at, rather than the
-        accent the waveform itself is drawn in: an edge marker has to read
-        against the shape it is cutting, not blend into it.
-      */}
-      {/* A cap at either end, so the line reads as something to take hold of
-          rather than as a mark drawn on the waveform. */}
-      <span aria-hidden className="bg-select size-1.5 shrink-0 rounded-sm" />
-      <span
-        aria-hidden
-        className="bg-select w-0.5 flex-1 transition-[width] group-hover:w-1 group-focus-visible:w-1"
-      />
-      <span aria-hidden className="bg-select size-1.5 shrink-0 rounded-sm" />
-    </div>
-  );
-}
-
-type WaveformPlayheadProps = {
-  getPlayhead: () => number | null;
-  reversed: boolean;
-};
-
-/**
- * The line that walks the strip with the hit, from one handle to the other.
- *
- * Nothing here goes through React state, for the same reason the gain reduction
- * meter keeps out of it: the position moves with the audio clock, and putting it
- * through a `useState` would re-render the whole sample card — the name, the
- * slot, the shape and both handles — sixty times a second to move one line.
- *
- * So the position is pulled once a frame and written straight to the node, and
- * only when it has actually changed: a channel sitting silent between hits is a
- * map lookup that misses and nothing else.
- */
-function WaveformPlayhead({ getPlayhead, reversed }: WaveformPlayheadProps) {
-  const lineRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    let frame = 0;
-    let shown: string | null = null;
-
-    const tick = () => {
-      frame = requestAnimationFrame(tick);
-
-      const line = lineRef.current;
-      if (!line) return;
-
-      const position = getPlayhead();
-      // The empty string stands for silence, which is also what makes the two
-      // writes below one decision: the line is put where the hit has reached and
-      // shown, or it is cleared and hidden, and it can never be left visible at
-      // wherever the last hit happened to stop.
-      const left =
-        position === null ? "" : `${onStrip(position, reversed) * 100}%`;
-      if (left === shown) return;
-
-      shown = left;
-      line.style.left = left;
-      line.style.opacity = position === null ? "0" : "1";
-    };
-
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [getPlayhead, reversed]);
-
-  return (
-    // Hidden from assistive technology: it is a picture of a sound already
-    // playing, and there is nothing here to read out or to operate.
-    //
-    // `--fg`, which is the one colour in a theme guaranteed to carry against
-    // the panel behind the strip: the accent is what the shape is drawn in and
-    // `--select` is already both handles, so a line taking either would have to
-    // be read against the very thing it is crossing.
-    <span
-      ref={lineRef}
-      aria-hidden
-      className="bg-fg pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 opacity-0"
-    />
-  );
 }
 
 export default function Waveform({
