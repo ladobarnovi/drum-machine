@@ -1997,11 +1997,6 @@ export default function DrumMachine() {
             onLoadPreset={(preset) => void handleLoadPreset(preset)}
           />
 
-          {/*
-            Last: sharing is not a control on the instrument — nothing here
-            changes what the next hit sounds like — but it is the one that
-            acts on the beat rather than on the page.
-          */}
           <SharePanel
             canShare={isWorthSharing(channels)}
             onBuildLink={handleBuildShareLink}
@@ -2032,27 +2027,6 @@ export default function DrumMachine() {
           />
         </Sidebar>
 
-        {/*
-          The one scrolling box on the page. `min-h-0` is what lets it shrink
-          below its content's height — without it a flex item refuses to, and
-          the overflow would push the column past the viewport instead of
-          scrolling here. Below `xl` this is the Main page, and hidden — but
-          still mounted — whenever Settings or FX is the page showing, so
-          nothing here is torn down mid-pattern by a switch to another page.
-        */}
-        {/*
-          Between the header and the pane, so the one mode this page has stays
-          legible from either end of a column too long to see at once — the
-          steps that open it are at the bottom, the controls it redirects are
-          at the top. Shown with the Main page and only there, since those
-          controls are on it.
-        */}
-        {/*
-          Above the step banner and outside the pane for the same reason it is:
-          a beat arriving by link is the largest thing that happens to this
-          machine without being asked for on screen, and the page it lands on is
-          Main — where the rail that could otherwise report it is a page away.
-        */}
         {shareStatus !== null && (
           <SharedBeatNotice
             status={shareStatus}

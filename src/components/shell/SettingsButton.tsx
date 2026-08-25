@@ -151,8 +151,6 @@ export default function SettingsButton({
         </kbd>
       </button>
 
-      <p className="text-muted text-xs">{summary.join(" · ")}</p>
-
       {isOpen && (
         <SettingsDialog
           midi={midi}
