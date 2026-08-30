@@ -86,6 +86,7 @@ import {
   clampSend,
   clampSustain,
   clampVolume,
+  clearLockedParameter,
   clearStepAt,
   clearStepLockAt,
   clampStepTiming,
@@ -912,6 +913,18 @@ export default function DrumMachine() {
       updateSelectedSteps((steps, length) =>
         randomizeStepsParameter(steps, length, key, generate),
       );
+    },
+    [updateSelectedSteps],
+  );
+
+  /**
+   * Drops one lockable parameter's overrides everywhere they sit in the
+   * selected channel's pattern — the undo for Randomize, and for any lock set
+   * by hand while a step was open.
+   */
+  const handleClearLockedParameter = useCallback(
+    (key: LockableParameter) => {
+      updateSelectedSteps((steps) => clearLockedParameter(steps, key));
     },
     [updateSelectedSteps],
   );
@@ -2231,6 +2244,7 @@ export default function DrumMachine() {
               onReverbSendChange={handleReverbSendChange}
               onPhaserSendChange={handlePhaserSendChange}
               onRandomizeParameter={handleRandomizeParameter}
+              onClearLockedParameter={handleClearLockedParameter}
               stepEdit={
                 editingStepIndex === null || editingStep === null
                   ? undefined

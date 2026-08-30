@@ -67,6 +67,8 @@ type ChannelFxSectionProps = {
   onPhaserSendChange: (amount: number) => void;
   /** Rerolls one of the three sends above across every active step. */
   onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  /** Drops every override of one of the three sends above, pattern-wide. */
+  onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited; absent while the channel is. */
   stepEdit?: FxStepEdit;
 };
@@ -95,6 +97,7 @@ export default function ChannelFxSection({
   onReverbSendChange,
   onPhaserSendChange,
   onRandomizeParameter,
+  onClearLockedParameter,
   stepEdit,
 }: ChannelFxSectionProps) {
   /** Whether a knob is currently being worked — see `ChannelFilterSection`
@@ -156,6 +159,7 @@ export default function ChannelFxSection({
               clampSend(randomInRange(MIN_SEND, MAX_SEND)),
             )
           }
+          onClearLocks={() => onClearLockedParameter("delaySend")}
         />
 
         <RotaryKnob
@@ -174,6 +178,7 @@ export default function ChannelFxSection({
               clampSend(randomInRange(MIN_SEND, MAX_SEND)),
             )
           }
+          onClearLocks={() => onClearLockedParameter("reverbSend")}
         />
 
         <RotaryKnob
@@ -192,6 +197,7 @@ export default function ChannelFxSection({
               clampSend(randomInRange(MIN_SEND, MAX_SEND)),
             )
           }
+          onClearLocks={() => onClearLockedParameter("phaserSend")}
         />
       </div>
     </div>

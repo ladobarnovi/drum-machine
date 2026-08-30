@@ -101,6 +101,9 @@ type SampleEditorTabsSectionProps = {
    * for: scatter this one parameter across the hits that are already playing.
    */
   onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  /** Drops one lockable parameter's overrides everywhere in the pattern — the
+   *  undo for Randomize, offered in the same menu. */
+  onClearLockedParameter: (key: LockableParameter) => void;
 
   /** Set while one step is open, so all three of those tabs scope to it. */
   stepEdit?: StepEditRef;
@@ -173,6 +176,7 @@ export default function SampleEditorTabsSection({
   onReverbSendChange,
   onPhaserSendChange,
   onRandomizeParameter,
+  onClearLockedParameter,
   stepEdit,
 }: SampleEditorTabsSectionProps) {
   const channelName = channelDisplayName(channel);
@@ -209,6 +213,7 @@ export default function SampleEditorTabsSection({
               onPanChange={onPanChange}
               onPitchChange={onPitchChange}
               onRandomizeParameter={onRandomizeParameter}
+              onClearLockedParameter={onClearLockedParameter}
               locks={stepEdit?.locks}
               onClearLock={stepEdit?.onClearLock}
             />
@@ -230,6 +235,7 @@ export default function SampleEditorTabsSection({
               onHighCutResonanceChange={onHighCutResonanceChange}
               onFilterSlopeChange={onFilterSlopeChange}
               onRandomizeParameter={onRandomizeParameter}
+              onClearLockedParameter={onClearLockedParameter}
               stepEdit={stepEdit}
             />
           ),
@@ -248,6 +254,7 @@ export default function SampleEditorTabsSection({
               onSustainChange={onSustainChange}
               onReleaseChange={onReleaseChange}
               onRandomizeParameter={onRandomizeParameter}
+              onClearLockedParameter={onClearLockedParameter}
               stepEdit={stepEdit}
             />
           ),
@@ -275,6 +282,7 @@ export default function SampleEditorTabsSection({
               onReverbSendChange={onReverbSendChange}
               onPhaserSendChange={onPhaserSendChange}
               onRandomizeParameter={onRandomizeParameter}
+              onClearLockedParameter={onClearLockedParameter}
               stepEdit={stepEdit}
             />
           ),

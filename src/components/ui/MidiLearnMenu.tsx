@@ -17,6 +17,12 @@ type MidiLearnMenuProps = {
    * nothing can lock, where the divider and the item are both dropped.
    */
   onRandomize?: () => void;
+  /**
+   * Drops every override of this parameter, pattern-wide. Sits beside
+   * `onRandomize` for the same reason — the undo for a reroll belongs next to
+   * the reroll itself, in the one menu this control already opens.
+   */
+  onClearLocks?: () => void;
 };
 
 /**
@@ -35,6 +41,7 @@ export default function MidiLearnMenu({
   label,
   menu,
   onRandomize,
+  onClearLocks,
 }: MidiLearnMenuProps) {
   const { control, position, close } = menu;
   if (!position) return null;
@@ -73,14 +80,23 @@ export default function MidiLearnMenu({
         {control.cc === null ? "Clear mapping" : `Clear CC ${control.cc}`}
       </ContextMenuItem>
 
-      {onRandomize && (
-        <>
-          <div className="border-line my-0.5 border-t" aria-hidden />
+      {(onRandomize || onClearLocks) && (
+        <div className="border-line my-0.5 border-t" aria-hidden />
+      )}
 
-          <ContextMenuItem onClick={run(onRandomize)}>
-            Randomize
-          </ContextMenuItem>
-        </>
+      {onRandomize && (
+        <ContextMenuItem onClick={run(onRandomize)}>
+          Randomize
+        </ContextMenuItem>
+      )}
+
+      {/* Last, as the one that throws a lock away rather than setting one —
+          the same reasoning that puts Clear after Nudge and Humanize in the
+          pattern controls. */}
+      {onClearLocks && (
+        <ContextMenuItem onClick={run(onClearLocks)}>
+          Clear Locks
+        </ContextMenuItem>
       )}
     </ContextMenu>
   );

@@ -82,6 +82,8 @@ type ChannelEnvelopeSectionProps = {
   onReleaseChange: (seconds: number) => void;
   /** Rerolls one of the four knobs above across every active step. */
   onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  /** Drops every override of one of the four knobs above, pattern-wide. */
+  onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited; absent while the channel is. */
   stepEdit?: EnvelopeStepEdit;
 };
@@ -109,6 +111,7 @@ export default function ChannelEnvelopeSection({
   onSustainChange,
   onReleaseChange,
   onRandomizeParameter,
+  onClearLockedParameter,
   stepEdit,
 }: ChannelEnvelopeSectionProps) {
   /** Whether a knob is currently being worked — see `ChannelFilterSection`
@@ -170,6 +173,7 @@ export default function ChannelEnvelopeSection({
               sliderToAttack(Math.random()),
             )
           }
+          onClearLocks={() => onClearLockedParameter("attackSeconds")}
         />
 
         <RotaryKnob
@@ -192,6 +196,7 @@ export default function ChannelEnvelopeSection({
               sliderToDecay(Math.random()),
             )
           }
+          onClearLocks={() => onClearLockedParameter("decaySeconds")}
         />
 
         <RotaryKnob
@@ -214,6 +219,7 @@ export default function ChannelEnvelopeSection({
               clampSustain(randomInRange(MIN_SUSTAIN_LEVEL, MAX_SUSTAIN_LEVEL)),
             )
           }
+          onClearLocks={() => onClearLockedParameter("sustainLevel")}
         />
 
         <RotaryKnob
@@ -236,6 +242,7 @@ export default function ChannelEnvelopeSection({
               sliderToRelease(Math.random()),
             )
           }
+          onClearLocks={() => onClearLockedParameter("releaseSeconds")}
         />
       </div>
     </div>

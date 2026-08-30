@@ -122,6 +122,8 @@ type SampleSectionProps = {
   onPitchChange: (pitch: number) => void;
   /** Rerolls one of Gain, Pan or Pitch across every active step. */
   onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  /** Drops every override of one of Gain, Pan or Pitch, pattern-wide. */
+  onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited, so these three knobs mark their locks
    * the same way the accordion's sliders do. */
   locks?: StepLocks;
@@ -284,6 +286,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
                 clampVolume(randomInRange(MIN_VOLUME, MAX_VOLUME)),
               )
             }
+            onClearLocks={() => props.onClearLockedParameter("volume")}
           />
 
           <RotaryKnob
@@ -302,6 +305,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
                 clampPan(randomInRange(MIN_PAN, MAX_PAN)),
               )
             }
+            onClearLocks={() => props.onClearLockedParameter("pan")}
           />
 
           <RotaryKnob
@@ -320,6 +324,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
                 clampPitch(randomInRange(MIN_PITCH, MAX_PITCH)),
               )
             }
+            onClearLocks={() => props.onClearLockedParameter("pitch")}
           />
         </div>
 

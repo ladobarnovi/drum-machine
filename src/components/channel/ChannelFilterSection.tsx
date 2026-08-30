@@ -86,6 +86,8 @@ type ChannelFilterSectionProps = {
   onFilterSlopeChange: (slope: FilterSlope) => void;
   /** Rerolls one of the four knobs above across every active step. */
   onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  /** Drops every override of one of the four knobs above, pattern-wide. */
+  onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited; absent while the channel is. */
   stepEdit?: FilterStepEdit;
 };
@@ -124,6 +126,7 @@ export default function ChannelFilterSection({
   onHighCutResonanceChange,
   onFilterSlopeChange,
   onRandomizeParameter,
+  onClearLockedParameter,
   stepEdit,
 }: ChannelFilterSectionProps) {
   /**
@@ -226,6 +229,7 @@ export default function ChannelFilterSection({
               sliderToFrequency(Math.random()),
             )
           }
+          onClearLocks={() => onClearLockedParameter("lowCutHz")}
         />
 
         <RotaryKnob
@@ -244,6 +248,7 @@ export default function ChannelFilterSection({
               clampResonance(randomInRange(MIN_RESONANCE, MAX_RESONANCE)),
             )
           }
+          onClearLocks={() => onClearLockedParameter("lowCutResonance")}
         />
 
         <RotaryKnob
@@ -266,6 +271,7 @@ export default function ChannelFilterSection({
               sliderToFrequency(Math.random()),
             )
           }
+          onClearLocks={() => onClearLockedParameter("highCutHz")}
         />
 
         <RotaryKnob
@@ -284,6 +290,7 @@ export default function ChannelFilterSection({
               clampResonance(randomInRange(MIN_RESONANCE, MAX_RESONANCE)),
             )
           }
+          onClearLocks={() => onClearLockedParameter("highCutResonance")}
         />
       </div>
 

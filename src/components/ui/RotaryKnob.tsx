@@ -50,6 +50,13 @@ type RotaryKnobProps = {
    * random one to mean anything.
    */
   onRandomize?: () => void;
+  /**
+   * Drops every override of this parameter, pattern-wide — the undo for
+   * `onRandomize`, and for a lock set by hand on any step. Distinct from
+   * `onClearLock` above: that one is the × beside the readout, and only ever
+   * clears the single step currently open for editing.
+   */
+  onClearLocks?: () => void;
 };
 
 /**
@@ -127,6 +134,7 @@ export default function RotaryKnob({
   disabled = false,
   midiMapId,
   onRandomize,
+  onClearLocks,
 }: RotaryKnobProps) {
   const midiMenu = useMidiLearnMenu(midiMapId);
 
@@ -345,6 +353,7 @@ export default function RotaryKnob({
           label={ariaLabel ?? label}
           menu={midiMenu}
           onRandomize={onRandomize}
+          onClearLocks={onClearLocks}
         />
       )}
     </div>

@@ -2107,6 +2107,32 @@ export function randomizeStepsParameter(
 }
 
 /**
+ * Drops one parameter's override everywhere it occurs in the pattern — off
+ * steps included, since a lock left on a step that's currently off isn't
+ * heard but is still there to catch someone out the next time that step is
+ * switched back on. The parameter-wide counterpart to `clearStepLockAt`,
+ * which drops it from one step alone.
+ */
+export function clearLockedParameter(
+  steps: Step[],
+  key: LockableParameter,
+): Step[] {
+  return steps.map((step) => {
+    if (step.locks?.[key] === undefined) return step;
+
+    const locks = { ...step.locks };
+    delete locks[key];
+
+    // Annotated for the same reason `clearStepLockAt` is: `locks` is the
+    // optional property it is on a Step rather than the required one this
+    // literal would otherwise be inferred to have.
+    const next: Step = { ...step, locks };
+    if (Object.keys(locks).length === 0) delete next.locks;
+    return next;
+  });
+}
+
+/**
  * Slides the whole pattern along by `offset` steps — positive later, negative
  * earlier.
  *
