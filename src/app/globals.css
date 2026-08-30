@@ -43,9 +43,10 @@
   /* What is switched on: active steps, slider thumbs, lit toggles. */
   --accent: #f97316;
   --accent-soft: #fb923c; /* the same, hovered */
-  /* Ink for anything lit, mute and solo included — which is why those two are
-     kept bright enough below to take the same ink the accent does. */
-  --on-accent: #ffffff;
+  /* Dark ink for anything lit, mute and solo included: white measured under
+     3:1 against this orange, and mute and solo — which take the same ink —
+     read little better. */
+  --on-accent: #1a0a00;
 
   /* The one solid button on the page — Play — against everything else. */
   --invert: #171717;
@@ -60,8 +61,9 @@
   --danger: #ef4444;
 
   /* Pattern and bank slots: two more flags in the same family as mute/solo,
-     chosen to sit apart from every other token above. */
-  --pattern: #8b5cf6;
+     chosen to sit apart from every other token above — and, now on-accent is
+     dark, light enough to keep clearing contrast against it. */
+  --pattern: #a78bfa;
   --bank: #ec4899;
 
   --backdrop: rgb(23 23 23 / 0.4); /* behind an open dialog */
@@ -96,7 +98,7 @@
 
     --accent: #f97316;
     --accent-soft: #fb923c;
-    --on-accent: #ffffff;
+    --on-accent: #1a0a00;
 
     --invert: #f5f5f5;
     --on-invert: #171717;
@@ -227,7 +229,10 @@
 
   --accent: #ff3b57;
   --accent-soft: #ff6b80;
-  --on-accent: #ffffff;
+  /* Dark ink on the accent, mute and solo alike: white measured under 3.5:1
+     against this red, and mute and solo — which take the same ink — read
+     little better. */
+  --on-accent: #1a0a00;
 
   --invert: #2b1a3d;
   --on-invert: #fffaf0;
@@ -239,7 +244,9 @@
   --solo: #1fa35c;
   --danger: #d92d3c;
 
-  --pattern: #7c3aed;
+  /* Lighter than carnival's own violet would otherwise run, so it clears
+     contrast against the dark ink on-accent now uses. */
+  --pattern: #a78bfa;
   --bank: #0d9488;
 
   --backdrop: rgb(43 26 61 / 0.4);
