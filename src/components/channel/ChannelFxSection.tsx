@@ -10,6 +10,7 @@ import {
   MIN_SEND,
   clampSend,
   isSendClosed,
+  randomInRange,
   type LockableParameter,
   type StepLocks,
 } from "@/lib/sequencer";
@@ -64,6 +65,8 @@ type ChannelFxSectionProps = {
   onDelaySendChange: (amount: number) => void;
   onReverbSendChange: (amount: number) => void;
   onPhaserSendChange: (amount: number) => void;
+  /** Rerolls one of the three sends above across every active step. */
+  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
   /** Set while one step is being edited; absent while the channel is. */
   stepEdit?: FxStepEdit;
 };
@@ -91,6 +94,7 @@ export default function ChannelFxSection({
   onDelaySendChange,
   onReverbSendChange,
   onPhaserSendChange,
+  onRandomizeParameter,
   stepEdit,
 }: ChannelFxSectionProps) {
   /** Whether a knob is currently being worked — see `ChannelFilterSection`
@@ -147,6 +151,11 @@ export default function ChannelFxSection({
           onChange={(value) => onDelaySendChange(clampSend(value))}
           {...lockProps("delaySend")}
           midiMapId={channelMidiMapId(channelId, "fx:delaySend")}
+          onRandomize={() =>
+            onRandomizeParameter("delaySend", () =>
+              clampSend(randomInRange(MIN_SEND, MAX_SEND)),
+            )
+          }
         />
 
         <RotaryKnob
@@ -160,6 +169,11 @@ export default function ChannelFxSection({
           onChange={(value) => onReverbSendChange(clampSend(value))}
           {...lockProps("reverbSend")}
           midiMapId={channelMidiMapId(channelId, "fx:reverbSend")}
+          onRandomize={() =>
+            onRandomizeParameter("reverbSend", () =>
+              clampSend(randomInRange(MIN_SEND, MAX_SEND)),
+            )
+          }
         />
 
         <RotaryKnob
@@ -173,6 +187,11 @@ export default function ChannelFxSection({
           onChange={(value) => onPhaserSendChange(clampSend(value))}
           {...lockProps("phaserSend")}
           midiMapId={channelMidiMapId(channelId, "fx:phaserSend")}
+          onRandomize={() =>
+            onRandomizeParameter("phaserSend", () =>
+              clampSend(randomInRange(MIN_SEND, MAX_SEND)),
+            )
+          }
         />
       </div>
     </div>

@@ -102,6 +102,7 @@ import {
   lastFiredStepAt,
   nudgeSteps,
   pasteStepAt,
+  randomizeStepsParameter,
   repeatOffsets,
   secondsToNextStep,
   setStepLockAt,
@@ -898,6 +899,21 @@ export default function DrumMachine() {
       updateChannel(selectedChannel.id, { [key]: value } as Partial<Channel>);
     },
     [editingStepIndex, selectedChannel.id, updateChannel, updateSelectedSteps],
+  );
+
+  /**
+   * Rerolls one lockable parameter across every currently active step of the
+   * selected channel — always the whole pattern, regardless of whether a step
+   * happens to be open for editing. `setParameter` above answers "where does
+   * this value go"; Randomize isn't one value, so it never goes through it.
+   */
+  const handleRandomizeParameter = useCallback(
+    (key: LockableParameter, generate: () => number) => {
+      updateSelectedSteps((steps, length) =>
+        randomizeStepsParameter(steps, length, key, generate),
+      );
+    },
+    [updateSelectedSteps],
   );
 
   const handleVolumeChange = useCallback(
@@ -2214,6 +2230,7 @@ export default function DrumMachine() {
               onDelaySendChange={handleDelaySendChange}
               onReverbSendChange={handleReverbSendChange}
               onPhaserSendChange={handlePhaserSendChange}
+              onRandomizeParameter={handleRandomizeParameter}
               stepEdit={
                 editingStepIndex === null || editingStep === null
                   ? undefined

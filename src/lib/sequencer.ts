@@ -2079,6 +2079,33 @@ export function humanizeSteps(steps: Step[], length: number): Step[] {
   });
 }
 
+/** A uniformly random value anywhere between `min` and `max`, for a knob's Randomize. */
+export function randomInRange(min: number, max: number): number {
+  return min + Math.random() * (max - min);
+}
+
+/**
+ * Overrides `key` with an independently random value on every currently
+ * active step, leaving steps that are off untouched — a lock dropped onto a
+ * step that never fires would be a random value nobody hears.
+ *
+ * `generate` is called once per active step rather than once for the whole
+ * pattern, the same way `humanizeSteps` scatters velocity: a randomize that
+ * landed every hit on the same number would just be setting an accent.
+ */
+export function randomizeStepsParameter(
+  steps: Step[],
+  length: number,
+  key: LockableParameter,
+  generate: () => number,
+): Step[] {
+  const playing = clampLength(length);
+  return steps.map((step, index) => {
+    if (index >= playing || !step.on) return step;
+    return { ...step, locks: { ...step.locks, [key]: generate() } };
+  });
+}
+
 /**
  * Slides the whole pattern along by `offset` steps — positive later, negative
  * earlier.

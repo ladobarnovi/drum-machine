@@ -94,6 +94,14 @@ type SampleEditorTabsSectionProps = {
   onReverbSendChange: (amount: number) => void;
   onPhaserSendChange: (amount: number) => void;
 
+  /**
+   * Rerolls one lockable parameter across every active step of the pattern.
+   * Shared by all four tabs that carry a lockable knob — Sample, Filter, Env
+   * and FX — since Randomize always means the same thing wherever it's asked
+   * for: scatter this one parameter across the hits that are already playing.
+   */
+  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+
   /** Set while one step is open, so all three of those tabs scope to it. */
   stepEdit?: StepEditRef;
 };
@@ -164,6 +172,7 @@ export default function SampleEditorTabsSection({
   onDelaySendChange,
   onReverbSendChange,
   onPhaserSendChange,
+  onRandomizeParameter,
   stepEdit,
 }: SampleEditorTabsSectionProps) {
   const channelName = channelDisplayName(channel);
@@ -199,6 +208,7 @@ export default function SampleEditorTabsSection({
               onVolumeChange={onVolumeChange}
               onPanChange={onPanChange}
               onPitchChange={onPitchChange}
+              onRandomizeParameter={onRandomizeParameter}
               locks={stepEdit?.locks}
               onClearLock={stepEdit?.onClearLock}
             />
@@ -219,6 +229,7 @@ export default function SampleEditorTabsSection({
               onHighCutChange={onHighCutChange}
               onHighCutResonanceChange={onHighCutResonanceChange}
               onFilterSlopeChange={onFilterSlopeChange}
+              onRandomizeParameter={onRandomizeParameter}
               stepEdit={stepEdit}
             />
           ),
@@ -236,6 +247,7 @@ export default function SampleEditorTabsSection({
               onDecayChange={onDecayChange}
               onSustainChange={onSustainChange}
               onReleaseChange={onReleaseChange}
+              onRandomizeParameter={onRandomizeParameter}
               stepEdit={stepEdit}
             />
           ),
@@ -262,6 +274,7 @@ export default function SampleEditorTabsSection({
               onDelaySendChange={onDelaySendChange}
               onReverbSendChange={onReverbSendChange}
               onPhaserSendChange={onPhaserSendChange}
+              onRandomizeParameter={onRandomizeParameter}
               stepEdit={stepEdit}
             />
           ),

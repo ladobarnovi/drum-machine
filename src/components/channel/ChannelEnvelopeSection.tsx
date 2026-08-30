@@ -9,6 +9,7 @@ import {
   MAX_SUSTAIN_LEVEL,
   MIN_SUSTAIN_LEVEL,
   attackToSlider,
+  clampSustain,
   decayToSlider,
   formatSeconds,
   formatSustain,
@@ -16,6 +17,7 @@ import {
   isDecayBypassed,
   isReleaseBypassed,
   isSustainBypassed,
+  randomInRange,
   releaseToSlider,
   sliderToAttack,
   sliderToDecay,
@@ -78,6 +80,8 @@ type ChannelEnvelopeSectionProps = {
   onDecayChange: (seconds: number) => void;
   onSustainChange: (level: number) => void;
   onReleaseChange: (seconds: number) => void;
+  /** Rerolls one of the four knobs above across every active step. */
+  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
   /** Set while one step is being edited; absent while the channel is. */
   stepEdit?: EnvelopeStepEdit;
 };
@@ -104,6 +108,7 @@ export default function ChannelEnvelopeSection({
   onDecayChange,
   onSustainChange,
   onReleaseChange,
+  onRandomizeParameter,
   stepEdit,
 }: ChannelEnvelopeSectionProps) {
   /** Whether a knob is currently being worked — see `ChannelFilterSection`
@@ -160,6 +165,11 @@ export default function ChannelEnvelopeSection({
           onChange={(position) => onAttackChange(sliderToAttack(position))}
           {...lockProps("attackSeconds")}
           midiMapId={channelMidiMapId(channelId, "envelope:attack")}
+          onRandomize={() =>
+            onRandomizeParameter("attackSeconds", () =>
+              sliderToAttack(Math.random()),
+            )
+          }
         />
 
         <RotaryKnob
@@ -177,6 +187,11 @@ export default function ChannelEnvelopeSection({
           onChange={(position) => onDecayChange(sliderToDecay(position))}
           {...lockProps("decaySeconds")}
           midiMapId={channelMidiMapId(channelId, "envelope:decay")}
+          onRandomize={() =>
+            onRandomizeParameter("decaySeconds", () =>
+              sliderToDecay(Math.random()),
+            )
+          }
         />
 
         <RotaryKnob
@@ -194,6 +209,11 @@ export default function ChannelEnvelopeSection({
           onChange={onSustainChange}
           {...lockProps("sustainLevel")}
           midiMapId={channelMidiMapId(channelId, "envelope:sustain")}
+          onRandomize={() =>
+            onRandomizeParameter("sustainLevel", () =>
+              clampSustain(randomInRange(MIN_SUSTAIN_LEVEL, MAX_SUSTAIN_LEVEL)),
+            )
+          }
         />
 
         <RotaryKnob
@@ -211,6 +231,11 @@ export default function ChannelEnvelopeSection({
           onChange={(position) => onReleaseChange(sliderToRelease(position))}
           {...lockProps("releaseSeconds")}
           midiMapId={channelMidiMapId(channelId, "envelope:release")}
+          onRandomize={() =>
+            onRandomizeParameter("releaseSeconds", () =>
+              sliderToRelease(Math.random()),
+            )
+          }
         />
       </div>
     </div>

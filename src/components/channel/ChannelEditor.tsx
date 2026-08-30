@@ -51,6 +51,7 @@ import {
   formatStepTiming,
   formatVelocity,
   isSliced,
+  randomInRange,
   resolveSwipeTarget,
   swipeTargetsFor,
   type Channel,
@@ -119,6 +120,8 @@ type SampleSectionProps = {
   onVolumeChange: (volume: number) => void;
   onPanChange: (pan: number) => void;
   onPitchChange: (pitch: number) => void;
+  /** Rerolls one of Gain, Pan or Pitch across every active step. */
+  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
   /** Set while one step is being edited, so these three knobs mark their locks
    * the same way the accordion's sliders do. */
   locks?: StepLocks;
@@ -276,6 +279,11 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             onChange={(value) => props.onVolumeChange(clampVolume(value))}
             {...lockProps("volume")}
             midiMapId={channelMidiMapId(channel.id, "volume")}
+            onRandomize={() =>
+              props.onRandomizeParameter("volume", () =>
+                clampVolume(randomInRange(MIN_VOLUME, MAX_VOLUME)),
+              )
+            }
           />
 
           <RotaryKnob
@@ -289,6 +297,11 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             onChange={(value) => props.onPanChange(clampPan(value))}
             {...lockProps("pan")}
             midiMapId={channelMidiMapId(channel.id, "pan")}
+            onRandomize={() =>
+              props.onRandomizeParameter("pan", () =>
+                clampPan(randomInRange(MIN_PAN, MAX_PAN)),
+              )
+            }
           />
 
           <RotaryKnob
@@ -302,6 +315,11 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             onChange={(value) => props.onPitchChange(clampPitch(value))}
             {...lockProps("pitch")}
             midiMapId={channelMidiMapId(channel.id, "pitch")}
+            onRandomize={() =>
+              props.onRandomizeParameter("pitch", () =>
+                clampPitch(randomInRange(MIN_PITCH, MAX_PITCH)),
+              )
+            }
           />
         </div>
 

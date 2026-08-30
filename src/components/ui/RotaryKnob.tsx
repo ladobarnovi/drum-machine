@@ -43,6 +43,13 @@ type RotaryKnobProps = {
    * nothing special, and it renders exactly as it always has.
    */
   midiMapId?: string;
+  /**
+   * Rerolls this parameter across every active step, offered in the same
+   * right-click menu as the MIDI options. Left undefined for a knob nothing
+   * can lock — Start and End, say — where there is no per-step value for a
+   * random one to mean anything.
+   */
+  onRandomize?: () => void;
 };
 
 /**
@@ -119,6 +126,7 @@ export default function RotaryKnob({
   onClearLock,
   disabled = false,
   midiMapId,
+  onRandomize,
 }: RotaryKnobProps) {
   const midiMenu = useMidiLearnMenu(midiMapId);
 
@@ -332,7 +340,13 @@ export default function RotaryKnob({
         )}
       </div>
 
-      {midiMenu && <MidiLearnMenu label={ariaLabel ?? label} menu={midiMenu} />}
+      {midiMenu && (
+        <MidiLearnMenu
+          label={ariaLabel ?? label}
+          menu={midiMenu}
+          onRandomize={onRandomize}
+        />
+      )}
     </div>
   );
 }

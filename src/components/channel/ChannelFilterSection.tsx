@@ -10,11 +10,13 @@ import {
   FILTER_SLOPE_LABELS,
   MAX_RESONANCE,
   MIN_RESONANCE,
+  clampResonance,
   formatFrequency,
   formatResonance,
   frequencyToSlider,
   isHighCutBypassed,
   isLowCutBypassed,
+  randomInRange,
   sliderToFrequency,
   type FilterSlope,
   type LockableParameter,
@@ -82,6 +84,8 @@ type ChannelFilterSectionProps = {
   onHighCutChange: (hz: number) => void;
   onHighCutResonanceChange: (amount: number) => void;
   onFilterSlopeChange: (slope: FilterSlope) => void;
+  /** Rerolls one of the four knobs above across every active step. */
+  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
   /** Set while one step is being edited; absent while the channel is. */
   stepEdit?: FilterStepEdit;
 };
@@ -119,6 +123,7 @@ export default function ChannelFilterSection({
   onHighCutChange,
   onHighCutResonanceChange,
   onFilterSlopeChange,
+  onRandomizeParameter,
   stepEdit,
 }: ChannelFilterSectionProps) {
   /**
@@ -216,6 +221,11 @@ export default function ChannelFilterSection({
           onChange={(position) => onLowCutChange(sliderToFrequency(position))}
           {...lockProps("lowCutHz")}
           midiMapId={channelMidiMapId(channelId, "filter:lowCutHz")}
+          onRandomize={() =>
+            onRandomizeParameter("lowCutHz", () =>
+              sliderToFrequency(Math.random()),
+            )
+          }
         />
 
         <RotaryKnob
@@ -229,6 +239,11 @@ export default function ChannelFilterSection({
           onChange={onLowCutResonanceChange}
           {...lockProps("lowCutResonance")}
           midiMapId={channelMidiMapId(channelId, "filter:lowCutResonance")}
+          onRandomize={() =>
+            onRandomizeParameter("lowCutResonance", () =>
+              clampResonance(randomInRange(MIN_RESONANCE, MAX_RESONANCE)),
+            )
+          }
         />
 
         <RotaryKnob
@@ -246,6 +261,11 @@ export default function ChannelFilterSection({
           onChange={(position) => onHighCutChange(sliderToFrequency(position))}
           {...lockProps("highCutHz")}
           midiMapId={channelMidiMapId(channelId, "filter:highCutHz")}
+          onRandomize={() =>
+            onRandomizeParameter("highCutHz", () =>
+              sliderToFrequency(Math.random()),
+            )
+          }
         />
 
         <RotaryKnob
@@ -259,6 +279,11 @@ export default function ChannelFilterSection({
           onChange={onHighCutResonanceChange}
           {...lockProps("highCutResonance")}
           midiMapId={channelMidiMapId(channelId, "filter:highCutResonance")}
+          onRandomize={() =>
+            onRandomizeParameter("highCutResonance", () =>
+              clampResonance(randomInRange(MIN_RESONANCE, MAX_RESONANCE)),
+            )
+          }
         />
       </div>
 
