@@ -2,6 +2,7 @@
 
 import BankGrid from "./BankGrid";
 import PatternGrid from "./PatternGrid";
+import PatternOverviewGrid from "./PatternOverviewGrid";
 import ChannelEditor from "@/components/channel/ChannelEditor";
 import RailTabs from "@/components/ui/RailTabs";
 import type { Bank } from "@/lib/patterns";
@@ -9,6 +10,11 @@ import type { Channel, StepFill, SwipeTarget } from "@/lib/sequencer";
 
 type SequencerTabsSectionProps = {
   channel: Channel;
+  /** Every channel, loaded or not — what the All tab draws a row apiece for. */
+  channels: Channel[];
+  /** The transport's absolute tick, for the All tab's own playhead per row. */
+  currentTick: number | null;
+  onSelectChannel: (channelId: string) => void;
   currentStep: number | null;
   editingStep: number | null;
   swipeTarget: SwipeTarget;
@@ -39,14 +45,22 @@ type SequencerTabsSectionProps = {
 };
 
 /**
- * What used to be the plain "Sequencer" card is now three tabs sharing it:
- * the live step grid, the pattern slots of the bank being browsed, and the
- * bank slots themselves. One card rather than three, so switching tabs reads
- * as changing what you're looking at rather than moving to a different part
- * of the page.
+ * What used to be the plain "Sequencer" card is now four tabs sharing it: the
+ * live step grid, the pattern slots of the bank being browsed, the bank slots
+ * themselves, and every loaded channel's pattern at once. One card rather
+ * than four, so switching tabs reads as changing what you're looking at
+ * rather than moving to a different part of the page.
+ *
+ * All came last of the four: the other three edit or navigate something, and
+ * this one only ever selects a channel — the same click a pad in the grid
+ * above already does, offered again here because it's the row that puts a
+ * pattern beside the ones around it, which the single-channel grid never can.
  */
 export default function SequencerTabsSection({
   channel,
+  channels,
+  currentTick,
+  onSelectChannel,
   currentStep,
   editingStep,
   swipeTarget,
@@ -128,6 +142,18 @@ export default function SequencerTabsSection({
               banks={banks}
               selectedBankIndex={selectedBankIndex}
               onSelect={onSelectBank}
+            />
+          ),
+        },
+        {
+          id: "all",
+          label: "All",
+          panel: (
+            <PatternOverviewGrid
+              channels={channels}
+              selectedChannelId={channel.id}
+              currentTick={currentTick}
+              onSelectChannel={onSelectChannel}
             />
           ),
         },

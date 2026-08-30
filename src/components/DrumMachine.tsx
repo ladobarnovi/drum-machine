@@ -2258,6 +2258,9 @@ export default function DrumMachine() {
 
             <SequencerTabsSection
               channel={selectedChannel}
+              channels={channels}
+              currentTick={currentTick}
+              onSelectChannel={handleSelectChannel}
               currentStep={currentStep}
               editingStep={editingStepIndex}
               swipeTarget={swipeTarget}
