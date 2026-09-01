@@ -40,18 +40,19 @@ type PatternOverviewGridProps = {
  * against the kick it plays over instead of held in memory across two clicks
  * of the channel strip.
  *
- * Every cell is the same fixed width, on every row, whatever that row's own
- * length is — not a proportional share of it. Proportional cells means a
- * row's width is divided by however many columns it happens to have, which
- * puts step 5 of an 8-step row at a different offset than step 5 of a
- * 16-step one once the browser has finished rounding each row's share to a
- * whole pixel; the two only look aligned by coincidence. A fixed width has
- * nothing to divide and nothing to round against a sibling count, so step 5
- * sits at the same offset in every row without asking every row to agree on
- * how many columns there are.
+ * Every line is a 16-column CSS grid, always — `repeat(OVERVIEW_COLUMNS,
+ * minmax(0, 1fr))`, the same track list on every row, whatever that row's own
+ * length is. Fixed-pixel cells were tried first and rejected: they read as
+ * small on a panel with room to spare, and widening them just traded that for
+ * a horizontal scrollbar on anything narrower than their fixed sum. A shared
+ * *column count* rather than a shared column *width* is what actually keeps
+ * step 5 of an 8-step row under step 5 of a 16-step one — both grids divide
+ * the same 16 tracks across the same lane width, so both land on the same
+ * offset, and each cell is free to stretch to fill whatever that lane's width
+ * turns out to be, on a phone or a wide desktop rail alike.
  *
  * A pattern longer than `OVERVIEW_COLUMNS` wraps onto a second line under the
- * first rather than shrinking its cells to fit one — the fixed width is the
+ * first rather than shrinking its cells to fit one — the column count is the
  * one thing not up for negotiation, so the row grows down instead of its
  * cells growing thin. Rows within `OVERVIEW_COLUMNS` show the columns they
  * don't reach as blank rather than a fifth colour, since a column past a
@@ -59,7 +60,7 @@ type PatternOverviewGridProps = {
  * wrapped back to its start.
  *
  * The playhead is marked per row rather than as one line down the panel, for
- * the same reason the width is fixed per row and not shared: it stands at
+ * the same reason the grid is drawn per row and not shared: it stands at
  * `currentTick` modulo *that row's own* length, which is a different column
  * from a row of another length at the same instant. The two only walk
  * together when every loaded channel shares one length, which is the common
@@ -88,7 +89,7 @@ export default function PatternOverviewGrid({
     <div
       role="group"
       aria-label="All channel patterns"
-      className="flex flex-col gap-1.5"
+      className="flex flex-col gap-2"
     >
       {loaded.map((channel) => {
         const length = clampLength(channel.length);
@@ -106,22 +107,25 @@ export default function PatternOverviewGrid({
             aria-pressed={isSelected}
             aria-label={`Select channel ${displayName}`}
             title={displayName}
-            className={`flex cursor-pointer items-start gap-2 rounded-md border px-2 py-1 text-left transition-colors ${
+            className={`flex cursor-pointer items-start gap-3 rounded-md border px-2 py-1.5 text-left transition-colors ${
               isSelected
                 ? "border-select bg-select-soft"
                 : "border-transparent hover:bg-raised"
             }`}
           >
-            <span className="w-16 shrink-0 truncate text-xs font-medium">
+            <span className="w-16 shrink-0 truncate pt-0.5 text-xs font-medium">
               {displayName}
             </span>
 
-            <span className="flex min-w-0 flex-col gap-0.5 overflow-x-auto">
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
               {Array.from({ length: lineCount }, (_, line) => {
                 const lineStart = line * OVERVIEW_COLUMNS;
 
                 return (
-                  <span key={line} className="flex items-center gap-0.5">
+                  <span
+                    key={line}
+                    className="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-1"
+                  >
                     {Array.from({ length: OVERVIEW_COLUMNS }, (_, column) => {
                       const index = lineStart + column;
                       // A beat boundary gets a touch more room on its left,
@@ -132,7 +136,7 @@ export default function PatternOverviewGrid({
                       // `OVERVIEW_COLUMNS` is itself a multiple of one.
                       const beatGap =
                         column > 0 && column % STEPS_PER_BEAT === 0
-                          ? "ml-1"
+                          ? "ml-1.5"
                           : "";
 
                       if (index >= length) {
@@ -140,7 +144,7 @@ export default function PatternOverviewGrid({
                           <span
                             key={column}
                             aria-hidden
-                            className={`size-3 ${beatGap}`}
+                            className={`h-4 sm:h-5 ${beatGap}`}
                           />
                         );
                       }
@@ -164,7 +168,7 @@ export default function PatternOverviewGrid({
                         <span
                           key={column}
                           aria-hidden
-                          className={`size-3 shrink-0 rounded-sm border ${surface} ${border} ${fill} ${playhead} ${beatGap}`}
+                          className={`h-4 rounded border sm:h-5 ${surface} ${border} ${fill} ${playhead} ${beatGap}`}
                         />
                       );
                     })}
