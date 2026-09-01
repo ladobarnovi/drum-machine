@@ -348,9 +348,12 @@ export type MasterDrive = {
   level: number;
 };
 
-/** Starts on, already dialled in so it does something from the first hit. */
+/**
+ * Starts bypassed, like every Master FX stage — dialled in already so
+ * switching it on does something from the first hit.
+ */
 export const DEFAULT_MASTER_DRIVE: MasterDrive = {
-  enabled: true,
+  enabled: false,
   type: DEFAULT_DRIVE_TYPE,
   amount: DEFAULT_DRIVE,
   level: DEFAULT_VOLUME,
@@ -370,11 +373,12 @@ export type MasterFilter = {
 };
 
 /**
- * Starts on and flat. Unlike drive, a master filter is a control you
- * sweep, so switching it in should be silent until a cutoff is moved.
+ * Starts bypassed and flat, like every Master FX stage. Unlike drive, a
+ * master filter is a control you sweep, so switching it in should be silent
+ * until a cutoff is moved.
  */
 export const DEFAULT_MASTER_FILTER: MasterFilter = {
-  enabled: true,
+  enabled: false,
   lowCutHz: DEFAULT_LOW_CUT_HZ,
   highCutHz: DEFAULT_HIGH_CUT_HZ,
 };
@@ -636,9 +640,12 @@ export type MasterCompressor = {
   level: number;
 };
 
-/** Starts on, already dialled in so it does something from the first hit. */
+/**
+ * Starts bypassed, like every Master FX stage — dialled in already so
+ * switching it on does something from the first hit.
+ */
 export const DEFAULT_MASTER_COMPRESSOR: MasterCompressor = {
-  enabled: true,
+  enabled: false,
   thresholdDb: DEFAULT_THRESHOLD_DB,
   ratio: DEFAULT_RATIO,
   attackSeconds: DEFAULT_COMPRESSOR_ATTACK_SECONDS,
