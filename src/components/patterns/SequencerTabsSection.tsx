@@ -15,6 +15,8 @@ type SequencerTabsSectionProps = {
   /** The transport's absolute tick, for the All tab's own playhead per row. */
   currentTick: number | null;
   onSelectChannel: (channelId: string) => void;
+  /** A step toggle from the All tab, scoped to whichever row it came from. */
+  onToggleOverviewStep: (channelId: string, stepIndex: number) => void;
   currentStep: number | null;
   editingStep: number | null;
   swipeTarget: SwipeTarget;
@@ -51,16 +53,17 @@ type SequencerTabsSectionProps = {
  * than four, so switching tabs reads as changing what you're looking at
  * rather than moving to a different part of the page.
  *
- * All came last of the four: the other three edit or navigate something, and
- * this one only ever selects a channel — the same click a pad in the grid
- * above already does, offered again here because it's the row that puts a
- * pattern beside the ones around it, which the single-channel grid never can.
+ * All came last of the four: it edits steps the same way the other three do,
+ * but scoped to whichever row a click landed on rather than only the selected
+ * channel, because it's the row that puts a pattern beside the ones around
+ * it, which the single-channel grid never can.
  */
 export default function SequencerTabsSection({
   channel,
   channels,
   currentTick,
   onSelectChannel,
+  onToggleOverviewStep,
   currentStep,
   editingStep,
   swipeTarget,
@@ -154,6 +157,7 @@ export default function SequencerTabsSection({
               selectedChannelId={channel.id}
               currentTick={currentTick}
               onSelectChannel={onSelectChannel}
+              onToggleStep={onToggleOverviewStep}
             />
           ),
         },

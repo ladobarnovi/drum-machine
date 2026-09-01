@@ -33,12 +33,21 @@ type PatternOverviewGridProps = {
    */
   currentTick: number | null;
   onSelectChannel: (channelId: string) => void;
+  /** A step click, scoped to whichever row's channel it landed on. */
+  onToggleStep: (channelId: string, stepIndex: number) => void;
 };
 
 /**
  * Every loaded channel's pattern, one row apiece, so a snare can be read
  * against the kick it plays over instead of held in memory across two clicks
- * of the channel strip.
+ * of the channel strip. Every step is its own button, so a pattern can be
+ * shaped here directly rather than only read — a fill needs to see the kick
+ * and the hat at once, and this is the one place that shows them both.
+ *
+ * A step click writes only that step, on whichever channel its row belongs
+ * to, and leaves selection alone: reaching across the panel to fix a stray
+ * hit shouldn't also drag the editor over to a different channel. The
+ * channel name stays the way to select a row, the same click it always was.
  *
  * Every line is a 16-column CSS grid, always — `repeat(OVERVIEW_COLUMNS,
  * minmax(0, 1fr))`, the same track list on every row, whatever that row's own
@@ -72,6 +81,7 @@ export default function PatternOverviewGrid({
   selectedChannelId,
   currentTick,
   onSelectChannel,
+  onToggleStep,
 }: PatternOverviewGridProps) {
   const loaded = channels.filter(
     (channel) => channel.sample.status === "loaded",
@@ -100,22 +110,24 @@ export default function PatternOverviewGrid({
           currentTick === null ? null : currentTick % length;
 
         return (
-          <button
+          <div
             key={channel.id}
-            type="button"
-            onClick={() => onSelectChannel(channel.id)}
-            aria-pressed={isSelected}
-            aria-label={`Select channel ${displayName}`}
-            title={displayName}
-            className={`flex cursor-pointer items-start gap-3 rounded-md border px-2 py-1.5 text-left transition-colors ${
+            className={`flex items-start gap-3 rounded-md border px-2 py-1.5 transition-colors ${
               isSelected
                 ? "border-select bg-select-soft"
                 : "border-transparent hover:bg-raised"
             }`}
           >
-            <span className="w-16 shrink-0 truncate pt-0.5 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => onSelectChannel(channel.id)}
+              aria-pressed={isSelected}
+              aria-label={`Select channel ${displayName}`}
+              title={displayName}
+              className="w-16 shrink-0 cursor-pointer truncate pt-0.5 text-left text-xs font-medium"
+            >
               {displayName}
-            </span>
+            </button>
 
             <span className="flex min-w-0 flex-1 flex-col gap-1">
               {Array.from({ length: lineCount }, (_, line) => {
@@ -152,7 +164,9 @@ export default function PatternOverviewGrid({
                       const step = channel.steps[index];
                       const downbeat = isDownbeat(index);
 
-                      const surface = downbeat ? "bg-step-beat" : "bg-step";
+                      const surface = downbeat
+                        ? "bg-step-beat hover:bg-step-beat-hover"
+                        : "bg-step hover:bg-step-hover";
                       const border = step.on
                         ? "border-accent-soft"
                         : downbeat
@@ -165,10 +179,15 @@ export default function PatternOverviewGrid({
                           : "";
 
                       return (
-                        <span
+                        <button
                           key={column}
-                          aria-hidden
-                          className={`h-4 rounded border sm:h-5 ${surface} ${border} ${fill} ${playhead} ${beatGap}`}
+                          type="button"
+                          onClick={() => onToggleStep(channel.id, index)}
+                          aria-pressed={step.on}
+                          aria-label={`Step ${index + 1} of ${displayName}, ${
+                            step.on ? "on" : "off"
+                          }`}
+                          className={`h-4 cursor-pointer rounded border transition-colors sm:h-5 ${surface} ${border} ${fill} ${playhead} ${beatGap}`}
                         />
                       );
                     })}
@@ -176,7 +195,7 @@ export default function PatternOverviewGrid({
                 );
               })}
             </span>
-          </button>
+          </div>
         );
       })}
     </div>

@@ -592,6 +592,21 @@ export default function DrumMachine() {
     [updateSelectedSteps],
   );
 
+  /**
+   * A step click from the "All" overview tab. Writes whichever channel's row
+   * it came from, not necessarily the selected one — the overview shows every
+   * loaded channel at once, so a toggle there has to name its channel rather
+   * than lean on `updateSelectedSteps`.
+   */
+  const handleToggleOverviewStep = useCallback(
+    (channelId: string, stepIndex: number) => {
+      updateStepsForChannel(channelId, (steps) =>
+        toggleStepAt(steps, stepIndex),
+      );
+    },
+    [updateStepsForChannel],
+  );
+
   /** A right click on a step: raises its action menu at the pointer. */
   const handleStepContextMenu = useCallback(
     (stepIndex: number, x: number, y: number) => {
@@ -2261,6 +2276,7 @@ export default function DrumMachine() {
               channels={channels}
               currentTick={currentTick}
               onSelectChannel={handleSelectChannel}
+              onToggleOverviewStep={handleToggleOverviewStep}
               currentStep={currentStep}
               editingStep={editingStepIndex}
               swipeTarget={swipeTarget}
