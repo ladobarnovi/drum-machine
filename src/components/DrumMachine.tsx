@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ChannelContextMenu from "@/components/channel/ChannelContextMenu";
@@ -160,6 +161,7 @@ import {
   librarySampleUrl,
   type LibraryEntry,
 } from "@/lib/sampleLibrary";
+import { PRIVACY_PATH } from "@/lib/site";
 import { computePeaks } from "@/lib/waveform";
 
 /** Back to playing the whole file, which is what "Reset trim" asks for. */
@@ -2069,6 +2071,20 @@ export default function DrumMachine() {
               onRevealNames: revealAudioOutputNames,
             }}
           />
+
+          {/*
+            The only link out of the machine, kept quiet and kept last: it is a
+            notice read once, if ever, and everything above it is what the rail
+            is for. `mt-auto` drops it to the foot of the column rather than
+            leaving it tight under the Settings band — on a tall viewport, and
+            on the phone, where this rail is the whole Settings page.
+          */}
+          <Link
+            href={PRIVACY_PATH}
+            className="text-muted hover:text-fg mt-auto w-fit pt-2 text-[10px] transition-colors"
+          >
+            Privacy
+          </Link>
         </Sidebar>
 
         {shareStatus !== null && (

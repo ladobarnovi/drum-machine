@@ -50,3 +50,15 @@ export const SITE_NAME = "Drum Machine";
  */
 export const SITE_DESCRIPTION =
   "Free 16-step drum sequencer that runs in your browser. 909 and 808 kits, per-channel pitch, filter, envelope and LFO, plus delay, reverb and drive. Works offline.";
+
+/**
+ * The privacy notice, as the app links to it and as the metadata names it.
+ *
+ * Two forms because two consumers need different things: `next/link` wants the
+ * path alone and prefixes the base path itself, while the canonical tag and the
+ * sitemap need the absolute URL — with the trailing slash, for the same reason
+ * `CANONICAL_URL` carries one.
+ */
+export const PRIVACY_PATH = "/privacy";
+
+export const PRIVACY_URL = `${SITE_URL}${PRIVACY_PATH}/`;

@@ -76,15 +76,18 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   // Navigations go to the network first so a reload picks up a new deploy
-  // without waiting for the worker to notice, and fall back to the cached
-  // start URL when there is no network. `request.url` is not looked up
-  // directly: a static export answers every path from one HTML file, and the
-  // URL that file was cached under is the start URL.
+  // without waiting for the worker to notice, and are answered from the cache
+  // when there is no network: the page asked for if the export has one — the
+  // privacy notice is its own document, not the app under another path — and
+  // the start URL otherwise, which is the machine itself and the only sensible
+  // answer for a path the export never had.
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request).catch(async () => {
         const cache = await caches.open(CACHE_NAME);
-        const cached = await cache.match(START_URL);
+        const cached =
+          (await cache.match(request, { ignoreSearch: true })) ??
+          (await cache.match(START_URL));
         // A navigation with nothing cached to answer it means the install never
         // completed. Letting the browser produce its own offline error is more
         // honest than a blank 200.
