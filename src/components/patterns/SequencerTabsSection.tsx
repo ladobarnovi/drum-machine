@@ -43,6 +43,7 @@ type SequencerTabsSectionProps = {
   activePatternIndex: number | null;
   onSelectBank: (index: number) => void;
   onLoadPattern: (index: number) => void;
+  onSavePattern: (index: number) => void;
   onPatternContextMenu: (index: number, x: number, y: number) => void;
 };
 
@@ -88,6 +89,7 @@ export default function SequencerTabsSection({
   activePatternIndex,
   onSelectBank,
   onLoadPattern,
+  onSavePattern,
   onPatternContextMenu,
 }: SequencerTabsSectionProps) {
   return (
@@ -133,6 +135,7 @@ export default function SequencerTabsSection({
               bank={banks[selectedBankIndex]}
               activePatternIndex={activePatternIndex}
               onLoad={onLoadPattern}
+              onSave={onSavePattern}
               onContextMenu={onPatternContextMenu}
             />
           ),

@@ -150,9 +150,9 @@ export default function SlotButton({
   };
 
   /**
-   * The same menu, from the keyboard — which on a pattern slot is the only way
-   * to reach Save at all, since a left click on an empty one loads nothing and
-   * has nothing else to do.
+   * The same menu, from the keyboard. Enter and Space already reach `onClick`
+   * on a native button — which saves on an empty pattern slot, same as a left
+   * click — so this covers rename, copy and clear instead.
    */
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!onContextMenu || !isContextMenuKey(event)) return;

@@ -1035,8 +1035,8 @@ export default function DrumMachine() {
   /**
    * Clicking a pattern slot: loads it into the live kit right away, steps and
    * mix alike, even mid-playback — there is nothing to queue, since the
-   * scheduler already reads `channels` fresh on every tick. A click on an
-   * empty slot has nothing to load, so `PatternGrid` never calls this for one.
+   * scheduler already reads `channels` fresh on every tick. An empty slot has
+   * nothing to load, so `PatternGrid` saves into it instead of calling this.
    */
   const handleLoadPattern = useCallback(
     (index: number) => {
@@ -2473,6 +2473,7 @@ export default function DrumMachine() {
               }
               onSelectBank={selectBank}
               onLoadPattern={handleLoadPattern}
+              onSavePattern={handleSavePatternFromMenu}
               onPatternContextMenu={handlePatternContextMenu}
             />
           </div>

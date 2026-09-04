@@ -9,16 +9,23 @@ import {
 } from "@/lib/sequencer";
 
 /**
- * Columns per line, and where a longer pattern wraps to a second one. Fixed
- * rather than sized to the busiest channel on screen: a shared cap is what
- * lets every cell be the same physical width regardless of which channels
- * happen to be loaded, which is what keeps step 5 of one row under step 5 of
- * another. Sixteen both because it is the machine's own default length and
- * because it is what a phone's width can hold at a size still worth looking
- * at — a row that instead grew to fit a 64-step channel would leave every
- * shorter one squeezed into slivers to match it.
+ * Columns per row from `sm` up, and where a longer pattern wraps onto the
+ * next one. Fixed rather than sized to the busiest channel on screen: a
+ * shared cap is what lets every cell be the same physical width regardless of
+ * which channels happen to be loaded, which is what keeps step 5 of one row
+ * under step 5 of another. Sixteen because it is the machine's own default
+ * length, so the common case is one unbroken row.
  */
 const OVERVIEW_COLUMNS = 16;
+
+/**
+ * The same cap below `sm`, where a sixteen-wide row would divide a phone's
+ * width into cells too small to aim a fingertip at. Half of `OVERVIEW_COLUMNS`
+ * rather than some other number narrow enough to fit: both are multiples of
+ * `STEPS_PER_BEAT`, which is what keeps a beat boundary a beat boundary at
+ * either width — see the wrap math below.
+ */
+const OVERVIEW_COLUMNS_MOBILE = OVERVIEW_COLUMNS / 2;
 
 type PatternOverviewGridProps = {
   /** All sixteen channel slots; only the loaded ones get a row. */
@@ -49,24 +56,34 @@ type PatternOverviewGridProps = {
  * hit shouldn't also drag the editor over to a different channel. The
  * channel name stays the way to select a row, the same click it always was.
  *
- * Every line is a 16-column CSS grid, always — `repeat(OVERVIEW_COLUMNS,
- * minmax(0, 1fr))`, the same track list on every row, whatever that row's own
- * length is. Fixed-pixel cells were tried first and rejected: they read as
- * small on a panel with room to spare, and widening them just traded that for
- * a horizontal scrollbar on anything narrower than their fixed sum. A shared
- * *column count* rather than a shared column *width* is what actually keeps
- * step 5 of an 8-step row under step 5 of a 16-step one — both grids divide
- * the same 16 tracks across the same lane width, so both land on the same
- * offset, and each cell is free to stretch to fill whatever that lane's width
- * turns out to be, on a phone or a wide desktop rail alike.
+ * Every channel's steps sit in one CSS grid apiece — `repeat(OVERVIEW_COLUMNS,
+ * minmax(0, 1fr))` from `sm` up, `repeat(OVERVIEW_COLUMNS_MOBILE, …)` below it
+ * — rather than a JS-computed row per some fixed chunk: the grid's own
+ * auto-flow is what wraps a channel past the column count onto the next row,
+ * so a 20-step channel is simply handed 20 buttons and left to lay itself
+ * out. A shared *column count* rather than a shared column *width* is what
+ * keeps step 5 of an 8-step channel under step 5 of a 16-step one at the same
+ * width — both grids divide the same tracks across the same lane, so both
+ * land on the same offset, each cell free to stretch to fill whatever that
+ * lane's width turns out to be.
  *
- * A pattern longer than `OVERVIEW_COLUMNS` wraps onto a second line under the
- * first rather than shrinking its cells to fit one — the column count is the
- * one thing not up for negotiation, so the row grows down instead of its
- * cells growing thin. Rows within `OVERVIEW_COLUMNS` show the columns they
- * don't reach as blank rather than a fifth colour, since a column past a
- * pattern's own length is not a step at all, just a cycle that has already
- * wrapped back to its start.
+ * Sixteen columns divides a phone-width lane into cells too small to aim a
+ * fingertip at, which is why the mobile count is half that: the row simply
+ * wraps a step sooner rather than shrinking every cell to fit, or scrolling a
+ * lane out from under the channel name beside it. Fixed-pixel cells
+ * throughout were tried first and rejected for the opposite reason — they
+ * read as small on a panel with room to spare, which is most of them, most of
+ * the time.
+ *
+ * The beat-boundary gap below has to know, per cell, whether it is about to
+ * become the first column of a row — which differs by breakpoint, since row
+ * width does. A boundary that starts every row at both widths (index a
+ * multiple of `OVERVIEW_COLUMNS`) never gets the gap; one that starts a row
+ * only on the narrower grid (a multiple of `OVERVIEW_COLUMNS_MOBILE` but not
+ * of `OVERVIEW_COLUMNS`) gets it only from `sm` up; every other boundary gets
+ * it unconditionally. Both counts being multiples of `STEPS_PER_BEAT` is what
+ * keeps that classification exhaustive — a boundary is never split across the
+ * two in some other way.
  *
  * The playhead is marked per row rather than as one line down the panel, for
  * the same reason the grid is drawn per row and not shared: it stands at
@@ -103,7 +120,6 @@ export default function PatternOverviewGrid({
     >
       {loaded.map((channel) => {
         const length = clampLength(channel.length);
-        const lineCount = Math.ceil(length / OVERVIEW_COLUMNS);
         const isSelected = channel.id === selectedChannelId;
         const displayName = channelDisplayName(channel);
         const playheadStep =
@@ -129,69 +145,61 @@ export default function PatternOverviewGrid({
               {displayName}
             </button>
 
-            <span className="flex min-w-0 flex-1 flex-col gap-1">
-              {Array.from({ length: lineCount }, (_, line) => {
-                const lineStart = line * OVERVIEW_COLUMNS;
+            {/*
+              A flat grid rather than a JS-chunked one: `grid-auto-flow`
+              wraps a channel past the column count on its own, so the column
+              count is the only thing that needs to change per breakpoint —
+              eight below `sm`, sixteen from there up. The channel name above
+              is outside this span, so a wrapped row never carries it along.
+            */}
+            <span className="grid min-w-0 flex-1 grid-cols-[repeat(8,minmax(0,1fr))] content-start gap-1 sm:grid-cols-[repeat(16,minmax(0,1fr))]">
+              {Array.from({ length }, (_, index) => {
+                const step = channel.steps[index];
+                const downbeat = isDownbeat(index);
+
+                // See the class comment above for why this needs both counts:
+                // a boundary that starts a row at both widths never gets the
+                // gap, one that starts a row only on the narrower grid gets
+                // it only from `sm` up, and every other boundary gets it
+                // unconditionally.
+                const beatBoundary = index % STEPS_PER_BEAT === 0;
+                const startsRowAtEveryWidth = index % OVERVIEW_COLUMNS === 0;
+                const startsRowOnMobileOnly =
+                  index % OVERVIEW_COLUMNS_MOBILE === 0 &&
+                  !startsRowAtEveryWidth;
+                const beatGap = !beatBoundary
+                  ? ""
+                  : startsRowAtEveryWidth
+                    ? ""
+                    : startsRowOnMobileOnly
+                      ? "sm:ml-1.5"
+                      : "ml-1.5";
+
+                const surface = downbeat
+                  ? "bg-step-beat hover:bg-step-beat-hover"
+                  : "bg-step hover:bg-step-hover";
+                const border = step.on
+                  ? "border-accent-soft"
+                  : downbeat
+                    ? "border-step-beat-edge"
+                    : "border-step-edge";
+                const fill = step.on ? "bg-accent" : "";
+                const playhead =
+                  playheadStep === index
+                    ? "ring-select ring-2 ring-offset-1 ring-offset-surface"
+                    : "";
 
                 return (
-                  <span
-                    key={line}
-                    className="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-1"
-                  >
-                    {Array.from({ length: OVERVIEW_COLUMNS }, (_, column) => {
-                      const index = lineStart + column;
-                      // A beat boundary gets a touch more room on its left,
-                      // the same grouping `StepBeat` draws with a wider gap
-                      // between beats. Counted within the line rather than
-                      // from the pattern's start, though the two never
-                      // disagree — a line always begins on a beat, since
-                      // `OVERVIEW_COLUMNS` is itself a multiple of one.
-                      const beatGap =
-                        column > 0 && column % STEPS_PER_BEAT === 0
-                          ? "ml-1.5"
-                          : "";
-
-                      if (index >= length) {
-                        return (
-                          <span
-                            key={column}
-                            aria-hidden
-                            className={`h-4 sm:h-5 ${beatGap}`}
-                          />
-                        );
-                      }
-
-                      const step = channel.steps[index];
-                      const downbeat = isDownbeat(index);
-
-                      const surface = downbeat
-                        ? "bg-step-beat hover:bg-step-beat-hover"
-                        : "bg-step hover:bg-step-hover";
-                      const border = step.on
-                        ? "border-accent-soft"
-                        : downbeat
-                          ? "border-step-beat-edge"
-                          : "border-step-edge";
-                      const fill = step.on ? "bg-accent" : "";
-                      const playhead =
-                        playheadStep === index
-                          ? "ring-select ring-2 ring-offset-1 ring-offset-surface"
-                          : "";
-
-                      return (
-                        <button
-                          key={column}
-                          type="button"
-                          onClick={() => onToggleStep(channel.id, index)}
-                          aria-pressed={step.on}
-                          aria-label={`Step ${index + 1} of ${displayName}, ${
-                            step.on ? "on" : "off"
-                          }`}
-                          className={`h-4 cursor-pointer rounded border transition-colors sm:h-5 ${surface} ${border} ${fill} ${playhead} ${beatGap}`}
-                        />
-                      );
-                    })}
-                  </span>
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => onToggleStep(channel.id, index)}
+                    aria-pressed={step.on}
+                    aria-label={`Step ${index + 1} of ${displayName}, ${
+                      step.on ? "on" : "off"
+                    }`}
+                    className={`h-6 cursor-pointer rounded border transition-colors ${surface} ${border} ${fill} ${playhead} ${beatGap}`}
+                  />
                 );
               })}
             </span>

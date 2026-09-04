@@ -255,16 +255,30 @@ export default function Oscilloscope({
 
   if (compact) {
     return (
-      <canvas
-        ref={canvasRef}
-        aria-hidden
+      // A real button rather than a click handler on the canvas: the canvas is
+      // a picture of a sound and stays `aria-hidden`, so without this the most
+      // prominent control on the page would have no accessible name, no
+      // keyboard focus and no pressed state — and below `xl`, where the rail's
+      // own Play is off-screen except on the Settings page, it would be the
+      // only transport a keyboard or screen-reader user could reach from Main.
+      <button
+        type="button"
         onClick={handleClick}
-        className="block cursor-pointer"
-        style={{
-          width: `${SCOPE_COMPACT_SIZE_PX}px`,
-          height: `${SCOPE_COMPACT_SIZE_PX}px`,
-        }}
-      />
+        aria-label={isPlaying ? "Pause" : "Play"}
+        aria-pressed={isPlaying}
+        title={isPlaying ? "Pause" : "Play"}
+        className="block cursor-pointer rounded-full p-0"
+      >
+        <canvas
+          ref={canvasRef}
+          aria-hidden
+          className="block"
+          style={{
+            width: `${SCOPE_COMPACT_SIZE_PX}px`,
+            height: `${SCOPE_COMPACT_SIZE_PX}px`,
+          }}
+        />
+      </button>
     );
   }
 
