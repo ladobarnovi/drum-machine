@@ -111,6 +111,16 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Scenes",
+    shortcuts: [
+      { keys: ["Alt", "1…8"], description: "Recall a saved scene" },
+      {
+        keys: ["Right-click"],
+        description: "Save the live mutes into a slot, rename it, or clear it",
+      },
+    ],
+  },
+  {
     title: "Steps",
     shortcuts: [
       { keys: ["Click"], description: "Switch a step on or off" },
@@ -153,7 +163,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       {
         keys: ["Right-click"],
         description:
-          "Open a menu — on pads, steps, pattern slots, knobs and sliders",
+          "Open a menu — on pads, steps, pattern and scene slots, knobs and sliders",
       },
       { keys: ["Shift", "F10"], description: "The same, from the keyboard" },
       { keys: ["↑", "↓"], description: "Move between menu items" },

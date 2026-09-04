@@ -116,6 +116,21 @@ export type SharedChannel = ChannelSnapshot & {
   steps: Step[];
   length: number;
   name: string;
+  /**
+   * Whether the channel was silent, and whether it was one of the ones being
+   * soloed.
+   *
+   * Named here rather than inherited from `ChannelSnapshot`, which no longer
+   * carries either — those went to scenes, since a pattern slot has no business
+   * rewriting the mutes of the machine it lands in. A link is the other case:
+   * it replaces the whole machine rather than joining one, so a channel the
+   * sender had switched off has to arrive switched off or the beat is not the
+   * beat they sent. The wire already carries both as `m` and `so`, and links
+   * written before scenes existed are full of them, so this is also what keeps
+   * those still playing the way they were built.
+   */
+  muted: boolean;
+  soloed: boolean;
   sampleStart: number;
   sampleEnd: number;
   sampleReversed: boolean;

@@ -60,11 +60,18 @@
   --solo: #10b981;
   --danger: #ef4444;
 
-  /* Pattern and bank slots: two more flags in the same family as mute/solo,
-     chosen to sit apart from every other token above — and, now on-accent is
-     dark, light enough to keep clearing contrast against it. */
+  /* Pattern, bank and scene slots: three more flags in the same family as
+     mute/solo, each chosen to sit apart from every other token above — and,
+     now on-accent is dark, light enough to keep clearing contrast against it.
+
+     Scene is the awkward one, since it has to dodge mute, solo and accent as
+     well as the other two slots, and each theme leaves a different gap. It is
+     a lime nearly everywhere; glitch runs an acid yellow accent against a
+     green solo, which takes the whole of that corner, so there it is violet
+     instead. */
   --pattern: #a78bfa;
   --bank: #ec4899;
+  --scene: #84cc16;
 
   --backdrop: rgb(23 23 23 / 0.4); /* behind an open dialog */
   --pad-hover: rgb(
@@ -112,6 +119,7 @@
 
     --pattern: #8b5cf6;
     --bank: #ec4899;
+    --scene: #a3e635;
 
     --backdrop: rgb(23 23 23 / 0.4);
     --pad-hover: rgb(255 255 255 / 0.1);
@@ -157,6 +165,7 @@
 
   --pattern: #b794f6;
   --bank: #6ea8ff;
+  --scene: #cbf94a;
 
   --backdrop: rgb(6 4 18 / 0.6);
   --pad-hover: rgb(255 255 255 / 0.08);
@@ -200,6 +209,7 @@
 
   --pattern: #b18cff;
   --bank: #4aa8ff;
+  --scene: #c4e04f;
 
   --backdrop: rgb(3 14 12 / 0.6);
   --pad-hover: rgb(255 255 255 / 0.08);
@@ -248,6 +258,7 @@
      contrast against the dark ink on-accent now uses. */
   --pattern: #a78bfa;
   --bank: #0d9488;
+  --scene: #9ccc1f;
 
   --backdrop: rgb(43 26 61 / 0.4);
   --pad-hover: rgb(43 26 61 / 0.06);
@@ -293,6 +304,7 @@
 
   --pattern: #00e5ff;
   --bank: #ff8800;
+  --scene: #a855ff;
 
   --backdrop: rgb(2 2 4 / 0.65);
   --pad-hover: rgb(255 255 255 / 0.08);
@@ -339,6 +351,7 @@
 
   --color-pattern: var(--pattern);
   --color-bank: var(--bank);
+  --color-scene: var(--scene);
 
   --color-backdrop: var(--backdrop);
   --color-pad-hover: var(--pad-hover);

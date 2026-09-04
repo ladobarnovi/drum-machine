@@ -26,7 +26,7 @@ export const BANKS_STORAGE_KEY = "drum-machine-banks";
 
 /**
  * What a pattern remembers of one channel: everything a `ChannelSnapshot`
- * does — how the channel sounds, muted/soloed/choke included — plus the steps
+ * does — how the channel sounds, choke included — plus the steps
  * and the length that gives them their loop. The channel's identity and its
  * loaded sample are deliberately left out, exactly as they are for a
  * snapshot: the kit is shared across every pattern and bank, not carried by
@@ -98,11 +98,23 @@ export function applyPattern(channels: Channel[], pattern: Pattern): Channel[] {
   return channels.map((channel) => {
     const saved = pattern.channels[channel.id];
     if (!saved) return channel;
+
+    // `muted` and `soloed` are pulled out and dropped rather than spread with
+    // the rest. They left `ChannelSnapshot` when scenes took over saying who is
+    // playing (see `lib/scenes.ts`), but every bank already in storage was
+    // written while they were still part of one, and what comes back out of
+    // localStorage is cast rather than checked — so TypeScript cannot see them
+    // and the spread would happily apply them. Left in, loading an old pattern
+    // would go on rewriting the live mutes, which is the exact thing moving
+    // them was meant to stop.
+    const { muted, soloed, ...restored } = saved as PatternChannel &
+      Partial<Pick<Channel, "muted" | "soloed">>;
+
     return {
       ...channel,
-      ...saved,
-      lfo: { ...saved.lfo },
-      steps: saved.steps.map(cloneStep),
+      ...restored,
+      lfo: { ...restored.lfo },
+      steps: restored.steps.map(cloneStep),
     };
   });
 }

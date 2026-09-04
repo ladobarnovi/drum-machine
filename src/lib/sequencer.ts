@@ -1633,6 +1633,14 @@ export function emptyChannel(channel: Channel): Channel {
  * out. Recalling is for putting a sound back where it was, so it must not undo
  * the writing done since — and a sample could not be restored from here anyway,
  * since the decoded audio lives outside React state.
+ *
+ * Mute and solo are left out too, and that one is worth spelling out because
+ * they were in here once. Whether a channel is playing at all is not part of
+ * how it sounds, and while it lived here every pattern load and every snapshot
+ * recall quietly rewrote it — so silencing a channel by hand and then reaching
+ * for a pattern handed the mute back with no way to see why. That state now
+ * belongs to a scene (see `lib/scenes.ts`), which is the one thing that does
+ * claim to say who is playing, and nothing else writes it.
  */
 export type ChannelSnapshot = Pick<
   Channel,
@@ -1651,8 +1659,6 @@ export type ChannelSnapshot = Pick<
   | "delaySend"
   | "reverbSend"
   | "phaserSend"
-  | "muted"
-  | "soloed"
   | "chokedBy"
   | "lfo"
 >;
@@ -1707,8 +1713,6 @@ export function captureChannelSnapshots(
         delaySend: channel.delaySend,
         reverbSend: channel.reverbSend,
         phaserSend: channel.phaserSend,
-        muted: channel.muted,
-        soloed: channel.soloed,
         chokedBy: channel.chokedBy,
         lfo: { ...channel.lfo },
       },

@@ -19,6 +19,9 @@ import Oscilloscope from "@/components/master/Oscilloscope";
 import PatternContextMenu from "@/components/patterns/PatternContextMenu";
 import SequencerTabsSection from "@/components/patterns/SequencerTabsSection";
 import PresetPicker from "@/components/session/PresetPicker";
+import SceneContextMenu from "@/components/session/SceneContextMenu";
+import SceneGrid from "@/components/session/SceneGrid";
+import SceneRenameDialog from "@/components/session/SceneRenameDialog";
 import SnapshotControls from "@/components/session/SnapshotControls";
 import LoadSamplesNotice from "@/components/shell/LoadSamplesNotice";
 import SettingsButton from "@/components/shell/SettingsButton";
@@ -46,6 +49,8 @@ import { useMidiClockOutput } from "@/hooks/useMidiClockOutput";
 import { useMidiInput } from "@/hooks/useMidiInput";
 import { useMidiParameterRegistry } from "@/hooks/useMidiParameterRegistry";
 import { useSampleBank } from "@/hooks/useSampleBank";
+import { useSceneShortcuts } from "@/hooks/useSceneShortcuts";
+import { useScenes } from "@/hooks/useScenes";
 import { useSequencer } from "@/hooks/useSequencer";
 import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
 import {
@@ -137,6 +142,12 @@ import {
 import { handleIncomingCc } from "@/lib/midiCcMap";
 import { applyPattern } from "@/lib/patterns";
 import {
+  SCENE_COUNT,
+  activeSceneIndex,
+  applyScene,
+  sceneLabel,
+} from "@/lib/scenes";
+import {
   applySharedBeat,
   buildShareUrl,
   captureSharedBeat,
@@ -200,6 +211,7 @@ export default function DrumMachine() {
     deletePattern,
     markPatternActive,
   } = useBanks();
+  const { scenes, saveScene, renameScene, clearScene } = useScenes();
   const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [swing, setSwing] = useState(DEFAULT_SWING);
 
@@ -283,6 +295,18 @@ export default function DrumMachine() {
     x: number;
     y: number;
   } | null>(null);
+
+  /** Which scene slot's right-click menu is open, and where it was raised. */
+  const [contextMenuScene, setContextMenuScene] = useState<{
+    index: number;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  /** The scene slot whose rename dialog is open, or null while none is. */
+  const [renamingSceneIndex, setRenamingSceneIndex] = useState<number | null>(
+    null,
+  );
 
   /** The last sample copied from a channel's context menu. */
   const [clipboardSample, setClipboardSample] = useState<{
@@ -1034,6 +1058,49 @@ export default function DrumMachine() {
   const closePatternContextMenu = useCallback(
     () => setContextMenuPattern(null),
     [],
+  );
+
+  /**
+   * Which scene slot the mix is currently sitting in, or null for one that
+   * matches none of them.
+   *
+   * Worked out from the live channels every time they change rather than
+   * remembered when a slot is pressed — the same way the fill buttons read
+   * their own lit state off the pattern. Nothing has to clear it, so muting a
+   * channel by hand drops the ring the instant the mix stops matching, and
+   * muting back into a scene's shape lights it again on its own.
+   */
+  const currentSceneIndex = useMemo(
+    () => activeSceneIndex(channels, scenes),
+    [channels, scenes],
+  );
+
+  const handleRecallScene = useCallback(
+    (index: number) => {
+      const scene = scenes[index];
+      if (!scene) return;
+      setChannels((current) => applyScene(current, scene));
+    },
+    [scenes],
+  );
+
+  /** A right click on a scene slot: raises its action menu at the pointer. */
+  const handleSceneContextMenu = useCallback(
+    (index: number, x: number, y: number) => {
+      setContextMenuScene({ index, x, y });
+    },
+    [],
+  );
+
+  const closeSceneContextMenu = useCallback(
+    () => setContextMenuScene(null),
+    [],
+  );
+
+  /** "Save mutes here": reads the live mutes into the right-clicked slot. */
+  const handleSaveSceneFromMenu = useCallback(
+    (index: number) => saveScene(index, channels),
+    [channels, saveScene],
   );
 
   /** "Save Pattern": snapshots the live kit into the right-clicked slot. */
@@ -1907,6 +1974,10 @@ export default function DrumMachine() {
   }, [canPlay, clearFlashes, isPlaying, play, stop]);
 
   useTransportShortcuts({ onTogglePlay: handleTogglePlay });
+  useSceneShortcuts({
+    sceneCount: SCENE_COUNT,
+    onRecallScene: handleRecallScene,
+  });
 
   /**
    * What the choke select offers: every channel but the selected one, under the
@@ -2035,6 +2106,18 @@ export default function DrumMachine() {
             onTogglePlay={handleTogglePlay}
             onBpmChange={setBpm}
             onSwingChange={setSwing}
+          />
+
+          {/*
+            Under the transport rather than below the kit: a scene is reached
+            for while the machine is running, next to the other thing that is,
+            where the kit is picked once on the way in.
+          */}
+          <SceneGrid
+            scenes={scenes}
+            activeIndex={currentSceneIndex}
+            onRecall={handleRecallScene}
+            onContextMenu={handleSceneContextMenu}
           />
 
           <PresetPicker
@@ -2485,6 +2568,28 @@ export default function DrumMachine() {
           onDeletePattern={() =>
             handleDeletePatternFromMenu(contextMenuPattern.index)
           }
+        />
+      )}
+
+      {contextMenuScene && (
+        <SceneContextMenu
+          x={contextMenuScene.x}
+          y={contextMenuScene.y}
+          onClose={closeSceneContextMenu}
+          onSaveScene={() => handleSaveSceneFromMenu(contextMenuScene.index)}
+          renameDisabled={scenes[contextMenuScene.index] === null}
+          onRenameScene={() => setRenamingSceneIndex(contextMenuScene.index)}
+          clearDisabled={scenes[contextMenuScene.index] === null}
+          onClearScene={() => clearScene(contextMenuScene.index)}
+        />
+      )}
+
+      {renamingSceneIndex !== null && (
+        <SceneRenameDialog
+          name={scenes[renamingSceneIndex]?.name ?? ""}
+          fallback={sceneLabel(renamingSceneIndex)}
+          onRename={(name) => renameScene(renamingSceneIndex, name)}
+          onClose={() => setRenamingSceneIndex(null)}
         />
       )}
     </div>

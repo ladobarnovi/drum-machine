@@ -5,16 +5,19 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { contextMenuAnchor, isContextMenuKey } from "@/lib/contextMenu";
 
 type SlotButtonProps = {
-  /** What's shown inside the slot itself — a bank's letter, or "A-1" for a pattern. */
+  /** What is shown inside the slot itself: a bank letter, "A-1", or a scene number. */
   displayText: string;
   /** Which color token fills the slot once it holds something. */
-  variant: "pattern" | "bank";
-  /** Whether the slot holds a saved pattern (or, for a bank, any pattern at all). */
+  variant: "pattern" | "bank" | "scene";
+  /**
+   * Whether the slot holds something: a saved pattern, a saved scene, or — for
+   * a bank — any pattern at all.
+   */
   filled: boolean;
-  /** The slot currently loaded (a pattern) or being browsed (a bank). */
+  /** The slot currently loaded (a pattern), browsed (a bank), or in force (a scene). */
   active: boolean;
   onClick: () => void;
-  /** Right click: raises the slot's action menu. Patterns only — banks have none yet. */
+  /** Right click: raises the slot action menu. Patterns and scenes; banks have none yet. */
   onContextMenu?: (x: number, y: number) => void;
   /** What the slot is called, for its title and its accessible name. */
   label: string;
@@ -23,14 +26,15 @@ type SlotButtonProps = {
 const FILL_CLASS: Record<SlotButtonProps["variant"], string> = {
   pattern: "bg-pattern text-on-accent border-transparent",
   bank: "bg-bank text-on-accent border-transparent",
+  scene: "bg-scene text-on-accent border-transparent",
 };
 
 /**
- * One slot of a pattern or bank grid — the same size and rhythm as a channel
- * pad, just carrying a color of its own rather than a sample. An empty slot
+ * One slot of a pattern, bank or scene grid — the same size and rhythm as a
+ * channel pad, just carrying a color of its own rather than a sample. An empty slot
  * stays neutral, like an unlit toggle; a slot holding something is filled
- * solid, the same way mute and solo are; the slot currently loaded or
- * browsed carries the ring `StepButton` puts on the playing step, laid over
+ * solid, the same way mute and solo are; the slot currently loaded, browsed
+ * or in force carries the ring `StepButton` puts on the playing step, laid over
  * the fill rather than replacing it, so both facts stay visible at once.
  */
 export default function SlotButton({
