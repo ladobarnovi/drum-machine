@@ -542,7 +542,3 @@ input[type="range"]:focus-visible {
     animation: none;
   }
 }
-
-body {
-  overflow: hidden !important;
-}
