@@ -1,13 +1,28 @@
 /**
- * The keyboard's way of asking for a context menu, and where to put one when
- * it does.
+ * The ways of asking for a context menu that are not a right click, and where
+ * to put one when they are used.
  *
  * Every grid in the machine that answers a right click — the channel pads, the
  * steps, the pattern slots — now answers these two keystrokes as well, which
  * is what puts copy, paste and save within reach of a keyboard at all. Kept
  * here rather than written out three times, so a grid cannot end up honouring
  * one of the pair and not the other.
+ *
+ * A touch screen has neither a right button nor a menu key, which is what
+ * `HOLD_MS` below is for.
  */
+
+/**
+ * How long a press has to be held still before it stops being a tap.
+ *
+ * One number for the whole machine rather than one per grid, because it is a
+ * feel rather than a setting: a hold that opened a step in a third of a second
+ * and a scene slot in half of one would read as the second grid being slow to
+ * answer, not as two deliberately different gestures. The step grid holds to
+ * open a step for editing and the slots hold to raise their menu — different
+ * destinations, the same press to get there.
+ */
+export const HOLD_MS = 350;
 
 /**
  * True for the two keystrokes that mean "menu, please": the dedicated key

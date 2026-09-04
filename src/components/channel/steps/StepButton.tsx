@@ -8,7 +8,11 @@ import {
   type PointerEvent,
 } from "react";
 
-import { contextMenuAnchor, isContextMenuKey } from "@/lib/contextMenu";
+import {
+  HOLD_MS,
+  contextMenuAnchor,
+  isContextMenuKey,
+} from "@/lib/contextMenu";
 import {
   DEFAULT_STEP_SLICE,
   MAX_STEP_PROBABILITY,
@@ -25,9 +29,6 @@ import {
   type Step,
   type SwipeTarget,
 } from "@/lib/sequencer";
-
-/** How long a press has to be held still before it opens the step for editing. */
-const HOLD_MS = 350;
 
 /** How far a press may wander before it counts as a swipe rather than a click. */
 const DRAG_SLOP_PX = 6;
