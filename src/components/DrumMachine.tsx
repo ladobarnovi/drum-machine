@@ -165,6 +165,7 @@ import {
   presetEntries,
   type Preset,
 } from "@/lib/presets";
+import { loadSession, saveSession } from "@/lib/sessionAutosave";
 import {
   channelNameFollowsSample,
   findLibrarySample,
@@ -1900,6 +1901,9 @@ export default function DrumMachine() {
    */
   const loadedDefaultKitRef = useRef(false);
 
+  /** Set once the effect below has settled on something to open. See its use in the autosave effect that follows. */
+  const hydratedRef = useRef(false);
+
   useEffect(() => {
     if (loadedDefaultKitRef.current) return;
     loadedDefaultKitRef.current = true;
@@ -1916,7 +1920,22 @@ export default function DrumMachine() {
       const token = readShareToken();
 
       if (!token) {
-        await handleLoadPreset(DEFAULT_PRESET);
+        // A share link always wins when one is in the address bar — see below —
+        // but absent that, a session saved from the last visit is the next best
+        // thing the machine can open on. Only once neither turns up does it
+        // fall back to the kit everyone else gets.
+        const restored = await loadSession();
+        if (restored) {
+          await loadSharedBeat(restored.beat);
+          setMasterVolume(restored.masterVolume);
+          setSnapshot(restored.snapshot);
+          // `loadSharedBeat` doesn't touch this — it isn't part of a link — so
+          // it's left exactly where `handleLoadPreset` would have set it.
+          setLoadingPresetId(null);
+        } else {
+          await handleLoadPreset(DEFAULT_PRESET);
+        }
+        hydratedRef.current = true;
         return;
       }
 
@@ -1936,8 +1955,56 @@ export default function DrumMachine() {
       if (!(await openSharedToken(token))) {
         await handleLoadPreset(DEFAULT_PRESET);
       }
+      hydratedRef.current = true;
     })();
-  }, [handleLoadPreset, openSharedToken]);
+  }, [handleLoadPreset, loadSharedBeat, openSharedToken]);
+
+  /**
+   * Keeps the live machine on disk so a reload finds it again, instead of the
+   * sixteen empty channels it used to come back to. Guarded on `hydratedRef`
+   * so the one-time load above — link, restore or default kit — is never
+   * raced by an autosave still holding whatever the very first render was.
+   */
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    // A kit or a shared beat is still resolving samples; save once it settles
+    // rather than writing a machine that's half a kit into loading the rest.
+    if (loadingPresetId !== null || loadingSharedBeat) return;
+
+    const timeout = window.setTimeout(() => {
+      void saveSession({
+        channels,
+        bpm,
+        swing,
+        master: {
+          drive: masterDrive,
+          filter: masterFilter,
+          delay: masterDelay,
+          reverb: masterReverb,
+          phaser: masterPhaser,
+          compressor: masterCompressor,
+        },
+        masterVolume,
+        snapshot,
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    channels,
+    bpm,
+    swing,
+    masterDrive,
+    masterFilter,
+    masterDelay,
+    masterReverb,
+    masterPhaser,
+    masterCompressor,
+    masterVolume,
+    snapshot,
+    loadingPresetId,
+    loadingSharedBeat,
+  ]);
 
   const canPlay = channels.some(
     (channel) => channel.sample.status === "loaded",

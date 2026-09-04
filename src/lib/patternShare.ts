@@ -614,7 +614,7 @@ function encodeStep(step: Step): WireStep {
   return Object.keys(wire).length === 0 ? 0 : wire;
 }
 
-function encodeLfo(lfo: ChannelLfo): WireLfo | undefined {
+export function encodeLfo(lfo: ChannelLfo): WireLfo | undefined {
   const wire: WireLfo = {};
 
   if (lfo.enabled) wire.e = 1;
@@ -696,7 +696,7 @@ function encodeChannel(shared: SharedChannel, label: string): WireChannel {
   return dropUndefined(wire);
 }
 
-function encodeMaster(master: SharedMaster): WireMaster | undefined {
+export function encodeMaster(master: SharedMaster): WireMaster | undefined {
   const { drive, filter, delay, reverb, phaser, compressor } = master;
   const D = DEFAULT_MASTER_DRIVE;
   const F = DEFAULT_MASTER_FILTER;
@@ -952,7 +952,7 @@ function decodeStep(value: unknown, sliceCount: SliceCount): Step {
   return step;
 }
 
-function decodeLfo(value: unknown): ChannelLfo {
+export function decodeLfo(value: unknown): ChannelLfo {
   if (!isRecord(value)) return { ...DEFAULT_CHANNEL_LFO };
 
   return {
@@ -979,7 +979,7 @@ function decodeLfo(value: unknown): ChannelLfo {
  * channels follow: a hand-edited link must not be able to put a negative decay
  * or a ratio of ten thousand into the audio graph.
  */
-function decodeMaster(value: unknown): SharedMaster {
+export function decodeMaster(value: unknown): SharedMaster {
   const wire = isRecord(value) ? value : {};
   const stage = (key: string): Record<string, unknown> =>
     isRecord(wire[key]) ? wire[key] : {};
