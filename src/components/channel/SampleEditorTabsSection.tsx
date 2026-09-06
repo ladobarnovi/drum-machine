@@ -11,7 +11,6 @@ import ChannelLfoSection from "./ChannelLfoSection";
 import RailTabs from "@/components/ui/RailTabs";
 import type { LibraryEntry } from "@/lib/sampleLibrary";
 import {
-  channelDisplayName,
   type Channel,
   type ChannelLfo,
   type FilterSlope,
@@ -52,7 +51,6 @@ type SampleEditorTabsSectionProps = {
   onSampleModeChange: (mode: SampleMode) => void;
   onSliceCountChange: (sliceCount: SliceCount) => void;
   highlightSlice: number | null;
-  onSampleTrimReset: () => void;
   getPlayhead: () => number | null;
   // Sample tab — Gain, Pan and Pitch, the same three values the Channel
   // Params accordion edits, resolved against whichever step (if any) is open.
@@ -100,7 +98,10 @@ type SampleEditorTabsSectionProps = {
    * and FX — since Randomize always means the same thing wherever it's asked
    * for: scatter this one parameter across the hits that are already playing.
    */
-  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  onRandomizeParameter: (
+    key: LockableParameter,
+    randomize: () => number,
+  ) => void;
   /** Drops one lockable parameter's overrides everywhere in the pattern — the
    *  undo for Randomize, offered in the same menu. */
   onClearLockedParameter: (key: LockableParameter) => void;
@@ -146,7 +147,6 @@ export default function SampleEditorTabsSection({
   onSampleModeChange,
   onSliceCountChange,
   highlightSlice,
-  onSampleTrimReset,
   getPlayhead,
   volume,
   pan,
@@ -179,8 +179,6 @@ export default function SampleEditorTabsSection({
   onClearLockedParameter,
   stepEdit,
 }: SampleEditorTabsSectionProps) {
-  const channelName = channelDisplayName(channel);
-
   return (
     <RailTabs
       id={SAMPLE_EDITOR_SECTION_ID}
@@ -204,7 +202,6 @@ export default function SampleEditorTabsSection({
               onSampleModeChange={onSampleModeChange}
               onSliceCountChange={onSliceCountChange}
               highlightSlice={highlightSlice}
-              onSampleTrimReset={onSampleTrimReset}
               getPlayhead={getPlayhead}
               volume={volume}
               pan={pan}
@@ -225,7 +222,6 @@ export default function SampleEditorTabsSection({
           panel: (
             <ChannelFilterSection
               channelId={channel.id}
-              channelName={channelName}
               settings={filterSettings}
               filterSlope={filterSlope}
               playing={playingFilter}
@@ -246,7 +242,6 @@ export default function SampleEditorTabsSection({
           panel: (
             <ChannelEnvelopeSection
               channelId={channel.id}
-              channelName={channelName}
               settings={envelopeSettings}
               playing={playingEnvelope}
               onAttackChange={onAttackChange}

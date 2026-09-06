@@ -53,10 +53,16 @@ export function useMidiAccess() {
       );
     };
 
+    // Held so cleanup can detach the listener below: `MIDIAccess` outlives this
+    // component, so a handler left on it would go on calling `sync` — and
+    // setting state — every time a device is plugged in after unmount.
+    let attached: MIDIAccess | null = null;
+
     navigator
       .requestMIDIAccess()
       .then((access) => {
         if (cancelled) return;
+        attached = access;
         sync(access);
         access.onstatechange = () => sync(access);
       })
@@ -67,6 +73,7 @@ export function useMidiAccess() {
 
     return () => {
       cancelled = true;
+      if (attached) attached.onstatechange = null;
     };
   }, [supported]);
 

@@ -41,6 +41,7 @@ import RailTabs from "@/components/ui/RailTabs";
 import { useBanks } from "@/hooks/useBanks";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
+import { useMasterChain } from "@/hooks/useMasterChain";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
 import { useAudioOutput } from "@/hooks/useAudioOutput";
 import { useMidiAccess } from "@/hooks/useMidiAccess";
@@ -51,18 +52,12 @@ import { useMidiParameterRegistry } from "@/hooks/useMidiParameterRegistry";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSceneShortcuts } from "@/hooks/useSceneShortcuts";
 import { useScenes } from "@/hooks/useScenes";
+import { useContextMenuAnchor } from "@/hooks/useContextMenuAnchor";
 import { useSequencer } from "@/hooks/useSequencer";
 import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
 import {
   CHANNEL_COUNT,
   DEFAULT_BPM,
-  DEFAULT_MASTER_COMPRESSOR,
-  DEFAULT_MASTER_DELAY,
-  DEFAULT_MASTER_DRIVE,
-  DEFAULT_MASTER_FILTER,
-  DEFAULT_MASTER_PHASER,
-  DEFAULT_MASTER_REVERB,
-  DEFAULT_MASTER_VOLUME,
   DEFAULT_SAMPLE_END,
   DEFAULT_SAMPLE_MODE,
   DEFAULT_SAMPLE_REVERSED,
@@ -76,27 +71,16 @@ import {
   channelDisplayName,
   channelIdForIndex,
   channelSettingsForStep,
-  channelsChokedBy,
-  clampAttack,
+  chokeTargetsBySource,
   clampChannelName,
-  clampChokeSource,
-  clampDecay,
-  clampFrequency,
   clampLength,
-  clampPan,
   clampPitch,
-  clampRelease,
-  clampResonance,
   clampSampleEnd,
   clampSampleStart,
-  clampSend,
-  clampSustain,
-  clampVolume,
   clearLockedParameter,
   clearStepAt,
   clearStepLockAt,
   clampStepTiming,
-  clearStepLocksAt,
   clearSteps,
   createInitialChannels,
   emptyChannel,
@@ -124,13 +108,9 @@ import {
   type Channel,
   type ChannelLfo,
   type FilterSlope,
+  LOCKABLE_PARAMETERS,
+  LOCKABLE_PARAMETER_CLAMPS,
   type LockableParameter,
-  type MasterCompressor,
-  type MasterDelay,
-  type MasterDrive,
-  type MasterFilter,
-  type MasterPhaser,
-  type MasterReverb,
   type ParameterSnapshot,
   type SampleMode,
   type SampleState,
@@ -268,21 +248,21 @@ export default function DrumMachine() {
   );
 
   /** Which step's right-click menu is open, and where it was raised. */
-  const [contextMenuStep, setContextMenuStep] = useState<{
-    index: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const {
+    anchor: contextMenuStep,
+    open: openStepMenu,
+    close: closeStepMenu,
+  } = useContextMenuAnchor<{ index: number }>();
 
   /** The last step copied from the grid's context menu, or null until one is. */
   const [clipboardStep, setClipboardStep] = useState<Step | null>(null);
 
   /** Which channel's right-click menu is open, and where it was raised. */
-  const [contextMenuChannel, setContextMenuChannel] = useState<{
-    channelId: string;
-    x: number;
-    y: number;
-  } | null>(null);
+  const {
+    anchor: contextMenuChannel,
+    open: openChannelMenu,
+    close: closeChannelMenu,
+  } = useContextMenuAnchor<{ channelId: string }>();
 
   /** The last steps copied from a channel's context menu. */
   const [clipboardSteps, setClipboardSteps] = useState<{
@@ -291,18 +271,18 @@ export default function DrumMachine() {
   } | null>(null);
 
   /** Which pattern slot's right-click menu is open, and where it was raised. */
-  const [contextMenuPattern, setContextMenuPattern] = useState<{
-    index: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const {
+    anchor: contextMenuPattern,
+    open: openPatternMenu,
+    close: closePatternMenu,
+  } = useContextMenuAnchor<{ index: number }>();
 
   /** Which scene slot's right-click menu is open, and where it was raised. */
-  const [contextMenuScene, setContextMenuScene] = useState<{
-    index: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const {
+    anchor: contextMenuScene,
+    open: openSceneMenu,
+    close: closeSceneMenu,
+  } = useContextMenuAnchor<{ index: number }>();
 
   /** The scene slot whose rename dialog is open, or null while none is. */
   const [renamingSceneIndex, setRenamingSceneIndex] = useState<number | null>(
@@ -344,24 +324,6 @@ export default function DrumMachine() {
   const [loadingPresetId, setLoadingPresetId] = useState<string | null>(
     DEFAULT_PRESET.id,
   );
-
-  const [masterDrive, setMasterDrive] =
-    useState<MasterDrive>(DEFAULT_MASTER_DRIVE);
-  const [masterFilter, setMasterFilter] = useState<MasterFilter>(
-    DEFAULT_MASTER_FILTER,
-  );
-  const [masterDelay, setMasterDelay] =
-    useState<MasterDelay>(DEFAULT_MASTER_DELAY);
-  const [masterReverb, setMasterReverb] = useState<MasterReverb>(
-    DEFAULT_MASTER_REVERB,
-  );
-  const [masterPhaser, setMasterPhaser] = useState<MasterPhaser>(
-    DEFAULT_MASTER_PHASER,
-  );
-  const [masterCompressor, setMasterCompressor] = useState<MasterCompressor>(
-    DEFAULT_MASTER_COMPRESSOR,
-  );
-  const [masterVolume, setMasterVolume] = useState(DEFAULT_MASTER_VOLUME);
 
   /** The last saved parameter snapshot, or null until one has been taken. */
   const [snapshot, setSnapshot] = useState<ParameterSnapshot | null>(null);
@@ -414,8 +376,39 @@ export default function DrumMachine() {
     setSampleBuffer,
     trigger,
     getSamplePosition,
+    prewarmReversed,
     choke,
   } = useSampleBank();
+
+  // The master rail holds its own state and pushes each stage to the graph as
+  // it changes; the stages are persistent nodes, so nothing reads them at
+  // trigger time.
+  const {
+    drive: masterDrive,
+    setDrive: setMasterDrive,
+    filter: masterFilter,
+    setFilter: setMasterFilter,
+    delay: masterDelay,
+    setDelay: setMasterDelay,
+    reverb: masterReverb,
+    setReverb: setMasterReverb,
+    phaser: masterPhaser,
+    setPhaser: setMasterPhaser,
+    compressor: masterCompressor,
+    setCompressor: setMasterCompressor,
+    volume: masterVolume,
+    setVolume: setMasterVolume,
+    setStages: setMasterStages,
+  } = useMasterChain({
+    bpm: effectiveBpm,
+    applyDrive: applyMasterDrive,
+    applyFilter: applyMasterFilter,
+    applyDelay: applyMasterDelay,
+    applyReverb: applyMasterReverb,
+    applyPhaser: applyMasterPhaser,
+    applyCompressor: applyMasterCompressor,
+    applyVolume: applyMasterVolume,
+  });
 
   // Bound to the selected channel here rather than in the editor, which is the
   // one place that knows whose sample is on the strip. Stable while the
@@ -426,46 +419,30 @@ export default function DrumMachine() {
     [getSamplePosition, selectedChannel.id],
   );
 
-  // The master stages are persistent nodes rather than per-hit ones, so they
-  // are pushed across on change instead of being read at trigger time.
-  useEffect(() => {
-    applyMasterDrive(masterDrive);
-  }, [applyMasterDrive, masterDrive]);
-
-  useEffect(() => {
-    applyMasterFilter(masterFilter);
-  }, [applyMasterFilter, masterFilter]);
-
-  // The send buses are persistent too. Only the per-channel send amounts are
-  // read at trigger time, since those ride the voice rather than the bus.
-  // The delay depends on the tempo as well, so a BPM change re-applies it and
-  // a synced delay tracks the transport.
-  useEffect(() => {
-    applyMasterDelay(masterDelay, effectiveBpm);
-  }, [applyMasterDelay, effectiveBpm, masterDelay]);
-
-  useEffect(() => {
-    applyMasterReverb(masterReverb);
-  }, [applyMasterReverb, masterReverb]);
-
-  useEffect(() => {
-    applyMasterPhaser(masterPhaser);
-  }, [applyMasterPhaser, masterPhaser]);
-
-  useEffect(() => {
-    applyMasterCompressor(masterCompressor);
-  }, [applyMasterCompressor, masterCompressor]);
-
-  useEffect(() => {
-    applyMasterVolume(masterVolume);
-  }, [applyMasterVolume, masterVolume]);
-
   // The scheduler runs outside React's render cycle, so it reads the current
   // pattern through a ref rather than through a captured prop.
   const channelsRef = useRef(channels);
   useEffect(() => {
     channelsRef.current = channels;
   }, [channels]);
+
+  // Built here rather than asked for per hit: the scheduler needs the choke
+  // relation the other way round, and deriving it inside the step callback cost
+  // a pass over the whole kit for every channel that fired.
+  const chokeTargetsRef = useRef(chokeTargetsBySource(channels));
+  useEffect(() => {
+    chokeTargetsRef.current = chokeTargetsBySource(channels);
+  }, [channels]);
+
+  // A channel can also arrive already reversed — from a link, a restored
+  // session or a pasted sample — where no toggle was flipped to pre-warm it.
+  // Idempotent and only over channels actually in reverse, so this is a handful
+  // of map lookups on the changes that reach it.
+  useEffect(() => {
+    for (const channel of channels) {
+      if (channel.sampleReversed) prewarmReversed(channel.id);
+    }
+  }, [channels, prewarmReversed]);
 
   const { flashedChannelIds, flashChannels, clearFlashes } = useChannelFlash({
     ensureContext,
@@ -513,7 +490,8 @@ export default function DrumMachine() {
       // channel never reaches this loop, so a channel nobody can hear also
       // cannot take anything away.
       for (const sourceId of firedChannelIds) {
-        choke(channelsChokedBy(channelsRef.current, sourceId), time);
+        const targets = chokeTargetsRef.current.get(sourceId);
+        if (targets) choke(targets, time);
       }
     },
     [choke, effectiveBpm, flashChannels, swing, trigger],
@@ -637,12 +615,10 @@ export default function DrumMachine() {
   /** A right click on a step: raises its action menu at the pointer. */
   const handleStepContextMenu = useCallback(
     (stepIndex: number, x: number, y: number) => {
-      setContextMenuStep({ index: stepIndex, x, y });
+      openStepMenu({ index: stepIndex }, x, y);
     },
-    [],
+    [openStepMenu],
   );
-
-  const closeStepContextMenu = useCallback(() => setContextMenuStep(null), []);
 
   /** "Clear Step" from the context menu: back to off with nothing set. */
   const handleClearStepFromMenu = useCallback(() => {
@@ -851,8 +827,13 @@ export default function DrumMachine() {
   const handleSampleReversedChange = useCallback(
     (channelId: string, reversed: boolean) => {
       updateChannel(channelId, { sampleReversed: reversed });
+      // Build the back-to-front copy now, while nothing is waiting on it. Left
+      // to the first hit it would be built from inside the scheduler, which has
+      // a tenth of a second to place a step and no room for a pass over a whole
+      // sample.
+      if (reversed) prewarmReversed(channelId);
     },
-    [updateChannel],
+    [prewarmReversed, updateChannel],
   );
 
   /**
@@ -880,11 +861,6 @@ export default function DrumMachine() {
     (channelId: string, sliceCount: SliceCount) => {
       updateChannel(channelId, { sliceCount });
     },
-    [updateChannel],
-  );
-
-  const handleSampleTrimReset = useCallback(
-    (channelId: string) => updateChannel(channelId, UNTRIMMED),
     [updateChannel],
   );
 
@@ -931,7 +907,11 @@ export default function DrumMachine() {
    * the channel: a lock is the same value, kept somewhere narrower.
    */
   const setParameter = useCallback(
-    (key: LockableParameter, value: number) => {
+    (key: LockableParameter, raw: number) => {
+      // Clamped here rather than by each caller: the clamp a parameter needs is
+      // a property of the parameter, not of the control that moved it.
+      const value = LOCKABLE_PARAMETER_CLAMPS[key](raw);
+
       if (editingStepIndex !== null) {
         updateSelectedSteps((steps) =>
           setStepLockAt(steps, editingStepIndex, key, value),
@@ -942,6 +922,25 @@ export default function DrumMachine() {
       updateChannel(selectedChannel.id, { [key]: value } as Partial<Channel>);
     },
     [editingStepIndex, selectedChannel.id, updateChannel, updateSelectedSteps],
+  );
+
+  /**
+   * One handler per lockable parameter, each bound to its own key.
+   *
+   * These were fourteen `useCallback`s whose whole body was to name a
+   * parameter and clamp a number, which `setParameter` now does itself. Built
+   * from the list rather than written out, so a new lockable parameter arrives
+   * here with its clamp and needs nothing added by hand.
+   */
+  const parameterHandlers = useMemo(
+    () =>
+      Object.fromEntries(
+        LOCKABLE_PARAMETERS.map((key) => [
+          key,
+          (value: number) => setParameter(key, value),
+        ]),
+      ) as Record<LockableParameter, (value: number) => void>,
+    [setParameter],
   );
 
   /**
@@ -969,21 +968,6 @@ export default function DrumMachine() {
       updateSelectedSteps((steps) => clearLockedParameter(steps, key));
     },
     [updateSelectedSteps],
-  );
-
-  const handleVolumeChange = useCallback(
-    (volume: number) => setParameter("volume", clampVolume(volume)),
-    [setParameter],
-  );
-
-  const handlePanChange = useCallback(
-    (pan: number) => setParameter("pan", clampPan(pan)),
-    [setParameter],
-  );
-
-  const handlePitchChange = useCallback(
-    (pitch: number) => setParameter("pitch", clampPitch(pitch)),
-    [setParameter],
   );
 
   const handleNameChange = useCallback(
@@ -1022,14 +1006,9 @@ export default function DrumMachine() {
   /** A right click on a channel pad: raises its action menu at the pointer. */
   const handleChannelContextMenu = useCallback(
     (channelId: string, x: number, y: number) => {
-      setContextMenuChannel({ channelId, x, y });
+      openChannelMenu({ channelId }, x, y);
     },
-    [],
-  );
-
-  const closeChannelContextMenu = useCallback(
-    () => setContextMenuChannel(null),
-    [],
+    [openChannelMenu],
   );
 
   /**
@@ -1051,14 +1030,9 @@ export default function DrumMachine() {
   /** A right click on a pattern slot: raises its action menu at the pointer. */
   const handlePatternContextMenu = useCallback(
     (index: number, x: number, y: number) => {
-      setContextMenuPattern({ index, x, y });
+      openPatternMenu({ index }, x, y);
     },
-    [],
-  );
-
-  const closePatternContextMenu = useCallback(
-    () => setContextMenuPattern(null),
-    [],
+    [openPatternMenu],
   );
 
   /**
@@ -1088,14 +1062,9 @@ export default function DrumMachine() {
   /** A right click on a scene slot: raises its action menu at the pointer. */
   const handleSceneContextMenu = useCallback(
     (index: number, x: number, y: number) => {
-      setContextMenuScene({ index, x, y });
+      openSceneMenu({ index }, x, y);
     },
-    [],
-  );
-
-  const closeSceneContextMenu = useCallback(
-    () => setContextMenuScene(null),
-    [],
+    [openSceneMenu],
   );
 
   /** "Save mutes here": reads the live mutes into the right-clicked slot. */
@@ -1200,9 +1169,6 @@ export default function DrumMachine() {
   const handlePreviewChannel = useCallback(
     (channelId: string, velocityGain = 1) => {
       const context = ensureContext();
-      if (context.state === "suspended") {
-        void context.resume();
-      }
 
       const channel = channelsRef.current.find((item) => item.id === channelId);
       if (!channel) return;
@@ -1217,10 +1183,8 @@ export default function DrumMachine() {
       // Chokes apply here as well: what a pad does to the rest of the kit is
       // part of hearing the channel, and a hat pedal that only worked under the
       // transport would be the odd exception rather than the rule.
-      choke(
-        channelsChokedBy(channelsRef.current, channelId),
-        context.currentTime,
-      );
+      const targets = chokeTargetsRef.current.get(channelId);
+      if (targets) choke(targets, context.currentTime);
     },
     [choke, ensureContext, flashChannels, trigger],
   );
@@ -1310,10 +1274,10 @@ export default function DrumMachine() {
    */
   const handleSelectMidiInput = useCallback(
     (id: string | null) => {
-      const context = ensureContext();
-      if (context.state === "suspended") {
-        void context.resume();
-      }
+      // Called for the context it builds and resumes, not for the context
+      // itself: picking a device is a gesture, and it is as good a moment as any
+      // to have the audio ready.
+      ensureContext();
       selectMidiInput(id);
     },
     [ensureContext, selectMidiInput],
@@ -1336,10 +1300,7 @@ export default function DrumMachine() {
    */
   const handleSelectAudioOutput = useCallback(
     (id: string) => {
-      const context = ensureContext();
-      if (context.state === "suspended") {
-        void context.resume();
-      }
+      ensureContext();
       selectAudioOutput(id);
     },
     [ensureContext, selectAudioOutput],
@@ -1366,11 +1327,14 @@ export default function DrumMachine() {
    * step that was being edited on the kick — so carrying it over would leave the
    * panel scoped to a step nobody opened, showing locks nobody set.
    */
-  const handleSelectChannel = useCallback((channelId: string) => {
-    setSelectedChannelId(channelId);
-    setRawEditingStepIndex(null);
-    setContextMenuStep(null);
-  }, []);
+  const handleSelectChannel = useCallback(
+    (channelId: string) => {
+      setSelectedChannelId(channelId);
+      setRawEditingStepIndex(null);
+      closeStepMenu();
+    },
+    [closeStepMenu],
+  );
 
   const handleSelectChannelIndex = useCallback(
     (index: number) => handleSelectChannel(channelIdForIndex(index)),
@@ -1384,33 +1348,13 @@ export default function DrumMachine() {
 
   const handleToggleMasterFilter = useCallback(() => {
     setMasterFilter((prev) => ({ ...prev, enabled: !prev.enabled }));
-  }, []);
+  }, [setMasterFilter]);
 
   useMasterFilterShortcuts({ onToggle: handleToggleMasterFilter });
-
-  const handleLowCutChange = useCallback(
-    (hz: number) => setParameter("lowCutHz", clampFrequency(hz)),
-    [setParameter],
-  );
-
-  const handleHighCutChange = useCallback(
-    (hz: number) => setParameter("highCutHz", clampFrequency(hz)),
-    [setParameter],
-  );
 
   // The resonances go through `setParameter` like the cutoffs beside them, so
   // the knobs in the filter card follow whatever the panel is scoped to: the
   // channel, or the one step open for editing.
-  const handleLowCutResonanceChange = useCallback(
-    (amount: number) => setParameter("lowCutResonance", clampResonance(amount)),
-    [setParameter],
-  );
-
-  const handleHighCutResonanceChange = useCallback(
-    (amount: number) =>
-      setParameter("highCutResonance", clampResonance(amount)),
-    [setParameter],
-  );
 
   /**
    * How steep the selected channel's cuts are.
@@ -1427,41 +1371,6 @@ export default function DrumMachine() {
     [selectedChannel.id, updateChannel],
   );
 
-  const handleAttackChange = useCallback(
-    (seconds: number) => setParameter("attackSeconds", clampAttack(seconds)),
-    [setParameter],
-  );
-
-  const handleDecayChange = useCallback(
-    (seconds: number) => setParameter("decaySeconds", clampDecay(seconds)),
-    [setParameter],
-  );
-
-  const handleSustainChange = useCallback(
-    (level: number) => setParameter("sustainLevel", clampSustain(level)),
-    [setParameter],
-  );
-
-  const handleReleaseChange = useCallback(
-    (seconds: number) => setParameter("releaseSeconds", clampRelease(seconds)),
-    [setParameter],
-  );
-
-  const handleDelaySendChange = useCallback(
-    (amount: number) => setParameter("delaySend", clampSend(amount)),
-    [setParameter],
-  );
-
-  const handleReverbSendChange = useCallback(
-    (amount: number) => setParameter("reverbSend", clampSend(amount)),
-    [setParameter],
-  );
-
-  const handlePhaserSendChange = useCallback(
-    (amount: number) => setParameter("phaserSend", clampSend(amount)),
-    [setParameter],
-  );
-
   /** Puts one parameter of the open step back on the channel's own setting. */
   const handleClearStepLock = useCallback(
     (key: LockableParameter) => {
@@ -1471,35 +1380,6 @@ export default function DrumMachine() {
       );
     },
     [editingStepIndex, updateSelectedSteps],
-  );
-
-  /** Puts the whole step back on the channel, velocity aside. */
-  const handleClearStepLocks = useCallback(() => {
-    if (editingStepIndex === null) return;
-    updateSelectedSteps((steps) => clearStepLocksAt(steps, editingStepIndex));
-  }, [editingStepIndex, updateSelectedSteps]);
-
-  /**
-   * Points a channel at the channel that chokes it, or at nothing.
-   *
-   * The raw select value is narrowed against the channels that exist rather than
-   * trusted, so a stale id — or the channel's own, which would make it
-   * monophonic instead of routed — falls back to no choke at all.
-   */
-  const handleChokedByChange = useCallback(
-    (channelId: string, sourceId: string) => {
-      setChannels((prev) =>
-        prev.map((channel) =>
-          channel.id === channelId
-            ? {
-                ...channel,
-                chokedBy: clampChokeSource(sourceId, prev, channelId),
-              }
-            : channel,
-        ),
-      );
-    },
-    [],
   );
 
   // Arrives already clamped field by field, like the master stages: the section
@@ -1551,14 +1431,9 @@ export default function DrumMachine() {
     if (!snapshot) return;
 
     setChannels((prev) => applyChannelSnapshots(prev, snapshot.channels));
-    setMasterDrive(snapshot.drive);
-    setMasterFilter(snapshot.filter);
-    setMasterDelay(snapshot.delay);
-    setMasterReverb(snapshot.reverb);
-    setMasterPhaser(snapshot.phaser);
-    setMasterCompressor(snapshot.compressor);
+    setMasterStages(snapshot);
     setMasterVolume(snapshot.volume);
-  }, [snapshot]);
+  }, [setMasterStages, setMasterVolume, snapshot]);
 
   /**
    * Fills the leading channels with a kit: names and loading state are applied
@@ -1787,12 +1662,7 @@ export default function DrumMachine() {
        * beat. The output fader is deliberately not among them: how loud this
        * arrives is the listener's business.
        */
-      setMasterDrive(beat.master.drive);
-      setMasterFilter(beat.master.filter);
-      setMasterDelay(beat.master.delay);
-      setMasterReverb(beat.master.reverb);
-      setMasterPhaser(beat.master.phaser);
-      setMasterCompressor(beat.master.compressor);
+      setMasterStages(beat.master);
 
       // The step the panel was pointed at belonged to a pattern that has gone.
       setRawEditingStepIndex(null);
@@ -1838,7 +1708,13 @@ export default function DrumMachine() {
 
       setLoadingSharedBeat(false);
     },
-    [ensureContext, loadSampleFromUrl, removeSample, updateChannel],
+    [
+      ensureContext,
+      loadSampleFromUrl,
+      removeSample,
+      setMasterStages,
+      updateChannel,
+    ],
   );
 
   /** Opens a token from the address bar, reporting what happened in the banner. */
@@ -1957,7 +1833,7 @@ export default function DrumMachine() {
       }
       hydratedRef.current = true;
     })();
-  }, [handleLoadPreset, loadSharedBeat, openSharedToken]);
+  }, [handleLoadPreset, loadSharedBeat, openSharedToken, setMasterVolume]);
 
   /**
    * Keeps the live machine on disk so a reload finds it again, instead of the
@@ -2045,15 +1921,6 @@ export default function DrumMachine() {
     sceneCount: SCENE_COUNT,
     onRecallScene: handleRecallScene,
   });
-
-  /**
-   * What the choke select offers: every channel but the selected one, under the
-   * name shown on its pad, so the choice reads as "Hihat Closed" rather than as
-   * a channel number.
-   */
-  const chokeOptions = channels
-    .filter((channel) => channel.id !== selectedChannel.id)
-    .map((channel) => ({ id: channel.id, name: channelDisplayName(channel) }));
 
   /**
    * What the selected channel sounds like right now: its own settings, or the
@@ -2329,16 +2196,13 @@ export default function DrumMachine() {
                   ? editingStep.slice
                   : null
               }
-              onSampleTrimReset={() =>
-                handleSampleTrimReset(selectedChannel.id)
-              }
               getPlayhead={getSelectedPlayhead}
               volume={selectedSettings.volume}
               pan={selectedSettings.pan}
               pitch={selectedSettings.pitch}
-              onVolumeChange={handleVolumeChange}
-              onPanChange={handlePanChange}
-              onPitchChange={handlePitchChange}
+              onVolumeChange={parameterHandlers.volume}
+              onPanChange={parameterHandlers.pan}
+              onPitchChange={parameterHandlers.pitch}
               filterSettings={{
                 lowCutHz: selectedSettings.lowCutHz,
                 lowCutResonance: selectedSettings.lowCutResonance,
@@ -2365,10 +2229,10 @@ export default function DrumMachine() {
                       locks: playingStep.locks ?? {},
                     }
               }
-              onLowCutChange={handleLowCutChange}
-              onLowCutResonanceChange={handleLowCutResonanceChange}
-              onHighCutChange={handleHighCutChange}
-              onHighCutResonanceChange={handleHighCutResonanceChange}
+              onLowCutChange={parameterHandlers.lowCutHz}
+              onLowCutResonanceChange={parameterHandlers.lowCutResonance}
+              onHighCutChange={parameterHandlers.highCutHz}
+              onHighCutResonanceChange={parameterHandlers.highCutResonance}
               onFilterSlopeChange={handleFilterSlopeChange}
               envelopeSettings={{
                 attackSeconds: selectedSettings.attackSeconds,
@@ -2392,10 +2256,10 @@ export default function DrumMachine() {
                       locks: playingStep.locks ?? {},
                     }
               }
-              onAttackChange={handleAttackChange}
-              onDecayChange={handleDecayChange}
-              onSustainChange={handleSustainChange}
-              onReleaseChange={handleReleaseChange}
+              onAttackChange={parameterHandlers.attackSeconds}
+              onDecayChange={parameterHandlers.decaySeconds}
+              onSustainChange={parameterHandlers.sustainLevel}
+              onReleaseChange={parameterHandlers.releaseSeconds}
               // Always the channel's own, and never a step's: no lock can
               // stand in for any of it, so there is nothing to resolve and
               // nothing for the playhead to drag the tab onto.
@@ -2421,9 +2285,9 @@ export default function DrumMachine() {
                       locks: playingStep.locks ?? {},
                     }
               }
-              onDelaySendChange={handleDelaySendChange}
-              onReverbSendChange={handleReverbSendChange}
-              onPhaserSendChange={handlePhaserSendChange}
+              onDelaySendChange={parameterHandlers.delaySend}
+              onReverbSendChange={parameterHandlers.reverbSend}
+              onPhaserSendChange={parameterHandlers.phaserSend}
               onRandomizeParameter={handleRandomizeParameter}
               onClearLockedParameter={handleClearLockedParameter}
               stepEdit={
@@ -2580,7 +2444,7 @@ export default function DrumMachine() {
         <StepContextMenu
           x={contextMenuStep.x}
           y={contextMenuStep.y}
-          onClose={closeStepContextMenu}
+          onClose={closeStepMenu}
           clearDisabled={isStepCleared(
             selectedChannel.steps[contextMenuStep.index],
           )}
@@ -2596,7 +2460,7 @@ export default function DrumMachine() {
         <ChannelContextMenu
           x={contextMenuChannel.x}
           y={contextMenuChannel.y}
-          onClose={closeChannelContextMenu}
+          onClose={closeChannelMenu}
           onClearSteps={() =>
             handleClearStepsFromMenu(contextMenuChannelTarget.id)
           }
@@ -2628,7 +2492,7 @@ export default function DrumMachine() {
         <PatternContextMenu
           x={contextMenuPattern.x}
           y={contextMenuPattern.y}
-          onClose={closePatternContextMenu}
+          onClose={closePatternMenu}
           onSavePattern={() =>
             handleSavePatternFromMenu(contextMenuPattern.index)
           }
@@ -2643,7 +2507,7 @@ export default function DrumMachine() {
         <SceneContextMenu
           x={contextMenuScene.x}
           y={contextMenuScene.y}
-          onClose={closeSceneContextMenu}
+          onClose={closeSceneMenu}
           onSaveScene={() => handleSaveSceneFromMenu(contextMenuScene.index)}
           renameDisabled={scenes[contextMenuScene.index] === null}
           onRenameScene={() => setRenamingSceneIndex(contextMenuScene.index)}

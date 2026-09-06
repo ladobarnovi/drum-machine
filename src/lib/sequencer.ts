@@ -1,3 +1,64 @@
+/**
+ * The machine's vocabulary: what every parameter is, what range it lives in,
+ * how a value is held inside that range, and how it reads out.
+ *
+ * Organised by parameter rather than by kind. A cutoff's minimum, its default,
+ * its clamp, its slider curve and its "1.2 kHz" formatter sit together, because
+ * changing one of them almost always means changing its neighbours — a range
+ * that moved without its curve would put the knob's travel in the wrong place.
+ * Splitting the file into constants, clamps and formatters would separate
+ * exactly the things that change together.
+ *
+ * That is also why it is long. The seam that does exist runs the other way:
+ * roughly, definitions first, then the operations on steps and channels, then
+ * the display helpers — but `Channel` is declared among the operations while
+ * the operations use clamps declared among the display helpers, so the three
+ * are not separable without a type-only cycle and boundaries drawn at line
+ * numbers rather than at concepts. Worth revisiting behind tests.
+ *
+ * Nothing here touches React or the Web Audio API. The transport lives in
+ * `hooks/useSequencer` and the audio graph in `lib/audioGraph`.
+ */
+
+/**
+ * Holds a number inside a range, falling back when it isn't one at all.
+ *
+ * Every value that reaches this module from outside — a slider, a MIDI CC, a
+ * URL someone else wrote, a value read back out of storage — goes through the
+ * clamp that owns it. That made twenty-six functions with the same three lines
+ * and different constants, and the min/max nesting written out by hand each
+ * time is exactly the sort of thing that reads correct while being transposed.
+ *
+ * The fallback is per-parameter rather than the minimum: a volume that arrives
+ * as NaN should come back at its default, where a drive amount should come
+ * back off.
+ */
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+/** Holds a number to 0..1, the range fractions and levels are kept in. */
+export function clamp01(value: number): number {
+  return clamp(value, 0, 1);
+}
+
+/** Builds the clamp for one parameter, given the range it lives in. */
+function clampTo(min: number, max: number, fallback: number) {
+  return (value: number): number =>
+    Number.isFinite(value) ? clamp(value, min, max) : fallback;
+}
+
+/**
+ * Builds the narrowing for one parameter whose values are a fixed set.
+ *
+ * These arrive as raw strings — a `<select>` hands one back, and a link carries
+ * whatever was written into it — so the set is the check.
+ */
+function clampOneOf<T extends string>(options: readonly T[], fallback: T) {
+  return (value: string): T =>
+    options.includes(value as T) ? (value as T) : fallback;
+}
+
 export const CHANNEL_COUNT = 16;
 export const STEPS_PER_BEAT = 4;
 
@@ -653,31 +714,25 @@ export const DEFAULT_MASTER_COMPRESSOR: MasterCompressor = {
   level: DEFAULT_VOLUME,
 };
 
-export function clampThresholdDb(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_THRESHOLD_DB;
-  return Math.min(Math.max(value, MIN_THRESHOLD_DB), MAX_THRESHOLD_DB);
-}
+export const clampThresholdDb = clampTo(
+  MIN_THRESHOLD_DB,
+  MAX_THRESHOLD_DB,
+  DEFAULT_THRESHOLD_DB,
+);
 
-export function clampRatio(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_RATIO;
-  return Math.min(Math.max(value, MIN_RATIO), MAX_RATIO);
-}
+export const clampRatio = clampTo(MIN_RATIO, MAX_RATIO, DEFAULT_RATIO);
 
-export function clampCompressorAttack(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_COMPRESSOR_ATTACK_SECONDS;
-  return Math.min(
-    Math.max(value, MIN_COMPRESSOR_ATTACK_SECONDS),
-    MAX_COMPRESSOR_ATTACK_SECONDS,
-  );
-}
+export const clampCompressorAttack = clampTo(
+  MIN_COMPRESSOR_ATTACK_SECONDS,
+  MAX_COMPRESSOR_ATTACK_SECONDS,
+  DEFAULT_COMPRESSOR_ATTACK_SECONDS,
+);
 
-export function clampCompressorRelease(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_COMPRESSOR_RELEASE_SECONDS;
-  return Math.min(
-    Math.max(value, MIN_COMPRESSOR_RELEASE_SECONDS),
-    MAX_COMPRESSOR_RELEASE_SECONDS,
-  );
-}
+export const clampCompressorRelease = clampTo(
+  MIN_COMPRESSOR_RELEASE_SECONDS,
+  MAX_COMPRESSOR_RELEASE_SECONDS,
+  DEFAULT_COMPRESSOR_RELEASE_SECONDS,
+);
 
 /**
  * How far along the meter a reduction reads, as a fraction of its width.
@@ -997,7 +1052,7 @@ export const DEFAULT_SAMPLE_REVERSED = false;
 export const MIN_SAMPLE_SPAN = 0.005;
 
 function clampFraction(value: number): number {
-  return Math.min(Math.max(value, 0), 1);
+  return clamp01(value);
 }
 
 /**
@@ -1012,7 +1067,7 @@ function clampFraction(value: number): number {
 export function clampSampleStart(start: number, end: number): number {
   if (!Number.isFinite(start)) return DEFAULT_SAMPLE_START;
   const ceiling = clampFraction(end) - MIN_SAMPLE_SPAN;
-  return Math.min(Math.max(start, 0), Math.max(ceiling, 0));
+  return clamp(start, 0, Math.max(ceiling, 0));
 }
 
 export function clampSampleEnd(end: number, start: number): number {
@@ -1070,11 +1125,7 @@ export const SAMPLE_MODE_LABELS: Record<SampleMode, string> = {
  * can only produce the two — but a shared link is a string someone else wrote,
  * and everything arriving from one is put back through the clamp that owns it.
  */
-export function clampSampleMode(value: string): SampleMode {
-  return SAMPLE_MODES.includes(value as SampleMode)
-    ? (value as SampleMode)
-    : DEFAULT_SAMPLE_MODE;
-}
+export const clampSampleMode = clampOneOf(SAMPLE_MODES, DEFAULT_SAMPLE_MODE);
 
 /**
  * How many parts the region can be cut into.
@@ -1115,7 +1166,7 @@ export function clampSliceCount(value: number): SliceCount {
 export function clampStepSlice(value: number, sliceCount: number): number {
   if (!Number.isFinite(value)) return DEFAULT_STEP_SLICE;
   const count = clampSliceCount(sliceCount);
-  return Math.min(Math.max(Math.round(value), DEFAULT_STEP_SLICE), count - 1);
+  return clamp(Math.round(value), DEFAULT_STEP_SLICE, count - 1);
 }
 
 /** Counted from 1 wherever it is shown, the way a part of something is. */
@@ -1338,19 +1389,21 @@ export function hasStepLocks(step: Step): boolean {
   return step.locks !== undefined && Object.keys(step.locks).length > 0;
 }
 
-export function clampStepVelocity(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_STEP_VELOCITY;
-  return Math.min(Math.max(value, MIN_STEP_VELOCITY), MAX_STEP_VELOCITY);
-}
+export const clampStepVelocity = clampTo(
+  MIN_STEP_VELOCITY,
+  MAX_STEP_VELOCITY,
+  DEFAULT_STEP_VELOCITY,
+);
 
 export function formatVelocity(value: number): string {
   return `${Math.round(clampStepVelocity(value) * 100)}%`;
 }
 
-export function clampStepProbability(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_STEP_PROBABILITY;
-  return Math.min(Math.max(value, MIN_STEP_PROBABILITY), MAX_STEP_PROBABILITY);
-}
+export const clampStepProbability = clampTo(
+  MIN_STEP_PROBABILITY,
+  MAX_STEP_PROBABILITY,
+  DEFAULT_STEP_PROBABILITY,
+);
 
 export function formatProbability(value: number): string {
   return `${Math.round(clampStepProbability(value) * 100)}%`;
@@ -1373,10 +1426,11 @@ export function formatStepRepeat(value: number): string {
   return `×${clampStepRepeat(value)}`;
 }
 
-export function clampStepTiming(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_STEP_TIMING;
-  return Math.min(Math.max(value, MIN_STEP_TIMING), MAX_STEP_TIMING);
-}
+export const clampStepTiming = clampTo(
+  MIN_STEP_TIMING,
+  MAX_STEP_TIMING,
+  DEFAULT_STEP_TIMING,
+);
 
 /** Signed, so the readout says which way the hit is moved and not just by how much. */
 export function formatStepTiming(value: number): string {
@@ -1887,19 +1941,31 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
 }
 
 /**
- * Every channel a hit on `sourceId` cuts short.
+ * Every channel each hit cuts short, keyed by the channel doing the cutting.
  *
- * Read from the choked channels rather than held on the choking one, so one hit
- * can silence any number of channels and no list has to be kept in step with a
- * setting that lives elsewhere.
+ * The setting is read from the choked channels rather than held on the choking
+ * one, so one hit can silence any number of channels and no list has to be kept
+ * in step with a setting that lives elsewhere. That is the wrong way round for
+ * the scheduler, which knows what fired and needs to know what it silences — so
+ * the relation is turned inside out once per pattern change, and a step becomes
+ * a map lookup rather than a pass over the whole kit per hit.
+ *
+ * Only channels that actually choke something get an entry, so on a kit where
+ * nothing is routed this is an empty map and the lookup misses immediately.
  */
-export function channelsChokedBy(
+export function chokeTargetsBySource(
   channels: Channel[],
-  sourceId: string,
-): string[] {
-  return channels
-    .filter((channel) => channel.chokedBy === sourceId)
-    .map((channel) => channel.id);
+): Map<string, string[]> {
+  const targets = new Map<string, string[]>();
+
+  for (const channel of channels) {
+    if (!channel.chokedBy) continue;
+    const existing = targets.get(channel.chokedBy);
+    if (existing) existing.push(channel.id);
+    else targets.set(channel.chokedBy, [channel.id]);
+  }
+
+  return targets;
 }
 
 /**
@@ -1937,7 +2003,7 @@ export function isChannelAudible(
 
 export function clampLength(value: number): number {
   if (!Number.isFinite(value)) return MIN_STEPS;
-  return Math.min(Math.max(Math.round(value), MIN_STEPS), MAX_STEPS);
+  return clamp(Math.round(value), MIN_STEPS, MAX_STEPS);
 }
 
 /**
@@ -2417,15 +2483,9 @@ export function clampChannelName(value: string): string {
   return value.slice(0, MAX_CHANNEL_NAME_LENGTH);
 }
 
-export function clampVolume(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_VOLUME;
-  return Math.min(Math.max(value, MIN_VOLUME), MAX_VOLUME);
-}
+export const clampVolume = clampTo(MIN_VOLUME, MAX_VOLUME, DEFAULT_VOLUME);
 
-export function clampPan(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_PAN;
-  return Math.min(Math.max(value, MIN_PAN), MAX_PAN);
-}
+export const clampPan = clampTo(MIN_PAN, MAX_PAN, DEFAULT_PAN);
 
 /**
  * A centred channel needs no panner at all, so the node is skipped entirely —
@@ -2450,44 +2510,35 @@ export function formatPan(value: number): string {
   return `${clamped < 0 ? "L" : "R"} ${Math.round(Math.abs(clamped) * 100)}%`;
 }
 
-export function clampDrive(value: number): number {
-  if (!Number.isFinite(value)) return MIN_DRIVE;
-  return Math.min(Math.max(value, MIN_DRIVE), MAX_DRIVE);
-}
+export const clampDrive = clampTo(MIN_DRIVE, MAX_DRIVE, MIN_DRIVE);
 
 /** Narrows the raw string a `<select>` hands back to a known shape. */
-export function clampDriveType(value: string): DriveType {
-  return DRIVE_TYPES.includes(value as DriveType)
-    ? (value as DriveType)
-    : DEFAULT_DRIVE_TYPE;
-}
+export const clampDriveType = clampOneOf(DRIVE_TYPES, DEFAULT_DRIVE_TYPE);
 
-export function clampSend(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_SEND;
-  return Math.min(Math.max(value, MIN_SEND), MAX_SEND);
-}
+export const clampSend = clampTo(MIN_SEND, MAX_SEND, DEFAULT_SEND);
 
 /** A closed send feeds the bus nothing, so the tap is skipped entirely. */
 export function isSendClosed(value: number): boolean {
   return clampSend(value) <= MIN_SEND;
 }
 
-export function clampDelaySeconds(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_DELAY_SECONDS;
-  return Math.min(Math.max(value, MIN_DELAY_SECONDS), MAX_DELAY_SECONDS);
-}
+export const clampDelaySeconds = clampTo(
+  MIN_DELAY_SECONDS,
+  MAX_DELAY_SECONDS,
+  DEFAULT_DELAY_SECONDS,
+);
 
-export function clampFeedback(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_FEEDBACK;
-  return Math.min(Math.max(value, MIN_FEEDBACK), MAX_FEEDBACK);
-}
+export const clampFeedback = clampTo(
+  MIN_FEEDBACK,
+  MAX_FEEDBACK,
+  DEFAULT_FEEDBACK,
+);
 
 /** Narrows the raw string a `<select>` hands back to a known shape. */
-export function clampDelayDivision(value: string): DelayDivision {
-  return DELAY_DIVISIONS.includes(value as DelayDivision)
-    ? (value as DelayDivision)
-    : DEFAULT_DELAY_DIVISION;
-}
+export const clampDelayDivision = clampOneOf(
+  DELAY_DIVISIONS,
+  DEFAULT_DELAY_DIVISION,
+);
 
 /**
  * What the delay line is actually set to. A synced time is not clamped to
@@ -2502,13 +2553,11 @@ export function delayTimeSeconds(delay: MasterDelay, bpm: number): number {
   );
 }
 
-export function clampReverbDecay(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_REVERB_DECAY_SECONDS;
-  return Math.min(
-    Math.max(value, MIN_REVERB_DECAY_SECONDS),
-    MAX_REVERB_DECAY_SECONDS,
-  );
-}
+export const clampReverbDecay = clampTo(
+  MIN_REVERB_DECAY_SECONDS,
+  MAX_REVERB_DECAY_SECONDS,
+  DEFAULT_REVERB_DECAY_SECONDS,
+);
 
 /** Narrows the raw string a `<select>` hands back to a stage count on offer. */
 export function clampPhaserStages(value: string): PhaserStages {
@@ -2516,20 +2565,23 @@ export function clampPhaserStages(value: string): PhaserStages {
   return PHASER_STAGE_COUNTS.includes(stages) ? stages : DEFAULT_PHASER_STAGES;
 }
 
-export function clampPhaserRate(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_PHASER_RATE_HZ;
-  return Math.min(Math.max(value, MIN_PHASER_RATE_HZ), MAX_PHASER_RATE_HZ);
-}
+export const clampPhaserRate = clampTo(
+  MIN_PHASER_RATE_HZ,
+  MAX_PHASER_RATE_HZ,
+  DEFAULT_PHASER_RATE_HZ,
+);
 
-export function clampPhaserDepth(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_PHASER_DEPTH;
-  return Math.min(Math.max(value, MIN_PHASER_DEPTH), MAX_PHASER_DEPTH);
-}
+export const clampPhaserDepth = clampTo(
+  MIN_PHASER_DEPTH,
+  MAX_PHASER_DEPTH,
+  DEFAULT_PHASER_DEPTH,
+);
 
-export function clampPhaserFeedback(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_PHASER_FEEDBACK;
-  return Math.min(Math.max(value, MIN_PHASER_FEEDBACK), MAX_PHASER_FEEDBACK);
-}
+export const clampPhaserFeedback = clampTo(
+  MIN_PHASER_FEEDBACK,
+  MAX_PHASER_FEEDBACK,
+  DEFAULT_PHASER_FEEDBACK,
+);
 
 const PHASER_RATE_RATIO = MAX_PHASER_RATE_HZ / MIN_PHASER_RATE_HZ;
 
@@ -2566,7 +2618,7 @@ export function formatPhaserRate(hz: number): string {
 
 export function clampPitch(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_PITCH;
-  return Math.min(Math.max(Math.round(value), MIN_PITCH), MAX_PITCH);
+  return clamp(Math.round(value), MIN_PITCH, MAX_PITCH);
 }
 
 /** Signed, because an offset of 0 and an offset up read the same without it. */
@@ -2582,7 +2634,7 @@ export function playbackRateForPitch(semitones: number): number {
 
 export function clampFrequency(value: number): number {
   if (!Number.isFinite(value)) return MIN_FILTER_HZ;
-  return Math.min(Math.max(Math.round(value), MIN_FILTER_HZ), MAX_FILTER_HZ);
+  return clamp(Math.round(value), MIN_FILTER_HZ, MAX_FILTER_HZ);
 }
 
 const FILTER_HZ_RATIO = MAX_FILTER_HZ / MIN_FILTER_HZ;
@@ -2643,10 +2695,11 @@ export function filterStages(slope: number): {
   return { biquads: Math.floor(poles / 2), onePole: poles % 2 === 1 };
 }
 
-export function clampResonance(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_RESONANCE;
-  return Math.min(Math.max(value, MIN_RESONANCE), MAX_RESONANCE);
-}
+export const clampResonance = clampTo(
+  MIN_RESONANCE,
+  MAX_RESONANCE,
+  DEFAULT_RESONANCE,
+);
 
 /**
  * True while a cut has no peak at its corner, which is the one case where the
@@ -2681,15 +2734,17 @@ export function formatResonance(value: number): string {
   return `${Math.round(clampResonance(value) * 100)}%`;
 }
 
-export function clampAttack(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_ATTACK_SECONDS;
-  return Math.min(Math.max(value, MIN_ATTACK_SECONDS), MAX_ATTACK_SECONDS);
-}
+export const clampAttack = clampTo(
+  MIN_ATTACK_SECONDS,
+  MAX_ATTACK_SECONDS,
+  DEFAULT_ATTACK_SECONDS,
+);
 
-export function clampDecay(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_DECAY_SECONDS;
-  return Math.min(Math.max(value, MIN_DECAY_SECONDS), MAX_DECAY_SECONDS);
-}
+export const clampDecay = clampTo(
+  MIN_DECAY_SECONDS,
+  MAX_DECAY_SECONDS,
+  DEFAULT_DECAY_SECONDS,
+);
 
 /**
  * Envelope times map to a 0..1 slider position on a curve. Percussion lives in
@@ -2747,15 +2802,17 @@ export function formatSeconds(seconds: number): string {
     : `${Math.round(seconds * 1000)} ms`;
 }
 
-export function clampSustain(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_SUSTAIN_LEVEL;
-  return Math.min(Math.max(value, MIN_SUSTAIN_LEVEL), MAX_SUSTAIN_LEVEL);
-}
+export const clampSustain = clampTo(
+  MIN_SUSTAIN_LEVEL,
+  MAX_SUSTAIN_LEVEL,
+  DEFAULT_SUSTAIN_LEVEL,
+);
 
-export function clampRelease(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_RELEASE_SECONDS;
-  return Math.min(Math.max(value, MIN_RELEASE_SECONDS), MAX_RELEASE_SECONDS);
-}
+export const clampRelease = clampTo(
+  MIN_RELEASE_SECONDS,
+  MAX_RELEASE_SECONDS,
+  DEFAULT_RELEASE_SECONDS,
+);
 
 export function releaseToSlider(seconds: number): number {
   return timeToSlider(
@@ -2784,28 +2841,21 @@ export function formatSustain(level: number): string {
 }
 
 /** Narrows the raw string a `<select>` hands back to a known shape. */
-export function clampLfoShape(value: string): LfoShape {
-  return LFO_SHAPES.includes(value as LfoShape)
-    ? (value as LfoShape)
-    : DEFAULT_LFO_SHAPE;
-}
+export const clampLfoShape = clampOneOf(LFO_SHAPES, DEFAULT_LFO_SHAPE);
 
 /** Narrows the raw string a `<select>` hands back to a known destination. */
-export function clampLfoDestination(value: string): LfoDestination {
-  return LFO_DESTINATIONS.includes(value as LfoDestination)
-    ? (value as LfoDestination)
-    : DEFAULT_LFO_DESTINATION;
-}
+export const clampLfoDestination = clampOneOf(
+  LFO_DESTINATIONS,
+  DEFAULT_LFO_DESTINATION,
+);
 
-export function clampLfoRate(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_LFO_HZ;
-  return Math.min(Math.max(value, MIN_LFO_HZ), MAX_LFO_HZ);
-}
+export const clampLfoRate = clampTo(MIN_LFO_HZ, MAX_LFO_HZ, DEFAULT_LFO_HZ);
 
-export function clampLfoAmount(value: number): number {
-  if (!Number.isFinite(value)) return MIN_LFO_AMOUNT;
-  return Math.min(Math.max(value, MIN_LFO_AMOUNT), MAX_LFO_AMOUNT);
-}
+export const clampLfoAmount = clampTo(
+  MIN_LFO_AMOUNT,
+  MAX_LFO_AMOUNT,
+  MIN_LFO_AMOUNT,
+);
 
 const LFO_HZ_RATIO = MAX_LFO_HZ / MIN_LFO_HZ;
 
@@ -2853,10 +2903,7 @@ export function isLfoBypassed(lfo: ChannelLfo): boolean {
   return !lfo.enabled || clampLfoAmount(lfo.amount) <= MIN_LFO_AMOUNT;
 }
 
-export function clampBpm(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_BPM;
-  return Math.min(Math.max(value, MIN_BPM), MAX_BPM);
-}
+export const clampBpm = clampTo(MIN_BPM, MAX_BPM, DEFAULT_BPM);
 
 /**
  * Length of one beat — a quarter note, which is what BPM counts. BPM is clamped
@@ -2876,10 +2923,7 @@ export function isDownbeat(stepIndex: number): boolean {
   return stepIndex % STEPS_PER_BEAT === 0;
 }
 
-export function clampSwing(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_SWING;
-  return Math.min(Math.max(value, MIN_SWING), MAX_SWING);
-}
+export const clampSwing = clampTo(MIN_SWING, MAX_SWING, DEFAULT_SWING);
 
 export function formatSwing(value: number): string {
   return `${Math.round(clampSwing(value) * 100)}%`;
@@ -2926,3 +2970,35 @@ export function repeatOffsets(
     (_, index) => (index / repeats) * stepDurationSeconds,
   );
 }
+
+/**
+ * The clamp that owns each lockable parameter.
+ *
+ * Every one of these had a handler in `DrumMachine` whose whole body was to
+ * pair the key with its clamp before handing both on. Keyed here instead, and
+ * as a `Record` over the union rather than a loose object: a parameter added to
+ * `LOCKABLE_PARAMETERS` without a clamp beside it will not compile.
+ *
+ * A value reaching a step lock goes through exactly the clamp it would have
+ * gone through on its way to the channel — a lock is the same value, kept
+ * somewhere narrower.
+ */
+export const LOCKABLE_PARAMETER_CLAMPS: Record<
+  LockableParameter,
+  (value: number) => number
+> = {
+  volume: clampVolume,
+  pan: clampPan,
+  pitch: clampPitch,
+  lowCutHz: clampFrequency,
+  lowCutResonance: clampResonance,
+  highCutHz: clampFrequency,
+  highCutResonance: clampResonance,
+  attackSeconds: clampAttack,
+  decaySeconds: clampDecay,
+  sustainLevel: clampSustain,
+  releaseSeconds: clampRelease,
+  delaySend: clampSend,
+  reverbSend: clampSend,
+  phaserSend: clampSend,
+};

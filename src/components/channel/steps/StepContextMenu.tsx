@@ -1,7 +1,6 @@
 "use client";
 
-import ContextMenu from "@/components/ui/ContextMenu";
-import ContextMenuItem from "@/components/ui/ContextMenuItem";
+import ActionMenu from "@/components/ui/ActionMenu";
 
 type StepContextMenuProps = {
   x: number;
@@ -29,24 +28,18 @@ export default function StepContextMenu({
   pasteDisabled,
   onPasteStep,
 }: StepContextMenuProps) {
-  const run = (action: () => void) => () => {
-    action();
-    onClose();
-  };
-
   return (
-    <ContextMenu x={x} y={y} label="Step actions" onClose={onClose}>
-      <ContextMenuItem disabled={clearDisabled} onClick={run(onClearStep)}>
-        Clear Step
-      </ContextMenuItem>
-
-      <ContextMenuItem onClick={run(onEditStep)}>Edit Step</ContextMenuItem>
-
-      <ContextMenuItem onClick={run(onCopyStep)}>Copy</ContextMenuItem>
-
-      <ContextMenuItem disabled={pasteDisabled} onClick={run(onPasteStep)}>
-        Paste
-      </ContextMenuItem>
-    </ContextMenu>
+    <ActionMenu
+      x={x}
+      y={y}
+      label="Step actions"
+      onClose={onClose}
+      items={[
+        { label: "Clear Step", disabled: clearDisabled, onSelect: onClearStep },
+        { label: "Edit Step", onSelect: onEditStep },
+        { label: "Copy", onSelect: onCopyStep },
+        { label: "Paste", disabled: pasteDisabled, onSelect: onPasteStep },
+      ]}
+    />
   );
 }

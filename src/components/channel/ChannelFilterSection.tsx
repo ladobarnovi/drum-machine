@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, type FocusEvent } from "react";
+import {
+  usePlayheadFollow,
+  type PlayingStepRef,
+  type StepEditRef,
+} from "@/hooks/usePlayheadFollow";
 
 import FilterGraph from "./FilterGraph";
 import RotaryKnob from "@/components/ui/RotaryKnob";
@@ -20,7 +24,6 @@ import {
   sliderToFrequency,
   type FilterSlope,
   type LockableParameter,
-  type StepLocks,
 } from "@/lib/sequencer";
 
 /**
@@ -43,33 +46,14 @@ export type FilterSettings = {
  * shape, and the same meaning, as `ChannelControls`' own `stepEdit`: the knobs
  * are the same controls either way, and this only says what they are pointed at.
  */
-type FilterStepEdit = {
-  /** Which step is open, counted from 0. */
-  index: number;
-  /** Which of the parameters this step overrides. */
-  locks: StepLocks;
-  onClearLock: (key: LockableParameter) => void;
-};
-
 /**
  * The hit the channel is sounding right now, while the transport runs — the
  * step the card follows rather than one it edits.
  */
-type PlayingStep = {
-  /** Which step is being heard, counted from 0. */
-  index: number;
-  /** The four values as that step actually plays them, locks applied. */
-  settings: FilterSettings;
-  /** Which of the four it overrides, so those can be marked as locks. */
-  locks: StepLocks;
-};
-
 type ChannelFilterSectionProps = {
   /** Whose filter this is, so a MIDI mapping binds to that channel's knobs
    *  rather than to whichever channel happens to be selected. */
   channelId: string;
-  /** Whose filter this is, so the card says which channel it belongs to. */
-  channelName: string;
   /** What the knobs edit: the channel's own, or an open step's. */
   settings: FilterSettings;
   /** How steeply both cuts roll off. Always the channel's, never a step's. */
@@ -78,18 +62,21 @@ type ChannelFilterSectionProps = {
    * What is currently being heard, or null while the transport is stopped —
    * or while it is running and the channel has no hits to sound.
    */
-  playing?: PlayingStep | null;
+  playing?: PlayingStepRef<FilterSettings> | null;
   onLowCutChange: (hz: number) => void;
   onLowCutResonanceChange: (amount: number) => void;
   onHighCutChange: (hz: number) => void;
   onHighCutResonanceChange: (amount: number) => void;
   onFilterSlopeChange: (slope: FilterSlope) => void;
   /** Rerolls one of the four knobs above across every active step. */
-  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  onRandomizeParameter: (
+    key: LockableParameter,
+    randomize: () => number,
+  ) => void;
   /** Drops every override of one of the four knobs above, pattern-wide. */
   onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited; absent while the channel is. */
-  stepEdit?: FilterStepEdit;
+  stepEdit?: StepEditRef;
 };
 
 /**
@@ -116,7 +103,6 @@ type ChannelFilterSectionProps = {
  */
 export default function ChannelFilterSection({
   channelId,
-  channelName,
   settings,
   filterSlope,
   playing,
@@ -129,57 +115,11 @@ export default function ChannelFilterSection({
   onClearLockedParameter,
   stepEdit,
 }: ChannelFilterSectionProps) {
-  /**
-   * Whether a knob is currently being worked.
-   *
-   * Following the playhead has to stop while it is, or turning a knob mid-bar
-   * would show your own move for a moment and then have the next hit paint over
-   * it — you would be dialling in a value you could not see. Focus is what
-   * stands in for "being worked": a press on a knob focuses it, so a drag holds
-   * the card still, and it stays held until the focus leaves the row rather
-   * than snapping back the instant the pointer lifts.
-   */
-  const [adjusting, setAdjusting] = useState(false);
-
-  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
-    // Moving between two knobs is still working the row, so only focus leaving
-    // it altogether hands the card back to the playhead.
-    if (event.currentTarget.contains(event.relatedTarget)) return;
-    setAdjusting(false);
-  };
-
-  /**
-   * The step being followed, or null while the card is showing what it edits.
-   *
-   * A step held open wins over the playhead: opening one is a deliberate request
-   * to look at that step, and having the transport drag the card off it would
-   * make the two features unusable together.
-   */
-  const following = !stepEdit && !adjusting ? (playing ?? null) : null;
-
-  const shown = following ? following.settings : settings;
-
-  /**
-   * What a lockable knob needs to show its state.
-   *
-   * Handed to every knob while a step is open — including the ones with nothing
-   * locked, since it is passing the clear handler at all that reserves the row
-   * under the readout and keeps the knobs from shifting as locks come and go.
-   *
-   * While following, the marks go on but the clear buttons do not: the step is
-   * whipping past rather than sitting open, and a × over a value that changes
-   * every sixteenth is a mis-click waiting to happen.
-   */
-  const lockProps = (key: LockableParameter) => {
-    if (following) return { locked: following.locks[key] !== undefined };
-
-    return stepEdit
-      ? {
-          locked: stepEdit.locks[key] !== undefined,
-          onClearLock: () => stepEdit.onClearLock(key),
-        }
-      : {};
-  };
+  const { shown, lockProps, groupProps } = usePlayheadFollow({
+    settings,
+    playing: playing ?? null,
+    stepEdit,
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -202,8 +142,7 @@ export default function ChannelFilterSection({
         changes nothing a step can lock — leaves it following.
       */}
       <div
-        onFocus={() => setAdjusting(true)}
-        onBlur={handleBlur}
+        {...groupProps}
         className="grid grid-cols-4 justify-items-center gap-x-2 gap-y-4 sm:gap-x-8"
       >
         {/* The cutoffs ride the same 0..1 log scale their sliders do, so the

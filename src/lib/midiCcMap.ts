@@ -1,4 +1,5 @@
 import { ccValueToRange } from "@/lib/midi";
+import { createPersistedStore } from "@/lib/persistedStore";
 
 /** A control's stable identity, e.g. `"master:drive:amount"`. */
 export type MidiMapId = string;
@@ -8,71 +9,24 @@ export type MidiCcMap = Record<MidiMapId, number>;
 
 const STORAGE_KEY = "drum-machine-midi-cc-map";
 
-function loadFromStorage(): MidiCcMap | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    return parsed as MidiCcMap;
-  } catch {
-    return null;
-  }
-}
-
-function persist(map: MidiCcMap): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  } catch {
-    // Some privacy modes refuse storage outright. The mapping still works
-    // for this visit; it just won't be waiting next time.
-  }
-}
-
 /*
- * The bindings live outside React state, in the same spirit as the theme and
- * the pattern banks: the server has no way of knowing what was mapped, so the
- * first client render has to match its empty output exactly, and only after
- * that can the saved bindings take over.
+ * The bindings live outside React state for the reasons `lib/persistedStore`
+ * gives: the server has no way of knowing what was mapped, so the first client
+ * render has to match its empty output exactly, and only after that can the
+ * saved bindings take over.
  */
+const store = createPersistedStore<MidiCcMap>({
+  key: STORAGE_KEY,
+  initial: () => ({}),
+  parse: (value) =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as MidiCcMap)
+      : null,
+});
 
-const SERVER_SNAPSHOT: MidiCcMap = {};
-
-let ccMap: MidiCcMap = SERVER_SNAPSHOT;
-let hydrated = false;
-const mapListeners = new Set<() => void>();
-
-function notifyMap(): void {
-  for (const listener of mapListeners) listener();
-}
-
-function hydrateMap(): void {
-  if (hydrated) return;
-  hydrated = true;
-
-  const saved = loadFromStorage();
-  if (saved) {
-    ccMap = saved;
-    notifyMap();
-  }
-}
-
-export function subscribeToMidiCcMap(onChange: () => void): () => void {
-  mapListeners.add(onChange);
-  hydrateMap();
-
-  return () => {
-    mapListeners.delete(onChange);
-  };
-}
-
-export function getMidiCcMapSnapshot(): MidiCcMap {
-  return ccMap;
-}
-
-export function getServerMidiCcMapSnapshot(): MidiCcMap {
-  return SERVER_SNAPSHOT;
-}
+export const subscribeToMidiCcMap = store.subscribe;
+export const getMidiCcMapSnapshot = store.getSnapshot;
+export const getServerMidiCcMapSnapshot = store.getServerSnapshot;
 
 /**
  * Binds `mapId` to `cc`, stealing it from whatever else was already bound to
@@ -82,25 +36,21 @@ export function getServerMidiCcMapSnapshot(): MidiCcMap {
  */
 export function setMidiCcBinding(mapId: MidiMapId, cc: number): void {
   const next: MidiCcMap = {};
-  for (const [key, value] of Object.entries(ccMap)) {
+  for (const [key, value] of Object.entries(store.getSnapshot())) {
     if (value !== cc) next[key] = value;
   }
   next[mapId] = cc;
 
-  ccMap = next;
-  persist(ccMap);
-  notifyMap();
+  store.set(next);
 }
 
 export function clearMidiCcBinding(mapId: MidiMapId): void {
-  if (!(mapId in ccMap)) return;
+  if (!(mapId in store.getSnapshot())) return;
 
-  const next = { ...ccMap };
+  const next = { ...store.getSnapshot() };
   delete next[mapId];
 
-  ccMap = next;
-  persist(ccMap);
-  notifyMap();
+  store.set(next);
 }
 
 /**
@@ -111,15 +61,13 @@ export function clearMidiCcBinding(mapId: MidiMapId): void {
  * informed one.
  */
 export function clearAllMidiCcBindings(): void {
-  if (Object.keys(ccMap).length === 0) return;
+  if (Object.keys(store.getSnapshot()).length === 0) return;
 
-  ccMap = {};
-  persist(ccMap);
-  notifyMap();
+  store.set({});
 }
 
 function mapIdForCc(cc: number): MidiMapId | null {
-  for (const [key, value] of Object.entries(ccMap)) {
+  for (const [key, value] of Object.entries(store.getSnapshot())) {
     if (value === cc) return key;
   }
   return null;

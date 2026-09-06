@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import type { MidiAccess } from "@/hooks/useMidiAccess";
+import { useLatest } from "@/hooks/useLatest";
+import { useRememberedDeviceId } from "@/hooks/useRememberedDeviceId";
+import { START_DELAY_S } from "@/hooks/useSequencer";
 import {
   MIDI_CLOCK,
   MIDI_OUTPUT_STORAGE_KEY,
@@ -38,52 +41,18 @@ export function useMidiClockOutput({
   ensureContext,
 }: UseMidiClockOutputOptions) {
   const { supported, outputs, outputPortsRef } = access;
-  const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
+  const [selectedOutputId, rememberOutput] = useRememberedDeviceId(
+    MIDI_OUTPUT_STORAGE_KEY,
+    outputs,
+    (id) => outputPortsRef.current.has(id),
+  );
 
   const selectedPortRef = useRef<MIDIOutput | null>(null);
-  const bpmRef = useRef(bpm);
-  useEffect(() => {
-    bpmRef.current = bpm;
-  }, [bpm]);
-
-  // Restores a previous session's choice once there is something to restore
-  // it onto, exactly as `useMidiInput` does for its own selection.
-  const restoredRef = useRef(false);
-  useEffect(() => {
-    if (restoredRef.current || outputs.length === 0) return;
-    restoredRef.current = true;
-
-    let savedId: string | null = null;
-    try {
-      savedId = localStorage.getItem(MIDI_OUTPUT_STORAGE_KEY);
-    } catch {
-      // Some privacy modes refuse storage outright; nothing to restore.
-    }
-    if (!savedId || !outputPortsRef.current.has(savedId)) return;
-
-    // Deferred to a microtask rather than set synchronously here: this is a
-    // reaction to the port list having just arrived, not a value derivable
-    // from props on the spot, and queuing it is what keeps the effect itself
-    // from also being the render that consumes its own update.
-    const id = savedId;
-    queueMicrotask(() => setSelectedOutputId(id));
-  }, [outputs, outputPortsRef]);
-
-  useEffect(() => {
-    selectedPortRef.current = selectedOutputId
-      ? (outputPortsRef.current.get(selectedOutputId) ?? null)
-      : null;
-  }, [selectedOutputId, outputs, outputPortsRef]);
+  const bpmRef = useLatest(bpm);
 
   const selectOutput = useCallback(
     (id: string | null) => {
-      setSelectedOutputId(id);
-      try {
-        if (id) localStorage.setItem(MIDI_OUTPUT_STORAGE_KEY, id);
-        else localStorage.removeItem(MIDI_OUTPUT_STORAGE_KEY);
-      } catch {
-        // Still selected for this visit; it just won't be waiting next time.
-      }
+      rememberOutput(id);
 
       // Lets a device chosen mid-playback join in right away, rather than
       // silently receiving clock with no Start ever having told it to listen.
@@ -91,7 +60,7 @@ export function useMidiClockOutput({
         outputPortsRef.current.get(id)?.send([MIDI_START]);
       }
     },
-    [isPlaying, outputPortsRef],
+    [isPlaying, outputPortsRef, rememberOutput],
   );
 
   // The steady 24-pulses-per-quarter-note train, on its own lookahead loop
@@ -106,9 +75,19 @@ export function useMidiClockOutput({
     if (!isPlaying) return;
 
     const context = ensureContext();
-    let nextPulseTime = context.currentTime;
+    // The same offset the step scheduler starts from, so the pulse train and
+    // the audio leave the gate together instead of the clock running ahead of
+    // everything a listener actually hears.
+    let nextPulseTime = context.currentTime + START_DELAY_S;
     let cancelled = false;
     let timeoutId: number;
+    /**
+     * Every queued pulse, so stopping can drop the ones still in flight.
+     * Without this the up-to-lookahead of already-scheduled bytes arrive after
+     * the Stop sent below, and a slaved device hears the transport stop and
+     * then keep ticking.
+     */
+    const pulseTimeouts = new Set<number>();
 
     const pump = () => {
       if (cancelled) return;
@@ -124,7 +103,11 @@ export function useMidiClockOutput({
             0,
             (nextPulseTime - context.currentTime) * 1000,
           );
-          window.setTimeout(() => port.send([MIDI_CLOCK]), delayMs);
+          const pulseId = window.setTimeout(() => {
+            pulseTimeouts.delete(pulseId);
+            port.send([MIDI_CLOCK]);
+          }, delayMs);
+          pulseTimeouts.add(pulseId);
         }
         nextPulseTime += secondsPerMidiClockPulse(bpmRef.current);
       }
@@ -137,8 +120,12 @@ export function useMidiClockOutput({
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
+      for (const pulseId of pulseTimeouts) {
+        window.clearTimeout(pulseId);
+      }
+      pulseTimeouts.clear();
     };
-  }, [isPlaying, ensureContext]);
+  }, [bpmRef, isPlaying, ensureContext]);
 
   // Start and Stop are single real-time bytes with nothing to queue ahead of
   // time, so this just fires the instant the transport flips rather than

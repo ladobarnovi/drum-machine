@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, MouseEvent } from "react";
+import { memo, type KeyboardEvent, type MouseEvent } from "react";
 
 import { contextMenuAnchor, isContextMenuKey } from "@/lib/contextMenu";
 import { channelDisplayName, type Channel } from "@/lib/sequencer";
@@ -19,20 +19,26 @@ type ChannelPadProps = {
   isCompact: boolean;
   /** Hands the level bar to the loop that drives it; see `useChannelMeters`. */
   meterRef: (element: HTMLElement | null) => void;
-  onSelect: () => void;
+  /*
+   * Each takes the channel it acts on rather than closing over it, so the grid
+   * can hand the same function to all sixteen pads. Bound per pad, every one of
+   * these would be a fresh closure on each render of the grid — which is what
+   * `memo` below exists to stop mattering.
+   */
+  onSelect: (channelId: string) => void;
   /** Plays the channel's sample once, independently of the transport. */
-  onPreview: () => void;
-  onToggleMute: () => void;
-  onToggleSolo: () => void;
+  onPreview: (channelId: string) => void;
+  onToggleMute: (channelId: string) => void;
+  onToggleSolo: (channelId: string) => void;
   /** A right click anywhere on the pad: raises the channel's action menu. */
-  onContextMenu: (x: number, y: number) => void;
+  onContextMenu: (channelId: string, x: number, y: number) => void;
 };
 
 const TOGGLE_BASE =
   "flex-1 rounded border py-0.5 text-[10px] leading-4 font-semibold transition-colors cursor-pointer";
 const TOGGLE_OFF = "border-edge text-muted hover:bg-raised";
 
-export default function ChannelPad({
+function ChannelPad({
   channel,
   index,
   isSelected,
@@ -53,13 +59,13 @@ export default function ChannelPad({
   // Alt+click auditions the channel on top of selecting it, so a sample can be
   // heard without running the transport.
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    onSelect();
-    if (event.altKey) onPreview();
+    onSelect(channel.id);
+    if (event.altKey) onPreview(channel.id);
   };
 
   const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
-    onContextMenu(event.clientX, event.clientY);
+    onContextMenu(channel.id, event.clientX, event.clientY);
   };
 
   /**
@@ -73,7 +79,7 @@ export default function ChannelPad({
 
     event.preventDefault();
     const { x, y } = contextMenuAnchor(event.currentTarget);
-    onContextMenu(x, y);
+    onContextMenu(channel.id, x, y);
   };
 
   const selection = isSelected ? "border-select bg-select-soft" : "border-edge";
@@ -140,7 +146,7 @@ export default function ChannelPad({
         <div className="flex gap-1">
           <button
             type="button"
-            onClick={onToggleMute}
+            onClick={() => onToggleMute(channel.id)}
             aria-pressed={channel.muted}
             aria-label={`Mute channel ${displayName}`}
             title={`Mute ${displayName}`}
@@ -153,7 +159,7 @@ export default function ChannelPad({
 
           <button
             type="button"
-            onClick={onToggleSolo}
+            onClick={() => onToggleSolo(channel.id)}
             aria-pressed={channel.soloed}
             aria-label={`Solo channel ${displayName}`}
             title={`Solo ${displayName}`}
@@ -168,3 +174,10 @@ export default function ChannelPad({
     </div>
   );
 }
+
+/**
+ * Memoised: the grid above re-renders whenever any pad lights up, and there are
+ * sixteen of these. With the handlers no longer bound per pad, the only pads
+ * that re-render are the ones whose own channel, selection or trigger changed.
+ */
+export default memo(ChannelPad);

@@ -127,11 +127,11 @@ export default function ChannelGrid({
             isTriggered={flashedChannelIds.has(channel.id)}
             isCompact={isCompact}
             meterRef={registerMeter(channel.id)}
-            onSelect={() => onSelectChannel(channel.id)}
-            onPreview={() => onPreviewChannel(channel.id)}
-            onToggleMute={() => onToggleMute(channel.id)}
-            onToggleSolo={() => onToggleSolo(channel.id)}
-            onContextMenu={(x, y) => onChannelContextMenu(channel.id, x, y)}
+            onSelect={onSelectChannel}
+            onPreview={onPreviewChannel}
+            onToggleMute={onToggleMute}
+            onToggleSolo={onToggleSolo}
+            onContextMenu={onChannelContextMenu}
           />
         ))}
       </div>

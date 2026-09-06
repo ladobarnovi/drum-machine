@@ -1,5 +1,10 @@
 "use client";
 
+import PlotFrame from "./PlotFrame";
+import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH, linePath, toX } from "./plotGeometry";
+
+import { memo, useMemo } from "react";
+
 import {
   envelopeActiveStages,
   envelopeCurve,
@@ -22,8 +27,6 @@ type EnvelopeGraphProps = {
 };
 
 /** The plot's own coordinate space. Stretched to fill whatever width it gets. */
-const VIEWBOX_WIDTH = 1000;
-const VIEWBOX_HEIGHT = 400;
 
 type Stage = {
   id: string;
@@ -42,17 +45,19 @@ type Stage = {
  * held — so its plateau is drawn a fixed width purely to give the level
  * somewhere to sit before release, where there is one, takes it back down.
  */
-export default function EnvelopeGraph({
+function EnvelopeGraph({
   attackSeconds,
   decaySeconds,
   sustainLevel,
   releaseSeconds,
 }: EnvelopeGraphProps) {
-  const curve = envelopeCurve(
-    attackSeconds,
-    decaySeconds,
-    sustainLevel,
-    releaseSeconds,
+  // Held against the four stage times: the curve is sampled at over a hundred
+  // points, and the transport re-renders this card on every step whether or not
+  // the envelope has moved.
+  const curve = useMemo(
+    () =>
+      envelopeCurve(attackSeconds, decaySeconds, sustainLevel, releaseSeconds),
+    [attackSeconds, decaySeconds, sustainLevel, releaseSeconds],
   );
   const positions = envelopeStagePositions(
     attackSeconds,
@@ -67,15 +72,13 @@ export default function EnvelopeGraph({
     releaseSeconds,
   );
 
-  const toX = (position: number) => position * VIEWBOX_WIDTH;
   const toY = (level: number) => (1 - level) * VIEWBOX_HEIGHT;
 
-  const line = curve
-    .map(
-      (point, index) =>
-        `${index === 0 ? "M" : "L"} ${toX(point.position)} ${toY(point.level)}`,
-    )
-    .join(" ");
+  const line = linePath(
+    curve,
+    (point) => toX(point.position),
+    (point) => toY(point.level),
+  );
 
   // The same outline closed along the bottom of the frame, so the envelope
   // reads as a shape with weight rather than as a line with two sides.
@@ -117,70 +120,72 @@ export default function EnvelopeGraph({
   const dividers = stages.slice(1).map((stage) => stage.start);
 
   return (
-    <div className="border-line bg-panel relative h-16 overflow-hidden rounded border md:h-24">
-      <svg
-        viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-        // Stretch freely: this is a shape overview like the filter's, not a
-        // plot anyone is going to measure a time off. Every stroke below is
-        // non-scaling, so nothing comes out thicker in one direction than the
-        // other for it.
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={`Amplitude envelope. Attack ${
-          isAttackBypassed(attackSeconds) ? "off" : formatSeconds(attackSeconds)
-        }, decay ${
-          isDecayBypassed(decaySeconds) ? "off" : formatSeconds(decaySeconds)
-        }, sustain ${
-          isSustainBypassed(sustainLevel) ? "off" : formatSustain(sustainLevel)
-        }, release ${
-          isReleaseBypassed(releaseSeconds)
-            ? "off"
-            : formatSeconds(releaseSeconds)
-        }.`}
-        className="text-accent size-full"
-      >
-        {dividers.map((position) => (
-          <line
-            key={position}
-            x1={toX(position)}
-            y1={0}
-            x2={toX(position)}
-            y2={VIEWBOX_HEIGHT}
-            stroke="var(--fg)"
-            strokeWidth={1}
-            opacity={0.1}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-
-        <path d={area} fill="currentColor" opacity={0.18} />
-        <path
-          d={line}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinejoin="round"
+    <PlotFrame
+      width={VIEWBOX_WIDTH}
+      height={VIEWBOX_HEIGHT}
+      overlay={
+        <>
+          {/* One letter per stage, centred in its own region along the bottom —
+            HTML over the plot for the same reason `FilterGraph`'s tags are: a
+            letter drawn into a plot stretched to an arbitrary width would come
+            out smeared. */}
+          {stages.map((stage) => (
+            <span
+              key={stage.id}
+              aria-hidden
+              className="text-muted pointer-events-none absolute bottom-0.5 text-[9px] font-semibold"
+              style={{
+                left: `${((stage.start + stage.end) / 2) * 100}%`,
+                transform: "translateX(-50%)",
+              }}
+            >
+              {stage.tag}
+            </span>
+          ))}
+        </>
+      }
+      label={`Amplitude envelope. Attack ${
+        isAttackBypassed(attackSeconds) ? "off" : formatSeconds(attackSeconds)
+      }, decay ${
+        isDecayBypassed(decaySeconds) ? "off" : formatSeconds(decaySeconds)
+      }, sustain ${
+        isSustainBypassed(sustainLevel) ? "off" : formatSustain(sustainLevel)
+      }, release ${
+        isReleaseBypassed(releaseSeconds)
+          ? "off"
+          : formatSeconds(releaseSeconds)
+      }.`}
+    >
+      {dividers.map((position) => (
+        <line
+          key={position}
+          x1={toX(position)}
+          y1={0}
+          x2={toX(position)}
+          y2={VIEWBOX_HEIGHT}
+          stroke="var(--fg)"
+          strokeWidth={1}
+          opacity={0.1}
           vectorEffect="non-scaling-stroke"
         />
-      </svg>
-
-      {/* One letter per stage, centred in its own region along the bottom —
-          HTML over the plot for the same reason `FilterGraph`'s tags are: a
-          letter drawn into a plot stretched to an arbitrary width would come
-          out smeared. */}
-      {stages.map((stage) => (
-        <span
-          key={stage.id}
-          aria-hidden
-          className="text-muted pointer-events-none absolute bottom-0.5 text-[9px] font-semibold"
-          style={{
-            left: `${((stage.start + stage.end) / 2) * 100}%`,
-            transform: "translateX(-50%)",
-          }}
-        >
-          {stage.tag}
-        </span>
       ))}
-    </div>
+
+      <path d={area} fill="currentColor" opacity={0.18} />
+      <path
+        d={line}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </PlotFrame>
   );
 }
+
+/**
+ * Memoised because the transport re-renders the card this sits in on every
+ * step, and none of what it draws changes with the playhead — only with the
+ * values it is handed.
+ */
+export default memo(EnvelopeGraph);

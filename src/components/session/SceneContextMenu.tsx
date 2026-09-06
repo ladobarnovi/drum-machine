@@ -1,7 +1,6 @@
 "use client";
 
-import ContextMenu from "@/components/ui/ContextMenu";
-import ContextMenuItem from "@/components/ui/ContextMenuItem";
+import ActionMenu from "@/components/ui/ActionMenu";
 
 type SceneContextMenuProps = {
   x: number;
@@ -27,24 +26,17 @@ export default function SceneContextMenu({
   clearDisabled,
   onClearScene,
 }: SceneContextMenuProps) {
-  const run = (action: () => void) => () => {
-    action();
-    onClose();
-  };
-
   return (
-    <ContextMenu x={x} y={y} label="Scene actions" onClose={onClose}>
-      <ContextMenuItem onClick={run(onSaveScene)}>
-        Save mutes here
-      </ContextMenuItem>
-
-      <ContextMenuItem disabled={renameDisabled} onClick={run(onRenameScene)}>
-        Rename
-      </ContextMenuItem>
-
-      <ContextMenuItem disabled={clearDisabled} onClick={run(onClearScene)}>
-        Clear
-      </ContextMenuItem>
-    </ContextMenu>
+    <ActionMenu
+      x={x}
+      y={y}
+      label="Scene actions"
+      onClose={onClose}
+      items={[
+        { label: "Save mutes here", onSelect: onSaveScene },
+        { label: "Rename", disabled: renameDisabled, onSelect: onRenameScene },
+        { label: "Clear", disabled: clearDisabled, onSelect: onClearScene },
+      ]}
+    />
   );
 }

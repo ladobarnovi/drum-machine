@@ -2,14 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useLatest } from "@/hooks/useLatest";
 import { secondsToNextStep } from "@/lib/sequencer";
 
 /** How often the scheduler wakes up to look for notes to queue. */
 const SCHEDULER_INTERVAL_MS = 25;
 /** How far ahead of the audio clock notes are queued. */
 const SCHEDULE_AHEAD_TIME_S = 0.1;
-/** Small offset so the first step isn't scheduled in the past. */
-const START_DELAY_S = 0.05;
+/**
+ * Small offset so the first step isn't scheduled in the past.
+ *
+ * Exported because anything else that starts with the transport has to start
+ * from the same instant — the MIDI clock train included, which would otherwise
+ * run this far ahead of everything a listener hears.
+ */
+export const START_DELAY_S = 0.05;
 
 type UseSequencerOptions = {
   bpm: number;
@@ -40,25 +47,25 @@ export function useSequencer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTick, setCurrentTick] = useState<number | null>(null);
 
-  const bpmRef = useRef(bpm);
-  const swingRef = useRef(swing);
-  const onStepRef = useRef(onStep);
+  // Read through refs so an edit mid-playback applies to the next step queued
+  // rather than waiting for the transport to be restarted.
+  const bpmRef = useLatest(bpm);
+  const swingRef = useLatest(swing);
+  const onStepRef = useLatest(onStep);
   const nextTickRef = useRef(0);
   const nextNoteTimeRef = useRef(0);
   const schedulerTimeoutRef = useRef<number | null>(null);
+  /**
+   * Whether a pump loop is already running.
+   *
+   * Not `isPlaying`: that is state, so both callers guard on a value that is a
+   * render behind. Two MIDI Start bytes in one task would both read `false`,
+   * start a second loop, and leave the first one running for the life of the
+   * page — only the later timeout id survives in `schedulerTimeoutRef` for
+   * `stop` to clear.
+   */
+  const playingRef = useRef(false);
   const visualTimeoutsRef = useRef(new Set<number>());
-
-  useEffect(() => {
-    bpmRef.current = bpm;
-  }, [bpm]);
-
-  useEffect(() => {
-    swingRef.current = swing;
-  }, [swing]);
-
-  useEffect(() => {
-    onStepRef.current = onStep;
-  }, [onStep]);
 
   const clearTimers = useCallback(() => {
     if (schedulerTimeoutRef.current !== null) {
@@ -74,16 +81,17 @@ export function useSequencer({
   useEffect(() => clearTimers, [clearTimers]);
 
   const stop = useCallback(() => {
+    playingRef.current = false;
     setIsPlaying(false);
     setCurrentTick(null);
     clearTimers();
   }, [clearTimers]);
 
   const play = useCallback(() => {
+    if (playingRef.current) return;
+    playingRef.current = true;
+
     const context = ensureContext();
-    if (context.state === "suspended") {
-      void context.resume();
-    }
 
     nextTickRef.current = 0;
     nextNoteTimeRef.current = context.currentTime + START_DELAY_S;
@@ -122,7 +130,7 @@ export function useSequencer({
     };
 
     pump();
-  }, [ensureContext]);
+  }, [bpmRef, ensureContext, onStepRef, swingRef]);
 
   return { isPlaying, currentTick, play, stop };
 }

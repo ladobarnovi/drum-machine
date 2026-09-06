@@ -1,3 +1,4 @@
+import { isRecord, readNumber, readString } from "./wireValues";
 import { findLibrarySample } from "./sampleLibrary";
 import {
   CHANNEL_COUNT,
@@ -852,19 +853,6 @@ export async function encodeSharedBeat(beat: SharedBeat): Promise<string> {
 
 export type SharedBeatResult =
   { ok: true; beat: SharedBeat } | { ok: false; reason: string };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** A finite number from the wire, or the fallback for anything else. */
-function readNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function readString(value: unknown, fallback: string): string {
-  return typeof value === "string" ? value : fallback;
-}
 
 function decodeLocks(value: unknown): StepLocks | undefined {
   if (!isRecord(value)) return undefined;

@@ -1,3 +1,4 @@
+import { hash01, sampleCurve, type CurvePoint } from "./curve";
 import { clampSend } from "./sequencer";
 
 /**
@@ -15,10 +16,7 @@ import { clampSend } from "./sequencer";
  */
 
 /** One thing to draw: where it sits across the tile, 0..1, and how tall, 0..1. */
-export type FxPoint = {
-  position: number;
-  level: number;
-};
+export type FxPoint = CurvePoint;
 
 /** Where the dry hit stands in the delay and reverb tiles. */
 const SOURCE_POSITION = 0.07;
@@ -132,12 +130,12 @@ export function reverbPicture(send: number): ReverbPicture {
     // Scattered from the index rather than at random, so the same send draws
     // the same tile every render — a wash that reshuffled on every keystroke
     // would read as noise in the UI rather than as a picture of one.
-    const fraction = scatter(index);
+    const fraction = hash01(index);
     return {
       position: SOURCE_POSITION + fraction * length,
       // Each reflection is somewhere under the outline rather than on it,
       // which is what gives the wash depth instead of a hard ceiling.
-      level: levelAt(fraction) * (0.3 + 0.7 * scatter(index + 101)),
+      level: levelAt(fraction) * (0.3 + 0.7 * hash01(index + 101)),
     };
   }).filter((grain) => grain.level >= VISIBLE_LEVEL * 0.5);
 
@@ -182,23 +180,12 @@ const CURVE_POINTS = 128;
 export function phaserCurve(send: number): FxPoint[] {
   const depth = clampSend(send) * MAX_NOTCH_DEPTH;
 
-  return Array.from({ length: CURVE_POINTS }, (_, index) => {
-    const position = index / (CURVE_POINTS - 1);
+  return sampleCurve(CURVE_POINTS, (position) => {
     const crest = Math.pow(
       Math.abs(Math.sin(Math.PI * NOTCH_COUNT * position)),
       NOTCH_SHARPNESS,
     );
 
-    return { position, level: PHASER_FLAT_LEVEL - depth * (1 - crest) };
+    return PHASER_FLAT_LEVEL - depth * (1 - crest);
   });
-}
-
-/**
- * A repeatable 0..1 from a whole number — the usual fractional-sine hash. A
- * fixed scatter rather than a random one, so a tile is the same picture every
- * time it is drawn instead of crawling under its own re-renders.
- */
-function scatter(index: number): number {
-  const value = Math.sin((index + 1) * 12.9898) * 43758.5453;
-  return value - Math.floor(value);
 }

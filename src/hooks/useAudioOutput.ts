@@ -57,10 +57,25 @@ export function useAudioOutput({ applyAudioOutput }: UseAudioOutputOptions) {
     SYSTEM_DEFAULT_SINK_ID,
   );
 
+  /**
+   * Cleared on unmount, so the awaits below don't write into a component that
+   * has gone. The effect-local `cancelled` flag can't cover this: `refresh` is
+   * shared with the `devicechange` listener, which calls it directly.
+   */
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const refresh = useCallback(async () => {
     const list = await listAudioOutputs();
-    setOutputs(list.devices);
-    setNamesHidden(list.namesHidden);
+    if (mountedRef.current) {
+      setOutputs(list.devices);
+      setNamesHidden(list.namesHidden);
+    }
     return list.devices;
   }, []);
 

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 
+import { useLatest } from "@/hooks/useLatest";
+import { useRememberedDeviceId } from "@/hooks/useRememberedDeviceId";
 import type { MidiAccess } from "@/hooks/useMidiAccess";
 import {
   MIDI_INPUT_STORAGE_KEY,
@@ -52,51 +54,19 @@ export function useMidiInput({
   onTransportStop,
 }: UseMidiInputOptions) {
   const { supported, inputs, inputPortsRef } = access;
-  const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
-  const onNoteOnRef = useRef(onNoteOn);
-  useEffect(() => {
-    onNoteOnRef.current = onNoteOn;
-  }, [onNoteOn]);
-  const onControlChangeRef = useRef(onControlChange);
-  useEffect(() => {
-    onControlChangeRef.current = onControlChange;
-  }, [onControlChange]);
-  const onClockTickRef = useRef(onClockTick);
-  useEffect(() => {
-    onClockTickRef.current = onClockTick;
-  }, [onClockTick]);
-  const onTransportStartRef = useRef(onTransportStart);
-  useEffect(() => {
-    onTransportStartRef.current = onTransportStart;
-  }, [onTransportStart]);
-  const onTransportStopRef = useRef(onTransportStop);
-  useEffect(() => {
-    onTransportStopRef.current = onTransportStop;
-  }, [onTransportStop]);
-
-  // Restores a previous session's choice once there is something to restore
-  // it onto — a saved id with no matching port is left unselected rather than
-  // picked up silently the moment a same-named device is plugged back in.
-  const restoredRef = useRef(false);
-  useEffect(() => {
-    if (restoredRef.current || inputs.length === 0) return;
-    restoredRef.current = true;
-
-    let savedId: string | null = null;
-    try {
-      savedId = localStorage.getItem(MIDI_INPUT_STORAGE_KEY);
-    } catch {
-      // Some privacy modes refuse storage outright; nothing to restore.
-    }
-    if (!savedId || !inputPortsRef.current.has(savedId)) return;
-
-    // Deferred to a microtask rather than set synchronously here: this is a
-    // reaction to the port list having just arrived, not a value derivable
-    // from props on the spot, and queuing it is what keeps the effect itself
-    // from also being the render that consumes its own update.
-    const id = savedId;
-    queueMicrotask(() => setSelectedInputId(id));
-  }, [inputs, inputPortsRef]);
+  const [selectedInputId, selectInput] = useRememberedDeviceId(
+    MIDI_INPUT_STORAGE_KEY,
+    inputs,
+    (id) => inputPortsRef.current.has(id),
+  );
+  // Read through refs so the port's handler below is bound once and still calls
+  // the current callbacks; listing them as dependencies would rebind on every
+  // render of the machine above.
+  const onNoteOnRef = useLatest(onNoteOn);
+  const onControlChangeRef = useLatest(onControlChange);
+  const onClockTickRef = useLatest(onClockTick);
+  const onTransportStartRef = useLatest(onTransportStart);
+  const onTransportStopRef = useLatest(onTransportStop);
 
   // Attaches the listener to whichever port is selected, and only that one —
   // a controller left plugged in but not chosen stays silent.
@@ -140,17 +110,16 @@ export function useMidiInput({
     return () => {
       input.onmidimessage = null;
     };
-  }, [selectedInputId, inputs, inputPortsRef]);
-
-  const selectInput = useCallback((id: string | null) => {
-    setSelectedInputId(id);
-    try {
-      if (id) localStorage.setItem(MIDI_INPUT_STORAGE_KEY, id);
-      else localStorage.removeItem(MIDI_INPUT_STORAGE_KEY);
-    } catch {
-      // Still selected for this visit; it just won't be waiting next time.
-    }
-  }, []);
+  }, [
+    selectedInputId,
+    inputs,
+    inputPortsRef,
+    onClockTickRef,
+    onControlChangeRef,
+    onNoteOnRef,
+    onTransportStartRef,
+    onTransportStopRef,
+  ]);
 
   return { supported, inputs, selectedInputId, selectInput };
 }

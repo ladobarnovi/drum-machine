@@ -1,7 +1,6 @@
 "use client";
 
-import ContextMenu from "@/components/ui/ContextMenu";
-import ContextMenuItem from "@/components/ui/ContextMenuItem";
+import ActionMenu from "@/components/ui/ActionMenu";
 
 type ChannelContextMenuProps = {
   x: number;
@@ -24,8 +23,6 @@ type ChannelContextMenuProps = {
   onToggleSolo: () => void;
 };
 
-const dividerClass = "border-line my-0.5 border-t";
-
 /** The menu a right click on a channel pad raises. */
 export default function ChannelContextMenu({
   x,
@@ -44,55 +41,36 @@ export default function ChannelContextMenu({
   soloed,
   onToggleSolo,
 }: ChannelContextMenuProps) {
-  const run = (action: () => void) => () => {
-    action();
-    onClose();
-  };
-
   return (
-    <ContextMenu
+    <ActionMenu
       x={x}
       y={y}
       label="Channel actions"
       onClose={onClose}
       width="w-44"
-    >
-      <ContextMenuItem onClick={run(onClearSteps)}>Clear Steps</ContextMenuItem>
-
-      <ContextMenuItem onClick={run(onCopySteps)}>Copy Steps</ContextMenuItem>
-
-      <ContextMenuItem
-        disabled={pasteStepsDisabled}
-        onClick={run(onPasteSteps)}
-      >
-        Paste Steps
-      </ContextMenuItem>
-
-      <div className={dividerClass} aria-hidden />
-
-      <ContextMenuItem
-        disabled={copySampleDisabled}
-        onClick={run(onCopySample)}
-      >
-        Copy Sample
-      </ContextMenuItem>
-
-      <ContextMenuItem
-        disabled={pasteSampleDisabled}
-        onClick={run(onPasteSample)}
-      >
-        Paste Sample
-      </ContextMenuItem>
-
-      <div className={dividerClass} aria-hidden />
-
-      <ContextMenuItem onClick={run(onToggleMute)}>
-        {muted ? "Unmute" : "Mute"}
-      </ContextMenuItem>
-
-      <ContextMenuItem onClick={run(onToggleSolo)}>
-        {soloed ? "Unsolo" : "Solo"}
-      </ContextMenuItem>
-    </ContextMenu>
+      items={[
+        { label: "Clear Steps", onSelect: onClearSteps },
+        { label: "Copy Steps", onSelect: onCopySteps },
+        {
+          label: "Paste Steps",
+          disabled: pasteStepsDisabled,
+          onSelect: onPasteSteps,
+        },
+        "divider",
+        {
+          label: "Copy Sample",
+          disabled: copySampleDisabled,
+          onSelect: onCopySample,
+        },
+        {
+          label: "Paste Sample",
+          disabled: pasteSampleDisabled,
+          onSelect: onPasteSample,
+        },
+        "divider",
+        { label: muted ? "Unmute" : "Mute", onSelect: onToggleMute },
+        { label: soloed ? "Unsolo" : "Solo", onSelect: onToggleSolo },
+      ]}
+    />
   );
 }

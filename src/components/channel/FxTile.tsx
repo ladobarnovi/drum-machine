@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import PlotFrame from "./PlotFrame";
 import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH } from "./fxTileGeometry";
 
 /**
@@ -21,22 +22,16 @@ export default function FxTile({
   children: ReactNode;
 }) {
   return (
-    <div className="border-line bg-panel relative h-16 overflow-hidden rounded border md:h-24">
-      <svg
-        viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-        // Stretch freely, as the other two graphs do: every stroke below is
-        // non-scaling, so nothing comes out thicker in one direction than in
-        // the other for it.
-        preserveAspectRatio="none"
-        aria-hidden
-        className="text-accent size-full"
-      >
-        {children}
-      </svg>
-
-      <span className="text-muted pointer-events-none absolute top-1 right-1.5 text-[9px] font-semibold tracking-wide uppercase">
-        {label}
-      </span>
-    </div>
+    <PlotFrame
+      width={VIEWBOX_WIDTH}
+      height={VIEWBOX_HEIGHT}
+      overlay={
+        <span className="text-muted pointer-events-none absolute top-1 right-1.5 text-[9px] font-semibold tracking-wide uppercase">
+          {label}
+        </span>
+      }
+    >
+      {children}
+    </PlotFrame>
   );
 }

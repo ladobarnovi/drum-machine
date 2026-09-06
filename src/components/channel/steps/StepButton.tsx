@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  memo,
   useCallback,
   useRef,
   type KeyboardEvent,
@@ -90,15 +91,22 @@ type StepButtonProps = {
   /** Whether this is the step the controls panel is currently editing. */
   isEditing: boolean;
   label: string;
+  /** Where this step sits in the whole pattern; handed back to every callback. */
+  stepIndex: number;
+  /*
+   * Each takes the step it acts on rather than closing over it, so the beat
+   * above can hand the same function to every button. Bound per step, these six
+   * would be a fresh closure each — up to 384 of them per render of the grid.
+   */
   /** A plain click: toggles the step, or closes whichever step is open. */
-  onClick: () => void;
+  onClick: (stepIndex: number) => void;
   /** A held press or a swipe: opens this step for editing. */
-  onHold: () => void;
-  onVelocityChange: (velocity: number) => void;
-  onPitchChange: (semitones: number) => void;
-  onSliceChange: (slice: number) => void;
+  onHold: (stepIndex: number) => void;
+  onVelocityChange: (stepIndex: number, velocity: number) => void;
+  onPitchChange: (stepIndex: number, semitones: number) => void;
+  onSliceChange: (stepIndex: number, slice: number) => void;
   /** A right click: raises the step's action menu at the pointer. */
-  onContextMenu: (x: number, y: number) => void;
+  onContextMenu: (stepIndex: number, x: number, y: number) => void;
 };
 
 /**
@@ -111,7 +119,7 @@ type StepButtonProps = {
  * deliberate move and making it wait would put a third of a second in front of
  * every accent — the hold is what is left for a press that goes nowhere.
  */
-export default function StepButton({
+function StepButton({
   step,
   channelPitch,
   sliceCount,
@@ -120,6 +128,7 @@ export default function StepButton({
   isDownbeat,
   isEditing,
   label,
+  stepIndex,
   onClick,
   onHold,
   onVelocityChange,
@@ -158,9 +167,9 @@ export default function StepButton({
     slice,
   };
   const swipeHandlers: Record<SwipeTarget, (value: number) => void> = {
-    velocity: onVelocityChange,
-    pitch: onPitchChange,
-    slice: onSliceChange,
+    velocity: (value) => onVelocityChange(stepIndex, value),
+    pitch: (value) => onPitchChange(stepIndex, value),
+    slice: (value) => onSliceChange(stepIndex, value),
   };
 
   const swipeValue = swipeValues[swipeTarget];
@@ -177,8 +186,8 @@ export default function StepButton({
 
     gesture.engaged = true;
     suppressClickRef.current = true;
-    onHold();
-  }, [onHold]);
+    onHold(stepIndex);
+  }, [onHold, stepIndex]);
 
   const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     // Anything but the primary button is somebody else's gesture.
@@ -240,7 +249,7 @@ export default function StepButton({
       suppressClickRef.current = false;
       return;
     }
-    onClick();
+    onClick(stepIndex);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -258,7 +267,7 @@ export default function StepButton({
     // the click that toggles, hence the modifier and the prevented default.
     if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
-      onHold();
+      onHold(stepIndex);
       return;
     }
 
@@ -269,7 +278,7 @@ export default function StepButton({
     if (isContextMenuKey(event)) {
       event.preventDefault();
       const { x, y } = contextMenuAnchor(event.currentTarget);
-      onContextMenu(x, y);
+      onContextMenu(stepIndex, x, y);
     }
   };
 
@@ -281,7 +290,7 @@ export default function StepButton({
     event.preventDefault();
     if (event.button !== 2) return;
 
-    onContextMenu(event.clientX, event.clientY);
+    onContextMenu(stepIndex, event.clientX, event.clientY);
   };
 
   const velocity = clampStepVelocity(step.velocity);
@@ -424,3 +433,11 @@ export default function StepButton({
     </button>
   );
 }
+
+/**
+ * Memoised: this is the most numerous component on the page — up to 64 of them
+ * — and the grid around it re-renders on every step of the transport. With the
+ * callbacks no longer bound per step, only the buttons whose own step, playhead
+ * or edit state changed do any work.
+ */
+export default memo(StepButton);

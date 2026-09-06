@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useTransientFlag } from "@/hooks/useTransientFlag";
 
 import { useMidiCcBindings } from "@/hooks/useMidiCcBindings";
 import {
@@ -44,22 +44,7 @@ export default function MidiMappingsPanel({
   channelNames,
 }: MidiMappingsSettings) {
   const { map, learningMapId } = useMidiCcBindings();
-  const [armed, setArmed] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Dropped on unmount, so a pending disarm can't set state on a button that
-  // has gone with the dialog.
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  const disarm = () => {
-    if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-    timeoutRef.current = null;
-    setArmed(false);
-  };
+  const [armed, arm, disarm] = useTransientFlag(ARMED_MS);
 
   /**
    * Two presses rather than one: this is the only control in the machine that
@@ -72,9 +57,7 @@ export default function MidiMappingsPanel({
       return;
     }
 
-    setArmed(true);
-    if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setArmed(false), ARMED_MS);
+    arm();
   };
 
   const rows = Object.entries(map)

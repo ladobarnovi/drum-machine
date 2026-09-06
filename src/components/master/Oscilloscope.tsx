@@ -251,7 +251,7 @@ export default function Oscilloscope({
       scheme.removeEventListener("change", readColours);
       unsubscribe();
     };
-  }, [getWaveform, isPlaying]);
+  }, [compact, getWaveform, isPlaying]);
 
   if (compact) {
     return (
