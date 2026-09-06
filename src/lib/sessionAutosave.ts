@@ -65,23 +65,14 @@ const STORAGE_KEY = "drum-machine-session";
 
 const SESSION_VERSION = 1;
 
-type StoredChannelSnapshot = {
-  volume: number;
-  pan: number;
-  pitch: number;
-  lowCutHz: number;
-  lowCutResonance: number;
-  highCutHz: number;
-  highCutResonance: number;
-  filterSlope: number;
-  attackSeconds: number;
-  decaySeconds: number;
-  sustainLevel: number;
-  releaseSeconds: number;
-  delaySend: number;
-  reverbSend: number;
-  phaserSend: number;
-  chokedBy: string | null;
+/**
+ * A `ChannelSnapshot` with its LFO in wire form.
+ *
+ * Derived rather than restated: written out by hand it silently fell behind —
+ * `filterSlope` had already widened from its union to `number` — and a field
+ * added to the snapshot would simply stop being saved, with nothing to say so.
+ */
+type StoredChannelSnapshot = Omit<ChannelSnapshot, "lfo"> & {
   lfo: ReturnType<typeof encodeLfo>;
 };
 
@@ -116,25 +107,7 @@ function encodeSnapshot(snapshot: ParameterSnapshot): StoredSnapshot {
   const channels: Record<string, StoredChannelSnapshot> = {};
 
   for (const [channelId, channel] of Object.entries(snapshot.channels)) {
-    channels[channelId] = {
-      volume: channel.volume,
-      pan: channel.pan,
-      pitch: channel.pitch,
-      lowCutHz: channel.lowCutHz,
-      lowCutResonance: channel.lowCutResonance,
-      highCutHz: channel.highCutHz,
-      highCutResonance: channel.highCutResonance,
-      filterSlope: channel.filterSlope,
-      attackSeconds: channel.attackSeconds,
-      decaySeconds: channel.decaySeconds,
-      sustainLevel: channel.sustainLevel,
-      releaseSeconds: channel.releaseSeconds,
-      delaySend: channel.delaySend,
-      reverbSend: channel.reverbSend,
-      phaserSend: channel.phaserSend,
-      chokedBy: channel.chokedBy,
-      lfo: encodeLfo(channel.lfo),
-    };
+    channels[channelId] = { ...channel, lfo: encodeLfo(channel.lfo) };
   }
 
   return {
@@ -264,6 +237,10 @@ export async function loadSession(): Promise<RestoredSession | null> {
     return null;
   }
   if (!isRecord(parsed) || typeof parsed.beat !== "string") return null;
+  // Written since the first version but never read until now. A session from a
+  // future version is left alone rather than guessed at: the machine opens on
+  // its defaults, and the next save replaces it.
+  if (readNumber(parsed.v, SESSION_VERSION) > SESSION_VERSION) return null;
 
   const result = await decodeSharedBeat(parsed.beat);
   if (!result.ok) return null;

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MidiAccess } from "@/hooks/useMidiAccess";
+import { START_DELAY_S } from "@/hooks/useSequencer";
 import {
   MIDI_CLOCK,
   MIDI_OUTPUT_STORAGE_KEY,
@@ -106,9 +107,19 @@ export function useMidiClockOutput({
     if (!isPlaying) return;
 
     const context = ensureContext();
-    let nextPulseTime = context.currentTime;
+    // The same offset the step scheduler starts from, so the pulse train and
+    // the audio leave the gate together instead of the clock running ahead of
+    // everything a listener actually hears.
+    let nextPulseTime = context.currentTime + START_DELAY_S;
     let cancelled = false;
     let timeoutId: number;
+    /**
+     * Every queued pulse, so stopping can drop the ones still in flight.
+     * Without this the up-to-lookahead of already-scheduled bytes arrive after
+     * the Stop sent below, and a slaved device hears the transport stop and
+     * then keep ticking.
+     */
+    const pulseTimeouts = new Set<number>();
 
     const pump = () => {
       if (cancelled) return;
@@ -124,7 +135,11 @@ export function useMidiClockOutput({
             0,
             (nextPulseTime - context.currentTime) * 1000,
           );
-          window.setTimeout(() => port.send([MIDI_CLOCK]), delayMs);
+          const pulseId = window.setTimeout(() => {
+            pulseTimeouts.delete(pulseId);
+            port.send([MIDI_CLOCK]);
+          }, delayMs);
+          pulseTimeouts.add(pulseId);
         }
         nextPulseTime += secondsPerMidiClockPulse(bpmRef.current);
       }
@@ -137,6 +152,10 @@ export function useMidiClockOutput({
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
+      for (const pulseId of pulseTimeouts) {
+        window.clearTimeout(pulseId);
+      }
+      pulseTimeouts.clear();
     };
   }, [isPlaying, ensureContext]);
 
