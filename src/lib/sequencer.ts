@@ -1,4 +1,26 @@
 /**
+ * The machine's vocabulary: what every parameter is, what range it lives in,
+ * how a value is held inside that range, and how it reads out.
+ *
+ * Organised by parameter rather than by kind. A cutoff's minimum, its default,
+ * its clamp, its slider curve and its "1.2 kHz" formatter sit together, because
+ * changing one of them almost always means changing its neighbours — a range
+ * that moved without its curve would put the knob's travel in the wrong place.
+ * Splitting the file into constants, clamps and formatters would separate
+ * exactly the things that change together.
+ *
+ * That is also why it is long. The seam that does exist runs the other way:
+ * roughly, definitions first, then the operations on steps and channels, then
+ * the display helpers — but `Channel` is declared among the operations while
+ * the operations use clamps declared among the display helpers, so the three
+ * are not separable without a type-only cycle and boundaries drawn at line
+ * numbers rather than at concepts. Worth revisiting behind tests.
+ *
+ * Nothing here touches React or the Web Audio API. The transport lives in
+ * `hooks/useSequencer` and the audio graph in `lib/audioGraph`.
+ */
+
+/**
  * Holds a number inside a range, falling back when it isn't one at all.
  *
  * Every value that reaches this module from outside — a slider, a MIDI CC, a
