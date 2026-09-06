@@ -1,3 +1,4 @@
+import { isRecord, readNumber } from "./wireValues";
 import {
   DEFAULT_ATTACK_SECONDS,
   DEFAULT_DECAY_SECONDS,
@@ -89,14 +90,6 @@ type StoredSession = {
   masterVolume: number;
   snapshot: StoredSnapshot | null;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
 
 /**
  * The header snapshot, packed with the same wire helpers a link uses for the

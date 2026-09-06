@@ -1,3 +1,4 @@
+import { hashSigned, sampleCurve, type CurvePoint } from "./curve";
 import {
   clamp,
   clampLfoAmount,
@@ -27,12 +28,7 @@ import type { LfoShape } from "./sequencer";
  * there — -1 at the bottom of its travel, +1 at the top, with the destination's
  * own dialled-in value sitting at 0.
  */
-export type LfoPoint = {
-  /** Position across the plot, 0..1. */
-  position: number;
-  /** Swing at that point, -1..1. */
-  level: number;
-};
+export type LfoPoint = CurvePoint;
 
 /**
  * How many cycles the plot shows at the slowest rate and at the fastest.
@@ -123,11 +119,9 @@ type SmoothShape = Exclude<LfoShape, SteppedShape>;
 function sampledCurve(shape: SmoothShape, cycles: number): LfoPoint[] {
   const points = cycles * POINTS_PER_CYCLE + 1;
 
-  return Array.from({ length: points }, (_, index) => {
-    const position = index / (points - 1);
-    const phase = (position * cycles) % 1;
-    return { position, level: levelAtPhase(shape, phase) };
-  });
+  return sampleCurve(points, (position) =>
+    levelAtPhase(shape, (position * cycles) % 1),
+  );
 }
 
 /**
@@ -150,8 +144,13 @@ function steppedCurve(shape: SteppedShape, cycles: number): LfoPoint[] {
   // A square's holds simply alternate, high for the first half of each cycle
   // and low for the second; sample-and-hold's are a fresh value per cycle,
   // wrapped so the closing point below asks for the one it opened with.
+  //
+  // Hashed rather than actually drawn at random: a plot that reshuffled itself
+  // on every keystroke would read as noise rather than as a picture of a shape.
+  // The audio side is free to be genuinely random, since nobody is matching a
+  // heard value against a drawn one.
   const levelOfHold = (hold: number) =>
-    shape === "square" ? (hold % 2 === 0 ? 1 : -1) : held(hold % cycles);
+    shape === "square" ? (hold % 2 === 0 ? 1 : -1) : hashSigned(hold % cycles);
 
   const points: LfoPoint[] = [];
 
@@ -182,16 +181,3 @@ function levelAtPhase(shape: SmoothShape, phase: number): number {
   }
 }
 
-/**
- * The value sample-and-hold holds for a given cycle.
- *
- * Hashed from the cycle's number rather than actually drawn at random — the
- * same fixed-scatter trick `fxResponse` uses, and for the same reason: a plot
- * that reshuffled itself on every keystroke would read as noise in the UI
- * rather than as a picture of a shape. The audio side is free to be genuinely
- * random, since nobody is matching a heard value against a drawn one.
- */
-function held(cycle: number): number {
-  const value = Math.sin((cycle + 1) * 12.9898) * 43758.5453;
-  return 2 * (value - Math.floor(value)) - 1;
-}

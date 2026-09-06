@@ -1,3 +1,4 @@
+import { sampleCurve, type CurvePoint } from "./curve";
 import {
   clampAttack,
   clampDecay,
@@ -20,13 +21,8 @@ import {
  * flat hold rather than a fall nothing plays, and so on down the chain.
  */
 
-/** One plotted point: where it is across the plot, and how loud. */
-export type EnvelopePoint = {
-  /** Position across the plot, 0..1. */
-  position: number;
-  /** Gain at that point, 0..1. */
-  level: number;
-};
+/** One plotted point: where it is across the plot, and how loud — `level` 0..1. */
+export type EnvelopePoint = CurvePoint;
 
 /** Where each stage's region ends, 0..1 across the plot. */
 export type EnvelopeStagePositions = {
@@ -240,9 +236,7 @@ export function envelopeCurve(
   );
   const total = envelopeTotalSeconds(envelope);
 
-  return Array.from({ length: CURVE_POINTS }, (_, index) => {
-    const position = index / (CURVE_POINTS - 1);
-    const seconds = position * total;
-    return { position, level: levelAtSeconds(seconds, envelope) };
-  });
+  return sampleCurve(CURVE_POINTS, (position) =>
+    levelAtSeconds(position * total, envelope),
+  );
 }
