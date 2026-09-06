@@ -41,6 +41,7 @@ import RailTabs from "@/components/ui/RailTabs";
 import { useBanks } from "@/hooks/useBanks";
 import { useChannelFlash } from "@/hooks/useChannelFlash";
 import { useChannelShortcuts } from "@/hooks/useChannelShortcuts";
+import { useMasterChain } from "@/hooks/useMasterChain";
 import { useMasterFilterShortcuts } from "@/hooks/useMasterFilterShortcuts";
 import { useAudioOutput } from "@/hooks/useAudioOutput";
 import { useMidiAccess } from "@/hooks/useMidiAccess";
@@ -57,13 +58,6 @@ import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
 import {
   CHANNEL_COUNT,
   DEFAULT_BPM,
-  DEFAULT_MASTER_COMPRESSOR,
-  DEFAULT_MASTER_DELAY,
-  DEFAULT_MASTER_DRIVE,
-  DEFAULT_MASTER_FILTER,
-  DEFAULT_MASTER_PHASER,
-  DEFAULT_MASTER_REVERB,
-  DEFAULT_MASTER_VOLUME,
   DEFAULT_SAMPLE_END,
   DEFAULT_SAMPLE_MODE,
   DEFAULT_SAMPLE_REVERSED,
@@ -124,12 +118,6 @@ import {
   type ChannelLfo,
   type FilterSlope,
   type LockableParameter,
-  type MasterCompressor,
-  type MasterDelay,
-  type MasterDrive,
-  type MasterFilter,
-  type MasterPhaser,
-  type MasterReverb,
   type ParameterSnapshot,
   type SampleMode,
   type SampleState,
@@ -344,23 +332,6 @@ export default function DrumMachine() {
     DEFAULT_PRESET.id,
   );
 
-  const [masterDrive, setMasterDrive] =
-    useState<MasterDrive>(DEFAULT_MASTER_DRIVE);
-  const [masterFilter, setMasterFilter] = useState<MasterFilter>(
-    DEFAULT_MASTER_FILTER,
-  );
-  const [masterDelay, setMasterDelay] =
-    useState<MasterDelay>(DEFAULT_MASTER_DELAY);
-  const [masterReverb, setMasterReverb] = useState<MasterReverb>(
-    DEFAULT_MASTER_REVERB,
-  );
-  const [masterPhaser, setMasterPhaser] = useState<MasterPhaser>(
-    DEFAULT_MASTER_PHASER,
-  );
-  const [masterCompressor, setMasterCompressor] = useState<MasterCompressor>(
-    DEFAULT_MASTER_COMPRESSOR,
-  );
-  const [masterVolume, setMasterVolume] = useState(DEFAULT_MASTER_VOLUME);
 
   /** The last saved parameter snapshot, or null until one has been taken. */
   const [snapshot, setSnapshot] = useState<ParameterSnapshot | null>(null);
@@ -417,6 +388,36 @@ export default function DrumMachine() {
     choke,
   } = useSampleBank();
 
+  // The master rail holds its own state and pushes each stage to the graph as
+  // it changes; the stages are persistent nodes, so nothing reads them at
+  // trigger time.
+  const {
+    drive: masterDrive,
+    setDrive: setMasterDrive,
+    filter: masterFilter,
+    setFilter: setMasterFilter,
+    delay: masterDelay,
+    setDelay: setMasterDelay,
+    reverb: masterReverb,
+    setReverb: setMasterReverb,
+    phaser: masterPhaser,
+    setPhaser: setMasterPhaser,
+    compressor: masterCompressor,
+    setCompressor: setMasterCompressor,
+    volume: masterVolume,
+    setVolume: setMasterVolume,
+    setStages: setMasterStages,
+  } = useMasterChain({
+    bpm: effectiveBpm,
+    applyDrive: applyMasterDrive,
+    applyFilter: applyMasterFilter,
+    applyDelay: applyMasterDelay,
+    applyReverb: applyMasterReverb,
+    applyPhaser: applyMasterPhaser,
+    applyCompressor: applyMasterCompressor,
+    applyVolume: applyMasterVolume,
+  });
+
   // Bound to the selected channel here rather than in the editor, which is the
   // one place that knows whose sample is on the strip. Stable while the
   // selection is, so the waveform's own frame loop is never restarted by a
@@ -425,40 +426,6 @@ export default function DrumMachine() {
     () => getSamplePosition(selectedChannel.id),
     [getSamplePosition, selectedChannel.id],
   );
-
-  // The master stages are persistent nodes rather than per-hit ones, so they
-  // are pushed across on change instead of being read at trigger time.
-  useEffect(() => {
-    applyMasterDrive(masterDrive);
-  }, [applyMasterDrive, masterDrive]);
-
-  useEffect(() => {
-    applyMasterFilter(masterFilter);
-  }, [applyMasterFilter, masterFilter]);
-
-  // The send buses are persistent too. Only the per-channel send amounts are
-  // read at trigger time, since those ride the voice rather than the bus.
-  // The delay depends on the tempo as well, so a BPM change re-applies it and
-  // a synced delay tracks the transport.
-  useEffect(() => {
-    applyMasterDelay(masterDelay, effectiveBpm);
-  }, [applyMasterDelay, effectiveBpm, masterDelay]);
-
-  useEffect(() => {
-    applyMasterReverb(masterReverb);
-  }, [applyMasterReverb, masterReverb]);
-
-  useEffect(() => {
-    applyMasterPhaser(masterPhaser);
-  }, [applyMasterPhaser, masterPhaser]);
-
-  useEffect(() => {
-    applyMasterCompressor(masterCompressor);
-  }, [applyMasterCompressor, masterCompressor]);
-
-  useEffect(() => {
-    applyMasterVolume(masterVolume);
-  }, [applyMasterVolume, masterVolume]);
 
   // The scheduler runs outside React's render cycle, so it reads the current
   // pattern through a ref rather than through a captured prop.
@@ -1378,7 +1345,7 @@ export default function DrumMachine() {
 
   const handleToggleMasterFilter = useCallback(() => {
     setMasterFilter((prev) => ({ ...prev, enabled: !prev.enabled }));
-  }, []);
+  }, [setMasterFilter]);
 
   useMasterFilterShortcuts({ onToggle: handleToggleMasterFilter });
 
@@ -1516,14 +1483,9 @@ export default function DrumMachine() {
     if (!snapshot) return;
 
     setChannels((prev) => applyChannelSnapshots(prev, snapshot.channels));
-    setMasterDrive(snapshot.drive);
-    setMasterFilter(snapshot.filter);
-    setMasterDelay(snapshot.delay);
-    setMasterReverb(snapshot.reverb);
-    setMasterPhaser(snapshot.phaser);
-    setMasterCompressor(snapshot.compressor);
+    setMasterStages(snapshot);
     setMasterVolume(snapshot.volume);
-  }, [snapshot]);
+  }, [setMasterStages, setMasterVolume, snapshot]);
 
   /**
    * Fills the leading channels with a kit: names and loading state are applied
@@ -1752,12 +1714,7 @@ export default function DrumMachine() {
        * beat. The output fader is deliberately not among them: how loud this
        * arrives is the listener's business.
        */
-      setMasterDrive(beat.master.drive);
-      setMasterFilter(beat.master.filter);
-      setMasterDelay(beat.master.delay);
-      setMasterReverb(beat.master.reverb);
-      setMasterPhaser(beat.master.phaser);
-      setMasterCompressor(beat.master.compressor);
+      setMasterStages(beat.master);
 
       // The step the panel was pointed at belonged to a pattern that has gone.
       setRawEditingStepIndex(null);
@@ -1803,7 +1760,13 @@ export default function DrumMachine() {
 
       setLoadingSharedBeat(false);
     },
-    [ensureContext, loadSampleFromUrl, removeSample, updateChannel],
+    [
+      ensureContext,
+      loadSampleFromUrl,
+      removeSample,
+      setMasterStages,
+      updateChannel,
+    ],
   );
 
   /** Opens a token from the address bar, reporting what happened in the banner. */
@@ -1922,7 +1885,7 @@ export default function DrumMachine() {
       }
       hydratedRef.current = true;
     })();
-  }, [handleLoadPreset, loadSharedBeat, openSharedToken]);
+  }, [handleLoadPreset, loadSharedBeat, openSharedToken, setMasterVolume]);
 
   /**
    * Keeps the live machine on disk so a reload finds it again, instead of the
