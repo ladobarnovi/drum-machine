@@ -2,10 +2,6 @@
 
 import { useState } from "react";
 
-import ChannelControls, {
-  type ChokeOption,
-  type StepEdit,
-} from "./ChannelControls";
 import ChannelNameInput from "./ChannelNameInput";
 import SampleModeControls from "./SampleModeControls";
 import SampleSlot from "./SampleSlot";
@@ -13,7 +9,6 @@ import SampleSourceMenu, { type SampleSourceAnchor } from "./SampleSourceMenu";
 import Waveform from "./Waveform";
 import StepGrid from "./steps/StepGrid";
 import StepPatternControls from "./steps/StepPatternControls";
-import Accordion from "@/components/ui/Accordion";
 import RotaryKnob from "@/components/ui/RotaryKnob";
 import { channelMidiMapId } from "@/lib/midiParameters";
 import type { LibraryEntry } from "@/lib/sampleLibrary";
@@ -85,7 +80,6 @@ type ChannelEditorBaseProps = {
 type SampleSectionProps = {
   showSampleOnly: true;
   showSequencerOnly?: false;
-  showControlsOnly?: false;
   onUpload: (file: File) => void;
   /** One of the bundled samples, picked in the library browser. */
   onLoadLibrarySample: (entry: LibraryEntry) => void;
@@ -104,7 +98,6 @@ type SampleSectionProps = {
    * of the file the Position slider is pointed at. Null while no step is open.
    */
   highlightSlice: number | null;
-  onSampleTrimReset: () => void;
   /** Where in the file this channel is being heard, for the waveform's line. */
   getPlayhead: () => number | null;
   /**
@@ -134,7 +127,6 @@ type SampleSectionProps = {
 type SequencerSectionProps = {
   showSampleOnly?: false;
   showSequencerOnly: true;
-  showControlsOnly?: false;
   currentStep: number | null;
   /** The step the controls panel is editing, or null while none is open. */
   editingStep: number | null;
@@ -158,33 +150,8 @@ type SequencerSectionProps = {
   onLengthChange: (length: number) => void;
 };
 
-/** The per-channel sliders. */
-type ControlsSectionProps = {
-  showSampleOnly?: false;
-  showSequencerOnly?: false;
-  showControlsOnly: true;
-  /**
-   * What the sliders show: the channel's own settings, or those of the step
-   * being edited standing in for them. Resolved by the caller, which is the one
-   * that knows which step — if any — is open.
-   */
-  settings: Channel;
-  /** The other channels, any one of which could be this one's choke source. */
-  chokeOptions: ChokeOption[];
-  /** Set while one step is open, so the panel scopes itself to it. */
-  stepEdit?: StepEdit;
-  onVolumeChange: (volume: number) => void;
-  onPanChange: (pan: number) => void;
-  onPitchChange: (pitch: number) => void;
-  onLowCutChange: (hz: number) => void;
-  onHighCutChange: (hz: number) => void;
-  onAttackChange: (seconds: number) => void;
-  onDecayChange: (seconds: number) => void;
-  onChokedByChange: (channelId: string) => void;
-};
-
 type ChannelEditorProps = ChannelEditorBaseProps &
-  (SampleSectionProps | SequencerSectionProps | ControlsSectionProps);
+  (SampleSectionProps | SequencerSectionProps);
 
 /** One section of the currently selected channel's editor. */
 export default function ChannelEditor(props: ChannelEditorProps) {
@@ -195,8 +162,8 @@ export default function ChannelEditor(props: ChannelEditorProps) {
    * Where the sample-source menu is up, or null while it is shut. Held here
    * rather than inside either control that raises it, because both the strip
    * and the slot do and there is only ever one menu between them. Declared for
-   * all three sections, since a hook cannot sit behind the branch below — the
-   * other two simply never raise it.
+   * both sections, since a hook cannot sit behind the branch below — the
+   * sequencer one simply never raises it.
    */
   const [sourceMenu, setSourceMenu] = useState<SampleSourceAnchor | null>(null);
 
@@ -235,7 +202,6 @@ export default function ChannelEditor(props: ChannelEditorProps) {
           mode={channel.sampleMode}
           sliceCount={channel.sliceCount}
           highlightSlice={props.highlightSlice}
-          onReset={props.onSampleTrimReset}
           getPlayhead={props.getPlayhead}
         />
 
@@ -376,236 +342,200 @@ export default function ChannelEditor(props: ChannelEditorProps) {
     );
   }
 
-  if (props.showSequencerOnly) {
-    // What this channel's grid can be pointed at, and what it is pointed at
-    // now. Resolved here rather than by the machine above, because the answer
-    // comes from the sample in the slot — which this already has in hand —
-    // while the target the machine holds is deliberately not a channel's to
-    // own: it says what you are doing, not what this channel is.
-    const swipeTargets = swipeTargetsFor(channel.sampleMode);
-    const swipeTarget = resolveSwipeTarget(
-      props.swipeTarget,
-      channel.sampleMode,
-    );
+  // What this channel's grid can be pointed at, and what it is pointed at
+  // now. Resolved here rather than by the machine above, because the answer
+  // comes from the sample in the slot — which this already has in hand —
+  // while the target the machine holds is deliberately not a channel's to
+  // own: it says what you are doing, not what this channel is.
+  const swipeTargets = swipeTargetsFor(channel.sampleMode);
+  const swipeTarget = resolveSwipeTarget(
+    props.swipeTarget,
+    channel.sampleMode,
+  );
 
-    // Null on a one shot, which is the whole of what takes the position off
-    // the step buttons — there are no parts for a hit to be at.
-    const sliceCount = isSliced(channel.sampleMode) ? channel.sliceCount : null;
+  // Null on a one shot, which is the whole of what takes the position off
+  // the step buttons — there are no parts for a hit to be at.
+  const sliceCount = isSliced(channel.sampleMode) ? channel.sliceCount : null;
 
-    // The step the grid below has open, if any — held by index so the knobs
-    // below can write back to it the same way the grid's own gestures do.
-    const editingStepIndex = props.editingStep;
-    const openStep =
-      editingStepIndex === null ? null : channel.steps[editingStepIndex];
+  // The step the grid below has open, if any — held by index so the knobs
+  // below can write back to it the same way the grid's own gestures do.
+  const editingStepIndex = props.editingStep;
+  const openStep =
+    editingStepIndex === null ? null : channel.steps[editingStepIndex];
 
-    // No `Card` here, unlike the other two sections: this one shares its card
-    // with the Patterns and Banks tabs it sits alongside, and that wrapper —
-    // along with the tab strip that used to be this section's own "Sequencer"
-    // heading — belongs to `SequencerTabsSection`, one level up.
-    return (
-      <>
-        <StepGrid
-          channelLabel={displayName}
-          steps={channel.steps}
-          channelPitch={channel.pitch}
-          sliceCount={sliceCount}
-          swipeTarget={swipeTarget}
-          length={channel.length}
-          currentStep={props.currentStep}
-          editingStep={props.editingStep}
-          onStepClick={props.onStepClick}
-          onStepHold={props.onStepHold}
-          onStepVelocityChange={props.onStepVelocityChange}
-          onStepPitchChange={props.onStepPitchChange}
-          onStepSliceChange={props.onStepSliceChange}
-          onStepContextMenu={props.onStepContextMenu}
-        />
+  // No `Card` here, unlike the other two sections: this one shares its card
+  // with the Patterns and Banks tabs it sits alongside, and that wrapper —
+  // along with the tab strip that used to be this section's own "Sequencer"
+  // heading — belongs to `SequencerTabsSection`, one level up.
+  return (
+    <>
+      <StepGrid
+        channelLabel={displayName}
+        steps={channel.steps}
+        channelPitch={channel.pitch}
+        sliceCount={sliceCount}
+        swipeTarget={swipeTarget}
+        length={channel.length}
+        currentStep={props.currentStep}
+        editingStep={props.editingStep}
+        onStepClick={props.onStepClick}
+        onStepHold={props.onStepHold}
+        onStepVelocityChange={props.onStepVelocityChange}
+        onStepPitchChange={props.onStepPitchChange}
+        onStepSliceChange={props.onStepSliceChange}
+        onStepContextMenu={props.onStepContextMenu}
+      />
 
-        {/*
-          Only up while a step is held open — the same condition that puts the
-          grid into edit mode in the first place.
-        */}
-        {openStep && editingStepIndex !== null && (
-          <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold">
-              {`Step ${editingStepIndex + 1}`}
-            </h3>
+      {/*
+        Only up while a step is held open — the same condition that puts the
+        grid into edit mode in the first place.
+      */}
+      {openStep && editingStepIndex !== null && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold">
+            {`Step ${editingStepIndex + 1}`}
+          </h3>
 
-            <div className="grid grid-cols-5 justify-items-center gap-x-2 gap-y-4 sm:gap-x-6">
-              <RotaryKnob
-                label="Velocity"
-                min={MIN_STEP_VELOCITY}
-                max={MAX_STEP_VELOCITY}
-                step={0.01}
-                value={openStep.velocity}
-                readout={formatVelocity(openStep.velocity)}
-                onChange={(velocity) =>
-                  props.onStepVelocityChange(editingStepIndex, velocity)
-                }
-                locked={openStep.velocity < MAX_STEP_VELOCITY}
-                onClearLock={() =>
-                  props.onStepVelocityChange(
-                    editingStepIndex,
-                    DEFAULT_STEP_VELOCITY,
-                  )
-                }
-              />
+          <div className="grid grid-cols-5 justify-items-center gap-x-2 gap-y-4 sm:gap-x-6">
+            <RotaryKnob
+              label="Velocity"
+              min={MIN_STEP_VELOCITY}
+              max={MAX_STEP_VELOCITY}
+              step={0.01}
+              value={openStep.velocity}
+              readout={formatVelocity(openStep.velocity)}
+              onChange={(velocity) =>
+                props.onStepVelocityChange(editingStepIndex, velocity)
+              }
+              locked={openStep.velocity < MAX_STEP_VELOCITY}
+              onClearLock={() =>
+                props.onStepVelocityChange(
+                  editingStepIndex,
+                  DEFAULT_STEP_VELOCITY,
+                )
+              }
+            />
 
-              <RotaryKnob
-                label="Repeat"
-                min={MIN_STEP_REPEAT}
-                max={MAX_STEP_REPEAT}
-                step={1}
-                value={openStep.repeatCount}
-                readout={formatStepRepeat(openStep.repeatCount)}
-                onChange={(repeatCount) =>
-                  props.onStepRepeatChange(editingStepIndex, repeatCount)
-                }
-                locked={openStep.repeatCount > MIN_STEP_REPEAT}
-                onClearLock={() =>
-                  props.onStepRepeatChange(
-                    editingStepIndex,
-                    DEFAULT_STEP_REPEAT,
-                  )
-                }
-              />
+            <RotaryKnob
+              label="Repeat"
+              min={MIN_STEP_REPEAT}
+              max={MAX_STEP_REPEAT}
+              step={1}
+              value={openStep.repeatCount}
+              readout={formatStepRepeat(openStep.repeatCount)}
+              onChange={(repeatCount) =>
+                props.onStepRepeatChange(editingStepIndex, repeatCount)
+              }
+              locked={openStep.repeatCount > MIN_STEP_REPEAT}
+              onClearLock={() =>
+                props.onStepRepeatChange(
+                  editingStepIndex,
+                  DEFAULT_STEP_REPEAT,
+                )
+              }
+            />
 
-              <RotaryKnob
-                label="Probability"
-                min={MIN_STEP_PROBABILITY}
-                max={MAX_STEP_PROBABILITY}
-                step={0.01}
-                value={openStep.probability}
-                readout={formatProbability(openStep.probability)}
-                onChange={(probability) =>
-                  props.onStepProbabilityChange(editingStepIndex, probability)
-                }
-                locked={openStep.probability < MAX_STEP_PROBABILITY}
-                onClearLock={() =>
-                  props.onStepProbabilityChange(
-                    editingStepIndex,
-                    DEFAULT_STEP_PROBABILITY,
-                  )
-                }
-              />
+            <RotaryKnob
+              label="Probability"
+              min={MIN_STEP_PROBABILITY}
+              max={MAX_STEP_PROBABILITY}
+              step={0.01}
+              value={openStep.probability}
+              readout={formatProbability(openStep.probability)}
+              onChange={(probability) =>
+                props.onStepProbabilityChange(editingStepIndex, probability)
+              }
+              locked={openStep.probability < MAX_STEP_PROBABILITY}
+              onClearLock={() =>
+                props.onStepProbabilityChange(
+                  editingStepIndex,
+                  DEFAULT_STEP_PROBABILITY,
+                )
+              }
+            />
 
-              <RotaryKnob
-                label="Timing"
-                ariaLabel="Step timing offset"
-                min={MIN_STEP_TIMING}
-                max={MAX_STEP_TIMING}
-                step={0.001}
-                value={openStep.timingOffset}
-                readout={formatStepTiming(openStep.timingOffset)}
-                onChange={(timingOffset) =>
-                  props.onStepTimingChange(editingStepIndex, timingOffset)
-                }
-                locked={openStep.timingOffset !== DEFAULT_STEP_TIMING}
-                onClearLock={() =>
-                  props.onStepTimingChange(
-                    editingStepIndex,
-                    DEFAULT_STEP_TIMING,
-                  )
-                }
-              />
+            <RotaryKnob
+              label="Timing"
+              ariaLabel="Step timing offset"
+              min={MIN_STEP_TIMING}
+              max={MAX_STEP_TIMING}
+              step={0.001}
+              value={openStep.timingOffset}
+              readout={formatStepTiming(openStep.timingOffset)}
+              onChange={(timingOffset) =>
+                props.onStepTimingChange(editingStepIndex, timingOffset)
+              }
+              locked={openStep.timingOffset !== DEFAULT_STEP_TIMING}
+              onClearLock={() =>
+                props.onStepTimingChange(
+                  editingStepIndex,
+                  DEFAULT_STEP_TIMING,
+                )
+              }
+            />
 
-              {/*
-                Kept in the row rather than pulled from it on a one shot, so
-                the knob count doesn't jump as a channel is sliced and
-                unsliced — only greyed out, the same as a bypassed filter
-                cutoff, since there is no part of an unsliced sample for it
-                to point at.
-              */}
-              {(() => {
-                if (sliceCount === null) {
-                  return (
-                    <RotaryKnob
-                      label="Position"
-                      min={0}
-                      max={1}
-                      step={1}
-                      value={0}
-                      readout="—"
-                      onChange={() => {}}
-                      disabled
-                    />
-                  );
-                }
-
-                const slice = clampStepSlice(openStep.slice, sliceCount);
+            {/*
+              Kept in the row rather than pulled from it on a one shot, so
+              the knob count doesn't jump as a channel is sliced and
+              unsliced — only greyed out, the same as a bypassed filter
+              cutoff, since there is no part of an unsliced sample for it
+              to point at.
+            */}
+            {(() => {
+              if (sliceCount === null) {
                 return (
                   <RotaryKnob
                     label="Position"
-                    min={1}
-                    max={sliceCount}
+                    min={0}
+                    max={1}
                     step={1}
-                    value={slice + 1}
-                    readout={formatStepSlice(slice, sliceCount)}
-                    onChange={(value) =>
-                      props.onStepSliceChange(editingStepIndex, value - 1)
-                    }
-                    locked={slice > DEFAULT_STEP_SLICE}
-                    onClearLock={() =>
-                      props.onStepSliceChange(
-                        editingStepIndex,
-                        DEFAULT_STEP_SLICE,
-                      )
-                    }
+                    value={0}
+                    readout="—"
+                    onChange={() => {}}
+                    disabled
                   />
                 );
-              })()}
-            </div>
+              }
+
+              const slice = clampStepSlice(openStep.slice, sliceCount);
+              return (
+                <RotaryKnob
+                  label="Position"
+                  min={1}
+                  max={sliceCount}
+                  step={1}
+                  value={slice + 1}
+                  readout={formatStepSlice(slice, sliceCount)}
+                  onChange={(value) =>
+                    props.onStepSliceChange(editingStepIndex, value - 1)
+                  }
+                  locked={slice > DEFAULT_STEP_SLICE}
+                  onClearLock={() =>
+                    props.onStepSliceChange(
+                      editingStepIndex,
+                      DEFAULT_STEP_SLICE,
+                    )
+                  }
+                />
+              );
+            })()}
           </div>
-        )}
+        </div>
+      )}
 
-        <StepPatternControls
-          steps={channel.steps}
-          length={channel.length}
-          swipeTarget={swipeTarget}
-          swipeTargets={swipeTargets}
-          onApplyFill={props.onApplyStepFill}
-          onNudge={props.onNudgeSteps}
-          onClear={props.onClearSteps}
-          onInvert={props.onInvertSteps}
-          onHumanize={props.onHumanizeSteps}
-          onLengthChange={props.onLengthChange}
-          onSwipeTargetChange={props.onSwipeTargetChange}
-        />
-      </>
-    );
-  }
-
-  // Every slider below reads from the resolved settings rather than from the
-  // channel, so a locked parameter shows the step's value; the choke is the one
-  // exception, since a step cannot override it and it would be a lie to show it
-  // under a heading that says otherwise.
-  const { settings } = props;
-
-  // One accordion rather than two: the LFO that used to sit in a second one
-  // under this now has a tab of its own up in `SampleEditorTabsSection`, where
-  // it is drawn as well as dialled in.
-  return (
-    <Accordion title="Channel Params">
-      <ChannelControls
-        volume={settings.volume}
-        pan={settings.pan}
-        pitch={settings.pitch}
-        lowCutHz={settings.lowCutHz}
-        highCutHz={settings.highCutHz}
-        attackSeconds={settings.attackSeconds}
-        decaySeconds={settings.decaySeconds}
-        chokedBy={channel.chokedBy}
-        chokeOptions={props.chokeOptions}
-        stepEdit={props.stepEdit}
-        onVolumeChange={props.onVolumeChange}
-        onPanChange={props.onPanChange}
-        onPitchChange={props.onPitchChange}
-        onLowCutChange={props.onLowCutChange}
-        onHighCutChange={props.onHighCutChange}
-        onAttackChange={props.onAttackChange}
-        onDecayChange={props.onDecayChange}
-        onChokedByChange={props.onChokedByChange}
+      <StepPatternControls
+        steps={channel.steps}
+        length={channel.length}
+        swipeTarget={swipeTarget}
+        swipeTargets={swipeTargets}
+        onApplyFill={props.onApplyStepFill}
+        onNudge={props.onNudgeSteps}
+        onClear={props.onClearSteps}
+        onInvert={props.onInvertSteps}
+        onHumanize={props.onHumanizeSteps}
+        onLengthChange={props.onLengthChange}
+        onSwipeTargetChange={props.onSwipeTargetChange}
       />
-    </Accordion>
+    </>
   );
 }

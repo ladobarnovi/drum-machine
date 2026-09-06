@@ -7,6 +7,17 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   prettierConfig,
+  {
+    rules: {
+      // Pulling a field out of an object purely to drop it — `const { muted,
+      // ...rest } = saved` in `lib/patterns.ts` — is the point of the
+      // destructure, not an oversight.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { ignoreRestSiblings: true },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

@@ -67,8 +67,6 @@ type ChannelEnvelopeSectionProps = {
   /** Whose envelope this is, so a MIDI mapping binds to that channel's knobs
    *  rather than to whichever channel happens to be selected. */
   channelId: string;
-  /** Whose envelope this is, so the card says which channel it belongs to. */
-  channelName: string;
   /** What the knobs edit: the channel's own, or an open step's. */
   settings: EnvelopeSettings;
   /**
@@ -103,7 +101,6 @@ type ChannelEnvelopeSectionProps = {
  */
 export default function ChannelEnvelopeSection({
   channelId,
-  channelName,
   settings,
   playing,
   onAttackChange,

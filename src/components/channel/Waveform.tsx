@@ -7,7 +7,6 @@ import TrimHandle from "./TrimHandle";
 import WaveformPlayhead from "./WaveformPlayhead";
 import {
   formatSeconds,
-  isSampleTrimmed,
   isSliced,
   sampleSpanSeconds,
   sliceBoundaries,
@@ -45,7 +44,6 @@ type WaveformProps = {
    */
   highlightSlice: number | null;
   /** Puts both edges back to the ends of the file. */
-  onReset: () => void;
   /**
    * Reads how far into the file this channel is being heard, as a fraction of
    * the whole file, or null while it is silent. Called once a frame.
@@ -91,7 +89,6 @@ export default function Waveform({
   mode,
   sliceCount,
   highlightSlice,
-  onReset,
   getPlayhead,
 }: WaveformProps) {
   /** The strip itself, which is what a pointer position is measured against. */
@@ -167,7 +164,6 @@ export default function Waveform({
     );
   }
 
-  const trimmed = isSampleTrimmed(start, end);
   const spanSeconds = sampleSpanSeconds(start, end, sample.durationSeconds);
   const slicing = isSliced(mode);
 

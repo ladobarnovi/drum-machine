@@ -79,7 +79,6 @@ import {
   channelsChokedBy,
   clampAttack,
   clampChannelName,
-  clampChokeSource,
   clampDecay,
   clampFrequency,
   clampLength,
@@ -96,7 +95,6 @@ import {
   clearStepAt,
   clearStepLockAt,
   clampStepTiming,
-  clearStepLocksAt,
   clearSteps,
   createInitialChannels,
   emptyChannel,
@@ -883,11 +881,6 @@ export default function DrumMachine() {
     [updateChannel],
   );
 
-  const handleSampleTrimReset = useCallback(
-    (channelId: string) => updateChannel(channelId, UNTRIMMED),
-    [updateChannel],
-  );
-
   // Removing a sample keeps the channel's pattern, so a new sample can be
   // dropped straight onto the same rhythm.
   const handleRemove = useCallback(
@@ -1473,35 +1466,6 @@ export default function DrumMachine() {
     [editingStepIndex, updateSelectedSteps],
   );
 
-  /** Puts the whole step back on the channel, velocity aside. */
-  const handleClearStepLocks = useCallback(() => {
-    if (editingStepIndex === null) return;
-    updateSelectedSteps((steps) => clearStepLocksAt(steps, editingStepIndex));
-  }, [editingStepIndex, updateSelectedSteps]);
-
-  /**
-   * Points a channel at the channel that chokes it, or at nothing.
-   *
-   * The raw select value is narrowed against the channels that exist rather than
-   * trusted, so a stale id — or the channel's own, which would make it
-   * monophonic instead of routed — falls back to no choke at all.
-   */
-  const handleChokedByChange = useCallback(
-    (channelId: string, sourceId: string) => {
-      setChannels((prev) =>
-        prev.map((channel) =>
-          channel.id === channelId
-            ? {
-                ...channel,
-                chokedBy: clampChokeSource(sourceId, prev, channelId),
-              }
-            : channel,
-        ),
-      );
-    },
-    [],
-  );
-
   // Arrives already clamped field by field, like the master stages: the section
   // hands back a whole settings object rather than one loose number.
   const handleLfoChange = useCallback(
@@ -2047,15 +2011,6 @@ export default function DrumMachine() {
   });
 
   /**
-   * What the choke select offers: every channel but the selected one, under the
-   * name shown on its pad, so the choice reads as "Hihat Closed" rather than as
-   * a channel number.
-   */
-  const chokeOptions = channels
-    .filter((channel) => channel.id !== selectedChannel.id)
-    .map((channel) => ({ id: channel.id, name: channelDisplayName(channel) }));
-
-  /**
    * What the selected channel sounds like right now: its own settings, or the
    * open step's overrides standing in for them.
    *
@@ -2328,9 +2283,6 @@ export default function DrumMachine() {
                 editingStep && isSliced(selectedChannel.sampleMode)
                   ? editingStep.slice
                   : null
-              }
-              onSampleTrimReset={() =>
-                handleSampleTrimReset(selectedChannel.id)
               }
               getPlayhead={getSelectedPlayhead}
               volume={selectedSettings.volume}

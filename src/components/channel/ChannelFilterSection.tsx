@@ -68,8 +68,6 @@ type ChannelFilterSectionProps = {
   /** Whose filter this is, so a MIDI mapping binds to that channel's knobs
    *  rather than to whichever channel happens to be selected. */
   channelId: string;
-  /** Whose filter this is, so the card says which channel it belongs to. */
-  channelName: string;
   /** What the knobs edit: the channel's own, or an open step's. */
   settings: FilterSettings;
   /** How steeply both cuts roll off. Always the channel's, never a step's. */
@@ -116,7 +114,6 @@ type ChannelFilterSectionProps = {
  */
 export default function ChannelFilterSection({
   channelId,
-  channelName,
   settings,
   filterSlope,
   playing,
