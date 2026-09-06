@@ -1,5 +1,8 @@
 "use client";
 
+import PlotFrame from "./PlotFrame";
+import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH, linePath, toX } from "./plotGeometry";
+
 import { memo, useMemo, type CSSProperties } from "react";
 
 import { lfoCurve, lfoScrollSeconds } from "@/lib/lfoResponse";
@@ -17,15 +20,12 @@ type LfoGraphProps = {
 };
 
 /** The plot's own coordinate space. Stretched to fill whatever width it gets. */
-const VIEWBOX_WIDTH = 1000;
-const VIEWBOX_HEIGHT = 400;
 
 /** Where the unmodulated value sits, and how far a full swing gets from it. */
 const CENTRE = VIEWBOX_HEIGHT / 2;
 /** Keeps the crest of a full swing off the frame, and clear of the tag. */
 const PADDING = 28;
 
-const toX = (position: number) => position * VIEWBOX_WIDTH;
 const toY = (level: number) => CENTRE - level * (CENTRE - PADDING);
 
 /**
@@ -66,12 +66,11 @@ function LfoGraph({ lfo }: LfoGraphProps) {
   const scrolling = !bypassed && !lfo.retrigger;
   const scroll = lfoScrollSeconds(lfo.rateHz);
 
-  const line = curve
-    .map(
-      (point, index) =>
-        `${index === 0 ? "M" : "L"} ${toX(point.position)} ${toY(point.level)}`,
-    )
-    .join(" ");
+  const line = linePath(
+    curve,
+    (point) => toX(point.position),
+    (point) => toY(point.level),
+  );
 
   // The same outline closed onto the centre line rather than onto the floor of
   // the frame, so the wave reads as a swing either side of where the parameter
@@ -83,79 +82,75 @@ function LfoGraph({ lfo }: LfoGraphProps) {
   )} ${CENTRE} Z`;
 
   return (
-    <div className="border-line bg-panel relative h-16 overflow-hidden rounded border md:h-24">
-      <svg
-        viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-        // Stretch freely, as the other three graphs do: every stroke below is
-        // non-scaling, so nothing comes out thicker in one direction than in
-        // the other for it.
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={`${LFO_SHAPE_LABELS[lfo.shape]} LFO at ${formatLfoRate(
-          lfo.rateHz,
-        )}, ${formatLfoAmount(lfo)} to ${LFO_DESTINATION_LABELS[
-          lfo.destination
-        ].toLowerCase()}, ${lfo.retrigger ? "retriggered" : "free running"}${
-          bypassed ? ", off" : ""
-        }.`}
-        className="text-accent size-full"
-      >
-        {/* Where the destination sits with the LFO doing nothing to it, so the
+    <PlotFrame
+      width={VIEWBOX_WIDTH}
+      height={VIEWBOX_HEIGHT}
+      overlay={
+        <>
+          {/* What the wave is moving, and by how much — HTML over the plot for the
+            same reason `EnvelopeGraph`'s stage letters are: a glyph drawn into a
+            plot stretched to an arbitrary width comes out smeared. */}
+          <span className="text-muted pointer-events-none absolute top-1 right-1.5 text-[9px] font-semibold tracking-wide uppercase">
+            {LFO_DESTINATION_LABELS[lfo.destination]} {formatLfoAmount(lfo)}
+          </span>
+        </>
+      }
+      label={`${LFO_SHAPE_LABELS[lfo.shape]} LFO at ${formatLfoRate(
+        lfo.rateHz,
+      )}, ${formatLfoAmount(lfo)} to ${LFO_DESTINATION_LABELS[
+        lfo.destination
+      ].toLowerCase()}, ${lfo.retrigger ? "retriggered" : "free running"}${
+        bypassed ? ", off" : ""
+      }.`}
+    >
+      {/* Where the destination sits with the LFO doing nothing to it, so the
             depth of the swing is read against something rather than guessed. */}
-        <line
-          x1={0}
-          y1={CENTRE}
-          x2={VIEWBOX_WIDTH}
-          y2={CENTRE}
-          stroke="var(--fg)"
-          strokeWidth={1}
-          opacity={0.1}
-          vectorEffect="non-scaling-stroke"
-        />
+      <line
+        x1={0}
+        y1={CENTRE}
+        x2={VIEWBOX_WIDTH}
+        y2={CENTRE}
+        stroke="var(--fg)"
+        strokeWidth={1}
+        opacity={0.1}
+        vectorEffect="non-scaling-stroke"
+      />
 
-        <g
-          className={scrolling ? "fx-sweep" : undefined}
-          style={
-            scrolling
-              ? ({
-                  animationDuration: `${scroll}s`,
-                  // Handed to the keyframes in the same user units the viewBox
-                  // is measured in, rather than written into them, so the slide
-                  // can never drift from the width above.
-                  "--fx-sweep-width": `${VIEWBOX_WIDTH}px`,
-                } as CSSProperties)
-              : undefined
-          }
-          opacity={bypassed ? 0.35 : 1}
-        >
-          {/* One copy is the whole picture while nothing is moving; the second
+      <g
+        className={scrolling ? "fx-sweep" : undefined}
+        style={
+          scrolling
+            ? ({
+                animationDuration: `${scroll}s`,
+                // Handed to the keyframes in the same user units the viewBox
+                // is measured in, rather than written into them, so the slide
+                // can never drift from the width above.
+                "--fx-sweep-width": `${VIEWBOX_WIDTH}px`,
+              } as CSSProperties)
+            : undefined
+        }
+        opacity={bypassed ? 0.35 : 1}
+      >
+        {/* One copy is the whole picture while nothing is moving; the second
               only exists to fill the gap the first leaves as it slides off. */}
-          {(scrolling ? [0, VIEWBOX_WIDTH] : [0]).map((offset) => (
-            <g
-              key={offset}
-              transform={offset === 0 ? undefined : `translate(${offset} 0)`}
-            >
-              <path d={area} fill="currentColor" opacity={0.18} />
-              <path
-                d={line}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            </g>
-          ))}
-        </g>
-      </svg>
-
-      {/* What the wave is moving, and by how much — HTML over the plot for the
-          same reason `EnvelopeGraph`'s stage letters are: a glyph drawn into a
-          plot stretched to an arbitrary width comes out smeared. */}
-      <span className="text-muted pointer-events-none absolute top-1 right-1.5 text-[9px] font-semibold tracking-wide uppercase">
-        {LFO_DESTINATION_LABELS[lfo.destination]} {formatLfoAmount(lfo)}
-      </span>
-    </div>
+        {(scrolling ? [0, VIEWBOX_WIDTH] : [0]).map((offset) => (
+          <g
+            key={offset}
+            transform={offset === 0 ? undefined : `translate(${offset} 0)`}
+          >
+            <path d={area} fill="currentColor" opacity={0.18} />
+            <path
+              d={line}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        ))}
+      </g>
+    </PlotFrame>
   );
 }
 

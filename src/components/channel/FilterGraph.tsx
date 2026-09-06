@@ -1,5 +1,8 @@
 "use client";
 
+import PlotFrame from "./PlotFrame";
+import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH, linePath, toX } from "./plotGeometry";
+
 import { memo, useMemo } from "react";
 
 import {
@@ -24,10 +27,7 @@ type FilterGraphProps = {
 };
 
 /** The plot's own coordinate space. Stretched to fill whatever width it gets. */
-const VIEWBOX_WIDTH = 1000;
-const VIEWBOX_HEIGHT = 400;
 
-const toX = (position: number) => position * VIEWBOX_WIDTH;
 const toY = (db: number) => responseDepth(db) * VIEWBOX_HEIGHT;
 
 /**
@@ -75,12 +75,11 @@ function FilterGraph({
       filterSlope,
     );
 
-    const outline = curve
-      .map(
-        (point, index) =>
-          `${index === 0 ? "M" : "L"} ${toX(point.position)} ${toY(point.db)}`,
-      )
-      .join(" ");
+    const outline = linePath(
+      curve,
+      (point) => toX(point.position),
+      (point) => toY(point.db),
+    );
 
     return {
       line: outline,
@@ -125,131 +124,126 @@ function FilterGraph({
   }));
 
   return (
-    <div className="border-line bg-panel relative h-16 overflow-hidden rounded border md:h-24">
-      <svg
-        viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-        // Stretch freely: this is a shape overview like the waveform strip, not
-        // a plot anyone is going to measure a slope off. Every stroke below is
-        // non-scaling, so nothing comes out thicker in one direction than the
-        // other for it.
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={`Filter response at ${filterSlope} decibels per octave. Low cut ${
-          isLowCutBypassed(lowCutHz) ? "off" : formatFrequency(lowCutHz)
-        }, high cut ${
-          isHighCutBypassed(highCutHz) ? "off" : formatFrequency(highCutHz)
-        }.`}
-        className="text-accent size-full"
-      >
-        {GRID_HZ.map((hz) => (
-          <line
-            key={hz}
-            x1={toX(frequencyToSlider(hz))}
-            y1={0}
-            x2={toX(frequencyToSlider(hz))}
-            y2={VIEWBOX_HEIGHT}
-            stroke="var(--fg)"
-            strokeWidth={1}
-            opacity={LABELLED_HZ.includes(hz) ? 0.16 : 0.08}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+    <PlotFrame
+      width={VIEWBOX_WIDTH}
+      height={VIEWBOX_HEIGHT}
+      overlay={
+        <>
+          {/*
+          The dots and the tags are HTML over the plot rather than shapes in it,
+          because the plot is stretched to whatever width the card gives it and a
+          circle drawn in there would come out an ellipse — and a letter, a
+          smeared one.
+        */}
+          {placed.map((marker) => (
+            <span
+              key={marker.id}
+              aria-hidden
+              className="bg-select pointer-events-none absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{
+                left: `${marker.position * 100}%`,
+                top: `${marker.depth * 100}%`,
+                opacity: marker.bypassed ? 0.4 : 1,
+              }}
+            />
+          ))}
 
-        {/* Unity, so a resonant peak is visibly *above* something rather than
-            just high up in the frame. */}
+          {placed.map((marker) => (
+            <span
+              key={marker.id}
+              aria-hidden
+              className="text-select pointer-events-none absolute top-0.5 text-[9px] font-semibold"
+              style={{
+                // Nudged inwards at the very ends of the axis, where a centred tag
+                // would sit half outside the frame and be clipped by it.
+                left: `${marker.position * 100}%`,
+                transform:
+                  marker.position < 0.05
+                    ? "translateX(0)"
+                    : marker.position > 0.95
+                      ? "translateX(-100%)"
+                      : "translateX(-50%)",
+                opacity: marker.bypassed ? 0.45 : 1,
+              }}
+            >
+              {marker.tag}
+            </span>
+          ))}
+
+          {/* The axis, read along the bottom. Decades only; the rules between them
+            are there to be counted against rather than named. */}
+          {LABELLED_HZ.map((hz) => (
+            <span
+              key={hz}
+              aria-hidden
+              className="text-muted pointer-events-none absolute bottom-0.5 -translate-x-1/2 text-[9px] tabular-nums"
+              style={{ left: `${frequencyToSlider(hz) * 100}%` }}
+            >
+              {formatFrequency(hz)}
+            </span>
+          ))}
+        </>
+      }
+      label={`Filter response at ${filterSlope} decibels per octave. Low cut ${
+        isLowCutBypassed(lowCutHz) ? "off" : formatFrequency(lowCutHz)
+      }, high cut ${
+        isHighCutBypassed(highCutHz) ? "off" : formatFrequency(highCutHz)
+      }.`}
+    >
+      {GRID_HZ.map((hz) => (
         <line
-          x1={0}
-          y1={toY(0)}
-          x2={VIEWBOX_WIDTH}
-          y2={toY(0)}
+          key={hz}
+          x1={toX(frequencyToSlider(hz))}
+          y1={0}
+          x2={toX(frequencyToSlider(hz))}
+          y2={VIEWBOX_HEIGHT}
           stroke="var(--fg)"
           strokeWidth={1}
-          opacity={0.16}
+          opacity={LABELLED_HZ.includes(hz) ? 0.16 : 0.08}
           vectorEffect="non-scaling-stroke"
         />
+      ))}
 
-        <path d={area} fill="currentColor" opacity={0.18} />
-        <path
-          d={line}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
+      {/* Unity, so a resonant peak is visibly *above* something rather than
+            just high up in the frame. */}
+      <line
+        x1={0}
+        y1={toY(0)}
+        x2={VIEWBOX_WIDTH}
+        y2={toY(0)}
+        stroke="var(--fg)"
+        strokeWidth={1}
+        opacity={0.16}
+        vectorEffect="non-scaling-stroke"
+      />
 
-        {/* Where each cut currently sits. In `--select`, the colour of whatever
+      <path d={area} fill="currentColor" opacity={0.18} />
+      <path
+        d={line}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+
+      {/* Where each cut currently sits. In `--select`, the colour of whatever
             is being looked at, rather than the accent the curve is drawn in: a
             corner marker has to read against the shape it is marking. */}
-        {placed.map((marker) => (
-          <line
-            key={marker.id}
-            x1={toX(marker.position)}
-            y1={0}
-            x2={toX(marker.position)}
-            y2={VIEWBOX_HEIGHT}
-            stroke="var(--select)"
-            strokeWidth={1}
-            opacity={marker.bypassed ? 0.3 : 0.8}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-      </svg>
-
-      {/*
-        The dots and the tags are HTML over the plot rather than shapes in it,
-        because the plot is stretched to whatever width the card gives it and a
-        circle drawn in there would come out an ellipse — and a letter, a
-        smeared one.
-      */}
       {placed.map((marker) => (
-        <span
+        <line
           key={marker.id}
-          aria-hidden
-          className="bg-select pointer-events-none absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-          style={{
-            left: `${marker.position * 100}%`,
-            top: `${marker.depth * 100}%`,
-            opacity: marker.bypassed ? 0.4 : 1,
-          }}
+          x1={toX(marker.position)}
+          y1={0}
+          x2={toX(marker.position)}
+          y2={VIEWBOX_HEIGHT}
+          stroke="var(--select)"
+          strokeWidth={1}
+          opacity={marker.bypassed ? 0.3 : 0.8}
+          vectorEffect="non-scaling-stroke"
         />
       ))}
-
-      {placed.map((marker) => (
-        <span
-          key={marker.id}
-          aria-hidden
-          className="text-select pointer-events-none absolute top-0.5 text-[9px] font-semibold"
-          style={{
-            // Nudged inwards at the very ends of the axis, where a centred tag
-            // would sit half outside the frame and be clipped by it.
-            left: `${marker.position * 100}%`,
-            transform:
-              marker.position < 0.05
-                ? "translateX(0)"
-                : marker.position > 0.95
-                  ? "translateX(-100%)"
-                  : "translateX(-50%)",
-            opacity: marker.bypassed ? 0.45 : 1,
-          }}
-        >
-          {marker.tag}
-        </span>
-      ))}
-
-      {/* The axis, read along the bottom. Decades only; the rules between them
-          are there to be counted against rather than named. */}
-      {LABELLED_HZ.map((hz) => (
-        <span
-          key={hz}
-          aria-hidden
-          className="text-muted pointer-events-none absolute bottom-0.5 -translate-x-1/2 text-[9px] tabular-nums"
-          style={{ left: `${frequencyToSlider(hz) * 100}%` }}
-        >
-          {formatFrequency(hz)}
-        </span>
-      ))}
-    </div>
+    </PlotFrame>
   );
 }
 
