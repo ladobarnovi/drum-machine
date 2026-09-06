@@ -72,20 +72,11 @@ import {
   channelIdForIndex,
   channelSettingsForStep,
   chokeTargetsBySource,
-  clampAttack,
   clampChannelName,
-  clampDecay,
-  clampFrequency,
   clampLength,
-  clampPan,
   clampPitch,
-  clampRelease,
-  clampResonance,
   clampSampleEnd,
   clampSampleStart,
-  clampSend,
-  clampSustain,
-  clampVolume,
   clearLockedParameter,
   clearStepAt,
   clearStepLockAt,
@@ -117,6 +108,8 @@ import {
   type Channel,
   type ChannelLfo,
   type FilterSlope,
+  LOCKABLE_PARAMETERS,
+  LOCKABLE_PARAMETER_CLAMPS,
   type LockableParameter,
   type ParameterSnapshot,
   type SampleMode,
@@ -915,7 +908,11 @@ export default function DrumMachine() {
    * the channel: a lock is the same value, kept somewhere narrower.
    */
   const setParameter = useCallback(
-    (key: LockableParameter, value: number) => {
+    (key: LockableParameter, raw: number) => {
+      // Clamped here rather than by each caller: the clamp a parameter needs is
+      // a property of the parameter, not of the control that moved it.
+      const value = LOCKABLE_PARAMETER_CLAMPS[key](raw);
+
       if (editingStepIndex !== null) {
         updateSelectedSteps((steps) =>
           setStepLockAt(steps, editingStepIndex, key, value),
@@ -926,6 +923,25 @@ export default function DrumMachine() {
       updateChannel(selectedChannel.id, { [key]: value } as Partial<Channel>);
     },
     [editingStepIndex, selectedChannel.id, updateChannel, updateSelectedSteps],
+  );
+
+  /**
+   * One handler per lockable parameter, each bound to its own key.
+   *
+   * These were fourteen `useCallback`s whose whole body was to name a
+   * parameter and clamp a number, which `setParameter` now does itself. Built
+   * from the list rather than written out, so a new lockable parameter arrives
+   * here with its clamp and needs nothing added by hand.
+   */
+  const parameterHandlers = useMemo(
+    () =>
+      Object.fromEntries(
+        LOCKABLE_PARAMETERS.map((key) => [
+          key,
+          (value: number) => setParameter(key, value),
+        ]),
+      ) as Record<LockableParameter, (value: number) => void>,
+    [setParameter],
   );
 
   /**
@@ -955,20 +971,8 @@ export default function DrumMachine() {
     [updateSelectedSteps],
   );
 
-  const handleVolumeChange = useCallback(
-    (volume: number) => setParameter("volume", clampVolume(volume)),
-    [setParameter],
-  );
 
-  const handlePanChange = useCallback(
-    (pan: number) => setParameter("pan", clampPan(pan)),
-    [setParameter],
-  );
 
-  const handlePitchChange = useCallback(
-    (pitch: number) => setParameter("pitch", clampPitch(pitch)),
-    [setParameter],
-  );
 
   const handleNameChange = useCallback(
     (channelId: string, name: string) => {
@@ -1349,29 +1353,11 @@ export default function DrumMachine() {
 
   useMasterFilterShortcuts({ onToggle: handleToggleMasterFilter });
 
-  const handleLowCutChange = useCallback(
-    (hz: number) => setParameter("lowCutHz", clampFrequency(hz)),
-    [setParameter],
-  );
 
-  const handleHighCutChange = useCallback(
-    (hz: number) => setParameter("highCutHz", clampFrequency(hz)),
-    [setParameter],
-  );
 
   // The resonances go through `setParameter` like the cutoffs beside them, so
   // the knobs in the filter card follow whatever the panel is scoped to: the
   // channel, or the one step open for editing.
-  const handleLowCutResonanceChange = useCallback(
-    (amount: number) => setParameter("lowCutResonance", clampResonance(amount)),
-    [setParameter],
-  );
-
-  const handleHighCutResonanceChange = useCallback(
-    (amount: number) =>
-      setParameter("highCutResonance", clampResonance(amount)),
-    [setParameter],
-  );
 
   /**
    * How steep the selected channel's cuts are.
@@ -1388,40 +1374,12 @@ export default function DrumMachine() {
     [selectedChannel.id, updateChannel],
   );
 
-  const handleAttackChange = useCallback(
-    (seconds: number) => setParameter("attackSeconds", clampAttack(seconds)),
-    [setParameter],
-  );
 
-  const handleDecayChange = useCallback(
-    (seconds: number) => setParameter("decaySeconds", clampDecay(seconds)),
-    [setParameter],
-  );
 
-  const handleSustainChange = useCallback(
-    (level: number) => setParameter("sustainLevel", clampSustain(level)),
-    [setParameter],
-  );
 
-  const handleReleaseChange = useCallback(
-    (seconds: number) => setParameter("releaseSeconds", clampRelease(seconds)),
-    [setParameter],
-  );
 
-  const handleDelaySendChange = useCallback(
-    (amount: number) => setParameter("delaySend", clampSend(amount)),
-    [setParameter],
-  );
 
-  const handleReverbSendChange = useCallback(
-    (amount: number) => setParameter("reverbSend", clampSend(amount)),
-    [setParameter],
-  );
 
-  const handlePhaserSendChange = useCallback(
-    (amount: number) => setParameter("phaserSend", clampSend(amount)),
-    [setParameter],
-  );
 
   /** Puts one parameter of the open step back on the channel's own setting. */
   const handleClearStepLock = useCallback(
@@ -2252,9 +2210,9 @@ export default function DrumMachine() {
               volume={selectedSettings.volume}
               pan={selectedSettings.pan}
               pitch={selectedSettings.pitch}
-              onVolumeChange={handleVolumeChange}
-              onPanChange={handlePanChange}
-              onPitchChange={handlePitchChange}
+              onVolumeChange={parameterHandlers.volume}
+              onPanChange={parameterHandlers.pan}
+              onPitchChange={parameterHandlers.pitch}
               filterSettings={{
                 lowCutHz: selectedSettings.lowCutHz,
                 lowCutResonance: selectedSettings.lowCutResonance,
@@ -2281,10 +2239,10 @@ export default function DrumMachine() {
                       locks: playingStep.locks ?? {},
                     }
               }
-              onLowCutChange={handleLowCutChange}
-              onLowCutResonanceChange={handleLowCutResonanceChange}
-              onHighCutChange={handleHighCutChange}
-              onHighCutResonanceChange={handleHighCutResonanceChange}
+              onLowCutChange={parameterHandlers.lowCutHz}
+              onLowCutResonanceChange={parameterHandlers.lowCutResonance}
+              onHighCutChange={parameterHandlers.highCutHz}
+              onHighCutResonanceChange={parameterHandlers.highCutResonance}
               onFilterSlopeChange={handleFilterSlopeChange}
               envelopeSettings={{
                 attackSeconds: selectedSettings.attackSeconds,
@@ -2308,10 +2266,10 @@ export default function DrumMachine() {
                       locks: playingStep.locks ?? {},
                     }
               }
-              onAttackChange={handleAttackChange}
-              onDecayChange={handleDecayChange}
-              onSustainChange={handleSustainChange}
-              onReleaseChange={handleReleaseChange}
+              onAttackChange={parameterHandlers.attackSeconds}
+              onDecayChange={parameterHandlers.decaySeconds}
+              onSustainChange={parameterHandlers.sustainLevel}
+              onReleaseChange={parameterHandlers.releaseSeconds}
               // Always the channel's own, and never a step's: no lock can
               // stand in for any of it, so there is nothing to resolve and
               // nothing for the playhead to drag the tab onto.
@@ -2337,9 +2295,9 @@ export default function DrumMachine() {
                       locks: playingStep.locks ?? {},
                     }
               }
-              onDelaySendChange={handleDelaySendChange}
-              onReverbSendChange={handleReverbSendChange}
-              onPhaserSendChange={handlePhaserSendChange}
+              onDelaySendChange={parameterHandlers.delaySend}
+              onReverbSendChange={parameterHandlers.reverbSend}
+              onPhaserSendChange={parameterHandlers.phaserSend}
               onRandomizeParameter={handleRandomizeParameter}
               onClearLockedParameter={handleClearLockedParameter}
               stepEdit={

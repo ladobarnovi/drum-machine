@@ -2938,3 +2938,35 @@ export function repeatOffsets(
     (_, index) => (index / repeats) * stepDurationSeconds,
   );
 }
+
+/**
+ * The clamp that owns each lockable parameter.
+ *
+ * Every one of these had a handler in `DrumMachine` whose whole body was to
+ * pair the key with its clamp before handing both on. Keyed here instead, and
+ * as a `Record` over the union rather than a loose object: a parameter added to
+ * `LOCKABLE_PARAMETERS` without a clamp beside it will not compile.
+ *
+ * A value reaching a step lock goes through exactly the clamp it would have
+ * gone through on its way to the channel — a lock is the same value, kept
+ * somewhere narrower.
+ */
+export const LOCKABLE_PARAMETER_CLAMPS: Record<
+  LockableParameter,
+  (value: number) => number
+> = {
+  volume: clampVolume,
+  pan: clampPan,
+  pitch: clampPitch,
+  lowCutHz: clampFrequency,
+  lowCutResonance: clampResonance,
+  highCutHz: clampFrequency,
+  highCutResonance: clampResonance,
+  attackSeconds: clampAttack,
+  decaySeconds: clampDecay,
+  sustainLevel: clampSustain,
+  releaseSeconds: clampRelease,
+  delaySend: clampSend,
+  reverbSend: clampSend,
+  phaserSend: clampSend,
+};
