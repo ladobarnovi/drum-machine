@@ -28,6 +28,12 @@ jobs:
           cache: "npm"
       - name: Install dependencies
         run: npm ci
+      # Next 16 removed `next lint` and `next build` no longer lints, so both
+      # gates have to be asked for by name or they never run at all.
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
       - name: Setup Pages
         id: setup_pages
         uses: actions/configure-pages@v5
