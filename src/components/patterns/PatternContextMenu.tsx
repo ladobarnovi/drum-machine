@@ -1,7 +1,6 @@
 "use client";
 
-import ContextMenu from "@/components/ui/ContextMenu";
-import ContextMenuItem from "@/components/ui/ContextMenuItem";
+import ActionMenu from "@/components/ui/ActionMenu";
 
 type PatternContextMenuProps = {
   x: number;
@@ -22,20 +21,20 @@ export default function PatternContextMenu({
   deleteDisabled,
   onDeletePattern,
 }: PatternContextMenuProps) {
-  const run = (action: () => void) => () => {
-    action();
-    onClose();
-  };
-
   return (
-    <ContextMenu x={x} y={y} label="Pattern actions" onClose={onClose}>
-      <ContextMenuItem onClick={run(onSavePattern)}>
-        Save Pattern
-      </ContextMenuItem>
-
-      <ContextMenuItem disabled={deleteDisabled} onClick={run(onDeletePattern)}>
-        Delete Pattern
-      </ContextMenuItem>
-    </ContextMenu>
+    <ActionMenu
+      x={x}
+      y={y}
+      label="Pattern actions"
+      onClose={onClose}
+      items={[
+        { label: "Save Pattern", onSelect: onSavePattern },
+        {
+          label: "Delete Pattern",
+          disabled: deleteDisabled,
+          onSelect: onDeletePattern,
+        },
+      ]}
+    />
   );
 }
