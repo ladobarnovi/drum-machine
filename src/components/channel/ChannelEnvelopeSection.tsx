@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, type FocusEvent } from "react";
+import {
+  usePlayheadFollow,
+  type PlayingStepRef,
+  type StepEditRef,
+} from "@/hooks/usePlayheadFollow";
 
 import EnvelopeGraph from "./EnvelopeGraph";
 import RotaryKnob from "@/components/ui/RotaryKnob";
@@ -23,7 +27,6 @@ import {
   sliderToDecay,
   sliderToRelease,
   type LockableParameter,
-  type StepLocks,
 } from "@/lib/sequencer";
 
 /**
@@ -42,27 +45,10 @@ export type EnvelopeSettings = {
  * same shape or `ChannelFilterSection`'s own `stepEdit`, since a lock is a
  * lock on the channel's settings whichever card is showing it.
  */
-type EnvelopeStepEdit = {
-  /** Which step is open, counted from 0. */
-  index: number;
-  /** Which of the parameters this step overrides. */
-  locks: StepLocks;
-  onClearLock: (key: LockableParameter) => void;
-};
-
 /**
  * The hit the channel is sounding right now, while the transport runs — the
  * step the card follows rather than one it edits.
  */
-type PlayingEnvelope = {
-  /** Which step is being heard, counted from 0. */
-  index: number;
-  /** The four values as that step actually plays them, locks applied. */
-  settings: EnvelopeSettings;
-  /** Which of the four it overrides, so those can be marked as locks. */
-  locks: StepLocks;
-};
-
 type ChannelEnvelopeSectionProps = {
   /** Whose envelope this is, so a MIDI mapping binds to that channel's knobs
    *  rather than to whichever channel happens to be selected. */
@@ -73,7 +59,7 @@ type ChannelEnvelopeSectionProps = {
    * What is currently being heard, or null while the transport is stopped —
    * or while it is running and the channel has no hits to sound.
    */
-  playing?: PlayingEnvelope | null;
+  playing?: PlayingStepRef<EnvelopeSettings> | null;
   onAttackChange: (seconds: number) => void;
   onDecayChange: (seconds: number) => void;
   onSustainChange: (level: number) => void;
@@ -83,7 +69,7 @@ type ChannelEnvelopeSectionProps = {
   /** Drops every override of one of the four knobs above, pattern-wide. */
   onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited; absent while the channel is. */
-  stepEdit?: EnvelopeStepEdit;
+  stepEdit?: StepEditRef;
 };
 
 /**
@@ -111,28 +97,11 @@ export default function ChannelEnvelopeSection({
   onClearLockedParameter,
   stepEdit,
 }: ChannelEnvelopeSectionProps) {
-  /** Whether a knob is currently being worked — see `ChannelFilterSection`
-   *  for why following the playhead has to pause while it is. */
-  const [adjusting, setAdjusting] = useState(false);
-
-  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
-    if (event.currentTarget.contains(event.relatedTarget)) return;
-    setAdjusting(false);
-  };
-
-  const following = !stepEdit && !adjusting ? (playing ?? null) : null;
-  const shown = following ? following.settings : settings;
-
-  const lockProps = (key: LockableParameter) => {
-    if (following) return { locked: following.locks[key] !== undefined };
-
-    return stepEdit
-      ? {
-          locked: stepEdit.locks[key] !== undefined,
-          onClearLock: () => stepEdit.onClearLock(key),
-        }
-      : {};
-  };
+  const { shown, lockProps, groupProps } = usePlayheadFollow({
+    settings,
+    playing: playing ?? null,
+    stepEdit,
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -144,8 +113,7 @@ export default function ChannelEnvelopeSection({
       />
 
       <div
-        onFocus={() => setAdjusting(true)}
-        onBlur={handleBlur}
+        {...groupProps}
         className="grid grid-cols-4 justify-items-center gap-x-2 gap-y-4 sm:gap-x-8"
       >
         {/* Envelope times ride a 0..1 curve, so the readout shows the real

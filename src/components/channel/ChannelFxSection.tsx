@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, type FocusEvent } from "react";
+import {
+  usePlayheadFollow,
+  type PlayingStepRef,
+  type StepEditRef,
+} from "@/hooks/usePlayheadFollow";
 
 import FxGraph from "./FxGraph";
 import RotaryKnob from "@/components/ui/RotaryKnob";
@@ -12,7 +16,6 @@ import {
   isSendClosed,
   randomInRange,
   type LockableParameter,
-  type StepLocks,
 } from "@/lib/sequencer";
 
 /**
@@ -30,27 +33,10 @@ export type FxSettings = {
  * shape as the Filter and Env tabs' own, since a lock is a lock on the
  * channel's settings whichever card is showing it.
  */
-type FxStepEdit = {
-  /** Which step is open, counted from 0. */
-  index: number;
-  /** Which of the parameters this step overrides. */
-  locks: StepLocks;
-  onClearLock: (key: LockableParameter) => void;
-};
-
 /**
  * The hit the channel is sounding right now, while the transport runs — the
  * step the card follows rather than one it edits.
  */
-type PlayingFx = {
-  /** Which step is being heard, counted from 0. */
-  index: number;
-  /** The three values as that step actually plays them, locks applied. */
-  settings: FxSettings;
-  /** Which of the three it overrides, so those can be marked as locks. */
-  locks: StepLocks;
-};
-
 type ChannelFxSectionProps = {
   /** Whose sends these are, so a MIDI mapping binds to that channel's knobs
    *  rather than to whichever channel happens to be selected. */
@@ -61,7 +47,7 @@ type ChannelFxSectionProps = {
    * What is currently being heard, or null while the transport is stopped —
    * or while it is running and the channel has no hits to sound.
    */
-  playing?: PlayingFx | null;
+  playing?: PlayingStepRef<FxSettings> | null;
   onDelaySendChange: (amount: number) => void;
   onReverbSendChange: (amount: number) => void;
   onPhaserSendChange: (amount: number) => void;
@@ -70,7 +56,7 @@ type ChannelFxSectionProps = {
   /** Drops every override of one of the three sends above, pattern-wide. */
   onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited; absent while the channel is. */
-  stepEdit?: FxStepEdit;
+  stepEdit?: StepEditRef;
 };
 
 /**
@@ -100,28 +86,11 @@ export default function ChannelFxSection({
   onClearLockedParameter,
   stepEdit,
 }: ChannelFxSectionProps) {
-  /** Whether a knob is currently being worked — see `ChannelFilterSection`
-   *  for why following the playhead has to pause while it is. */
-  const [adjusting, setAdjusting] = useState(false);
-
-  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
-    if (event.currentTarget.contains(event.relatedTarget)) return;
-    setAdjusting(false);
-  };
-
-  const following = !stepEdit && !adjusting ? (playing ?? null) : null;
-  const shown = following ? following.settings : settings;
-
-  const lockProps = (key: LockableParameter) => {
-    if (following) return { locked: following.locks[key] !== undefined };
-
-    return stepEdit
-      ? {
-          locked: stepEdit.locks[key] !== undefined,
-          onClearLock: () => stepEdit.onClearLock(key),
-        }
-      : {};
-  };
+  const { shown, lockProps, groupProps } = usePlayheadFollow({
+    settings,
+    playing: playing ?? null,
+    stepEdit,
+  });
 
   /** A shut send reads as off rather than as 0%, the same way a parked cutoff
    *  or a bypassed envelope stage does on the tabs either side. */
@@ -139,8 +108,7 @@ export default function ChannelFxSection({
       {/* One knob under each tile, in the same three columns, so which
           picture belongs to which control needs no saying. */}
       <div
-        onFocus={() => setAdjusting(true)}
-        onBlur={handleBlur}
+        {...groupProps}
         className="grid grid-cols-3 justify-items-center gap-x-2 gap-y-4 sm:gap-x-8"
       >
         <RotaryKnob
