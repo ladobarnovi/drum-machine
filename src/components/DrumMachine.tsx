@@ -76,7 +76,7 @@ import {
   channelDisplayName,
   channelIdForIndex,
   channelSettingsForStep,
-  channelsChokedBy,
+  chokeTargetsBySource,
   clampAttack,
   clampChannelName,
   clampDecay,
@@ -412,6 +412,7 @@ export default function DrumMachine() {
     setSampleBuffer,
     trigger,
     getSamplePosition,
+    prewarmReversed,
     choke,
   } = useSampleBank();
 
@@ -465,6 +466,24 @@ export default function DrumMachine() {
     channelsRef.current = channels;
   }, [channels]);
 
+  // Built here rather than asked for per hit: the scheduler needs the choke
+  // relation the other way round, and deriving it inside the step callback cost
+  // a pass over the whole kit for every channel that fired.
+  const chokeTargetsRef = useRef(chokeTargetsBySource(channels));
+  useEffect(() => {
+    chokeTargetsRef.current = chokeTargetsBySource(channels);
+  }, [channels]);
+
+  // A channel can also arrive already reversed — from a link, a restored
+  // session or a pasted sample — where no toggle was flipped to pre-warm it.
+  // Idempotent and only over channels actually in reverse, so this is a handful
+  // of map lookups on the changes that reach it.
+  useEffect(() => {
+    for (const channel of channels) {
+      if (channel.sampleReversed) prewarmReversed(channel.id);
+    }
+  }, [channels, prewarmReversed]);
+
   const { flashedChannelIds, flashChannels, clearFlashes } = useChannelFlash({
     ensureContext,
   });
@@ -511,7 +530,8 @@ export default function DrumMachine() {
       // channel never reaches this loop, so a channel nobody can hear also
       // cannot take anything away.
       for (const sourceId of firedChannelIds) {
-        choke(channelsChokedBy(channelsRef.current, sourceId), time);
+        const targets = chokeTargetsRef.current.get(sourceId);
+        if (targets) choke(targets, time);
       }
     },
     [choke, effectiveBpm, flashChannels, swing, trigger],
@@ -849,8 +869,13 @@ export default function DrumMachine() {
   const handleSampleReversedChange = useCallback(
     (channelId: string, reversed: boolean) => {
       updateChannel(channelId, { sampleReversed: reversed });
+      // Build the back-to-front copy now, while nothing is waiting on it. Left
+      // to the first hit it would be built from inside the scheduler, which has
+      // a tenth of a second to place a step and no room for a pass over a whole
+      // sample.
+      if (reversed) prewarmReversed(channelId);
     },
-    [updateChannel],
+    [prewarmReversed, updateChannel],
   );
 
   /**
@@ -1210,10 +1235,8 @@ export default function DrumMachine() {
       // Chokes apply here as well: what a pad does to the rest of the kit is
       // part of hearing the channel, and a hat pedal that only worked under the
       // transport would be the odd exception rather than the rule.
-      choke(
-        channelsChokedBy(channelsRef.current, channelId),
-        context.currentTime,
-      );
+      const targets = chokeTargetsRef.current.get(channelId);
+      if (targets) choke(targets, context.currentTime);
     },
     [choke, ensureContext, flashChannels, trigger],
   );

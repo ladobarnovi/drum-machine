@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 import StepButton from "./StepButton";
 import {
   STEPS_PER_BEAT,
@@ -10,8 +12,14 @@ import {
 
 type StepBeatProps = {
   channelLabel: string;
-  /** Steps in this beat, at most STEPS_PER_BEAT of them. */
+  /**
+   * The channel's whole pattern. Handed down entire rather than sliced by the
+   * grid, so this prop keeps its identity between renders and the memo below
+   * has something stable to compare.
+   */
   steps: Step[];
+  /** How many of this beat's slots are inside the channel's length. */
+  stepCount: number;
   /** The channel's own pitch, which a step plays at unless it locks its own. */
   channelPitch: number;
   /** How many slices a step chooses between, or null on a one-shot channel. */
@@ -20,8 +28,12 @@ type StepBeatProps = {
   swipeTarget: SwipeTarget;
   /** Index of this beat's first step within the whole pattern. */
   offset: number;
+  /** The playhead, but only while it is inside this beat. Null otherwise. */
   currentStep: number | null;
-  /** The step the controls panel is editing, or null while none is open. */
+  /**
+   * The step the controls panel is editing, again only while it is one of
+   * this beat's. Null otherwise.
+   */
   editingStep: number | null;
   onStepClick: (stepIndex: number) => void;
   onStepHold: (stepIndex: number) => void;
@@ -36,9 +48,10 @@ type StepBeatProps = {
  * isn't a multiple of the beat) is padded with empty slots so every button keeps
  * the same width.
  */
-export default function StepBeat({
+function StepBeat({
   channelLabel,
   steps,
+  stepCount,
   channelPitch,
   sliceCount,
   swipeTarget,
@@ -55,7 +68,7 @@ export default function StepBeat({
   return (
     <div className="flex gap-1">
       {Array.from({ length: STEPS_PER_BEAT }, (_, slot) => {
-        if (slot >= steps.length) {
+        if (slot >= stepCount) {
           return <div key={slot} aria-hidden className="flex-1" />;
         }
 
@@ -63,7 +76,7 @@ export default function StepBeat({
         return (
           <StepButton
             key={slot}
-            step={steps[slot]}
+            step={steps[stepIndex]}
             channelPitch={channelPitch}
             sliceCount={sliceCount}
             swipeTarget={swipeTarget}
@@ -71,19 +84,23 @@ export default function StepBeat({
             isDownbeat={isDownbeat(stepIndex)}
             isEditing={editingStep === stepIndex}
             label={`Channel ${channelLabel} step ${stepIndex + 1}`}
-            onClick={() => onStepClick(stepIndex)}
-            onHold={() => onStepHold(stepIndex)}
-            onVelocityChange={(velocity) =>
-              onStepVelocityChange(stepIndex, velocity)
-            }
-            onPitchChange={(semitones) =>
-              onStepPitchChange(stepIndex, semitones)
-            }
-            onSliceChange={(slice) => onStepSliceChange(stepIndex, slice)}
-            onContextMenu={(x, y) => onStepContextMenu(stepIndex, x, y)}
+            stepIndex={stepIndex}
+            onClick={onStepClick}
+            onHold={onStepHold}
+            onVelocityChange={onStepVelocityChange}
+            onPitchChange={onStepPitchChange}
+            onSliceChange={onStepSliceChange}
+            onContextMenu={onStepContextMenu}
           />
         );
       })}
     </div>
   );
 }
+
+/**
+ * Memoised alongside the buttons it holds: the grid re-renders on every step of
+ * the transport, and only the beat containing the playhead has anything new to
+ * show.
+ */
+export default memo(StepBeat);

@@ -1,5 +1,7 @@
 "use client";
 
+import { memo, useMemo } from "react";
+
 import {
   filterResponseCurve,
   responseDbAt,
@@ -24,6 +26,9 @@ type FilterGraphProps = {
 /** The plot's own coordinate space. Stretched to fill whatever width it gets. */
 const VIEWBOX_WIDTH = 1000;
 const VIEWBOX_HEIGHT = 400;
+
+const toX = (position: number) => position * VIEWBOX_WIDTH;
+const toY = (db: number) => responseDepth(db) * VIEWBOX_HEIGHT;
 
 /**
  * Where the vertical rules fall. Decades and their halves, which is how a
@@ -51,34 +56,40 @@ type Marker = {
  * the four of them come to together — where the band actually sits, how steeply
  * it falls away either side, and how far the corners are peaking.
  */
-export default function FilterGraph({
+function FilterGraph({
   lowCutHz,
   lowCutResonance,
   highCutHz,
   highCutResonance,
   filterSlope,
 }: FilterGraphProps) {
-  const curve = filterResponseCurve(
-    lowCutHz,
-    lowCutResonance,
-    highCutHz,
-    highCutResonance,
-    filterSlope,
-  );
+  // Held against the five values it is drawn from: the curve is a couple of
+  // hundred points, each a pass over the filter cascade, and the transport
+  // re-renders this card on every step whether or not a cutoff has moved.
+  const { line, area } = useMemo(() => {
+    const curve = filterResponseCurve(
+      lowCutHz,
+      lowCutResonance,
+      highCutHz,
+      highCutResonance,
+      filterSlope,
+    );
 
-  const toX = (position: number) => position * VIEWBOX_WIDTH;
-  const toY = (db: number) => responseDepth(db) * VIEWBOX_HEIGHT;
+    const outline = curve
+      .map(
+        (point, index) =>
+          `${index === 0 ? "M" : "L"} ${toX(point.position)} ${toY(point.db)}`,
+      )
+      .join(" ");
 
-  const line = curve
-    .map(
-      (point, index) =>
-        `${index === 0 ? "M" : "L"} ${toX(point.position)} ${toY(point.db)}`,
-    )
-    .join(" ");
-
-  // The same outline closed along the bottom of the frame, so what the filter
-  // passes reads as a band with weight rather than as a line with two sides.
-  const area = `${line} L ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT} L 0 ${VIEWBOX_HEIGHT} Z`;
+    return {
+      line: outline,
+      // The same outline closed along the bottom of the frame, so what the
+      // filter passes reads as a band with weight rather than as a line with
+      // two sides.
+      area: `${outline} L ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT} L 0 ${VIEWBOX_HEIGHT} Z`,
+    };
+  }, [lowCutHz, lowCutResonance, highCutHz, highCutResonance, filterSlope]);
 
   const markers: Marker[] = [
     {
@@ -241,3 +252,10 @@ export default function FilterGraph({
     </div>
   );
 }
+
+/**
+ * Memoised because the transport re-renders the card this sits in on every
+ * step, and none of what it draws changes with the playhead — only with the
+ * values it is handed.
+ */
+export default memo(FilterGraph);

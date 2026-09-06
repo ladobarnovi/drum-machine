@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { memo, useMemo, type CSSProperties } from "react";
 
 import { lfoCurve, lfoScrollSeconds } from "@/lib/lfoResponse";
 import {
@@ -51,8 +51,14 @@ const toY = (level: number) => CENTRE - level * (CENTRE - PADDING);
  * A bypassed LFO — switched off, or swung by nothing — is drawn dim and still,
  * so a tab that is doing nothing to the channel looks like it.
  */
-export default function LfoGraph({ lfo }: LfoGraphProps) {
-  const curve = lfoCurve(lfo.shape, lfo.rateHz, lfo.amount);
+function LfoGraph({ lfo }: LfoGraphProps) {
+  // Held against the three values it is drawn from: the curve runs to `cycles ×
+  // 64` points, and the transport re-renders this card on every step whether or
+  // not the LFO has been touched.
+  const curve = useMemo(
+    () => lfoCurve(lfo.shape, lfo.rateHz, lfo.amount),
+    [lfo.shape, lfo.rateHz, lfo.amount],
+  );
   const bypassed = isLfoBypassed(lfo);
   // Only free running scrolls, and only while it is actually modulating
   // something: a switched-off LFO drifting across the plot would be claiming
@@ -152,3 +158,10 @@ export default function LfoGraph({ lfo }: LfoGraphProps) {
     </div>
   );
 }
+
+/**
+ * Memoised because the transport re-renders the card this sits in on every
+ * step, and none of what it draws changes with the playhead — only with the
+ * values it is handed.
+ */
+export default memo(LfoGraph);

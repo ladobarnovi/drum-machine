@@ -1,5 +1,7 @@
 "use client";
 
+import { memo, useMemo } from "react";
+
 import {
   envelopeActiveStages,
   envelopeCurve,
@@ -42,17 +44,19 @@ type Stage = {
  * held — so its plateau is drawn a fixed width purely to give the level
  * somewhere to sit before release, where there is one, takes it back down.
  */
-export default function EnvelopeGraph({
+function EnvelopeGraph({
   attackSeconds,
   decaySeconds,
   sustainLevel,
   releaseSeconds,
 }: EnvelopeGraphProps) {
-  const curve = envelopeCurve(
-    attackSeconds,
-    decaySeconds,
-    sustainLevel,
-    releaseSeconds,
+  // Held against the four stage times: the curve is sampled at over a hundred
+  // points, and the transport re-renders this card on every step whether or not
+  // the envelope has moved.
+  const curve = useMemo(
+    () =>
+      envelopeCurve(attackSeconds, decaySeconds, sustainLevel, releaseSeconds),
+    [attackSeconds, decaySeconds, sustainLevel, releaseSeconds],
   );
   const positions = envelopeStagePositions(
     attackSeconds,
@@ -184,3 +188,10 @@ export default function EnvelopeGraph({
     </div>
   );
 }
+
+/**
+ * Memoised because the transport re-renders the card this sits in on every
+ * step, and none of what it draws changes with the playhead — only with the
+ * values it is handed.
+ */
+export default memo(EnvelopeGraph);

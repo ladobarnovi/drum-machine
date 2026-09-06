@@ -1887,19 +1887,31 @@ export function triggerOptionsForChannel(channel: Channel, step?: Step) {
 }
 
 /**
- * Every channel a hit on `sourceId` cuts short.
+ * Every channel each hit cuts short, keyed by the channel doing the cutting.
  *
- * Read from the choked channels rather than held on the choking one, so one hit
- * can silence any number of channels and no list has to be kept in step with a
- * setting that lives elsewhere.
+ * The setting is read from the choked channels rather than held on the choking
+ * one, so one hit can silence any number of channels and no list has to be kept
+ * in step with a setting that lives elsewhere. That is the wrong way round for
+ * the scheduler, which knows what fired and needs to know what it silences — so
+ * the relation is turned inside out once per pattern change, and a step becomes
+ * a map lookup rather than a pass over the whole kit per hit.
+ *
+ * Only channels that actually choke something get an entry, so on a kit where
+ * nothing is routed this is an empty map and the lookup misses immediately.
  */
-export function channelsChokedBy(
+export function chokeTargetsBySource(
   channels: Channel[],
-  sourceId: string,
-): string[] {
-  return channels
-    .filter((channel) => channel.chokedBy === sourceId)
-    .map((channel) => channel.id);
+): Map<string, string[]> {
+  const targets = new Map<string, string[]>();
+
+  for (const channel of channels) {
+    if (!channel.chokedBy) continue;
+    const existing = targets.get(channel.chokedBy);
+    if (existing) existing.push(channel.id);
+    else targets.set(channel.chokedBy, [channel.id]);
+  }
+
+  return targets;
 }
 
 /**

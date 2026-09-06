@@ -48,25 +48,37 @@ export default function StepGrid({
   onStepSliceChange,
   onStepContextMenu,
 }: StepGridProps) {
-  const visible = steps.slice(0, length);
-  const beatCount = Math.ceil(visible.length / STEPS_PER_BEAT);
+  // The whole array is handed down and each beat takes its own window, rather
+  // than being sliced here: a fresh array per beat per render would be a new
+  // prop identity every time, and `StepBeat` is memoised precisely so the beats
+  // the playhead is not in can sit still.
+  const playing = Math.min(length, steps.length);
+  const beatCount = Math.ceil(playing / STEPS_PER_BEAT);
 
   return (
     <>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {Array.from({ length: beatCount }, (_, beat) => {
           const offset = beat * STEPS_PER_BEAT;
+          // Narrowed to this beat before it goes down, so a playhead moving
+          // through one beat leaves the other three memoised rather than
+          // re-rendering every beat on every step.
+          const within = (index: number | null) =>
+            index !== null && index >= offset && index < offset + STEPS_PER_BEAT
+              ? index
+              : null;
           return (
             <StepBeat
               key={offset}
               channelLabel={channelLabel}
-              steps={visible.slice(offset, offset + STEPS_PER_BEAT)}
+              steps={steps}
+              stepCount={Math.min(STEPS_PER_BEAT, playing - offset)}
               channelPitch={channelPitch}
               sliceCount={sliceCount}
               swipeTarget={swipeTarget}
               offset={offset}
-              currentStep={currentStep}
-              editingStep={editingStep}
+              currentStep={within(currentStep)}
+              editingStep={within(editingStep)}
               onStepClick={onStepClick}
               onStepHold={onStepHold}
               onStepVelocityChange={onStepVelocityChange}

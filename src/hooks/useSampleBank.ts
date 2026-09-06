@@ -317,6 +317,13 @@ const REVERB_IMPULSE_CHANNELS = 2;
 const REVERB_DECAY_CURVE = 2.5;
 
 /**
+ * How long the decay knob has to sit still before the tail is rebuilt. Long
+ * enough to cover the gaps between pointer events on a drag, short enough that
+ * letting go feels like it took effect immediately.
+ */
+const REVERB_IMPULSE_SETTLE_MS = 120;
+
+/**
  * How many allpass stages are built. The longest count on offer, always: the
  * chain is wired once and tapped part way along, so changing the stage count
  * crossfades between taps instead of rebuilding nodes underneath a bus that is
@@ -1297,16 +1304,6 @@ function applyReverb(
 ) {
   const now = context.currentTime;
 
-  // Swapping the impulse resets whatever the convolver was still ringing out,
-  // so a decay move cuts the current tail short. Acceptable for a knob that is
-  // set rather than ridden, and the alternative — crossfading two convolvers —
-  // costs a second one running permanently.
-  const impulseKey = clampReverbDecay(reverb.decaySeconds);
-  if (chain.impulseKey !== impulseKey) {
-    chain.convolver.buffer = createReverbImpulse(context, impulseKey);
-    chain.impulseKey = impulseKey;
-  }
-
   rampTo(chain.damping.frequency, clampFrequency(reverb.toneHz), now);
   rampTo(
     chain.reverbLevel.gain,
@@ -1314,6 +1311,33 @@ function applyReverb(
     now,
   );
   rampTo(chain.reverbToPhaser.gain, clampSend(reverb.phaserSend), now);
+}
+
+/**
+ * Rebuilds the tail, if the decay has actually moved.
+ *
+ * Kept apart from the ramps above because it is the one part of a reverb
+ * change that is not cheap: the impulse runs to `decay × sampleRate` frames per
+ * side, so at the long end it is a synchronous three-quarters of a million
+ * `Math.random()` calls on the main thread — enough to be heard as a stutter
+ * while the transport is running. The caller decides when to pay it; a knob
+ * being ridden defers until it settles.
+ *
+ * Swapping the impulse also resets whatever the convolver was still ringing
+ * out, so a decay move cuts the current tail short. Acceptable for a knob that
+ * is set rather than ridden, and the alternative — crossfading two convolvers —
+ * costs a second one running permanently.
+ */
+function applyReverbImpulse(
+  context: AudioContext,
+  chain: MasterChain,
+  reverb: MasterReverb,
+) {
+  const impulseKey = clampReverbDecay(reverb.decaySeconds);
+  if (chain.impulseKey === impulseKey) return;
+
+  chain.convolver.buffer = createReverbImpulse(context, impulseKey);
+  chain.impulseKey = impulseKey;
 }
 
 /**
@@ -1419,6 +1443,8 @@ export function useSampleBank() {
   // chain is built, which happens long after the tempo was last set.
   const delayBpmRef = useRef(DEFAULT_BPM);
   const reverbRef = useRef<MasterReverb>(DEFAULT_MASTER_REVERB);
+  /** Pending tail rebuild, held so a knob still moving can push it back. */
+  const impulseTimeoutRef = useRef<number | null>(null);
   const phaserRef = useRef<MasterPhaser>(DEFAULT_MASTER_PHASER);
   const compressorRef = useRef<MasterCompressor>(DEFAULT_MASTER_COMPRESSOR);
   // The scope's read buffer, built on first use and then reused every frame.
@@ -1450,6 +1476,9 @@ export function useSampleBank() {
 
   useEffect(() => {
     return () => {
+      if (impulseTimeoutRef.current !== null) {
+        window.clearTimeout(impulseTimeoutRef.current);
+      }
       void contextRef.current?.close();
     };
   }, []);
@@ -1480,6 +1509,7 @@ export function useSampleBank() {
       applyFilter(context, chain, filterRef.current);
       applyDelay(context, chain, delayRef.current, delayBpmRef.current);
       applyReverb(context, chain, reverbRef.current);
+      applyReverbImpulse(context, chain, reverbRef.current);
       applyPhaser(context, chain, phaserRef.current);
       applyCompressor(context, chain, compressorRef.current);
       applyVolume(context, chain, volumeRef.current);
@@ -1545,7 +1575,27 @@ export function useSampleBank() {
     const chain = masterRef.current;
     if (!context || !chain) return;
 
+    // Levels and tone are three ramps, so they follow the knob exactly.
     applyReverb(context, chain, reverb);
+
+    // The tail is not: rebuilding it is the expensive half, and a decay slider
+    // being dragged emits a value every step of the way. Waiting for the knob
+    // to settle turns a sweep into one rebuild instead of one per step, and
+    // stops the tail being cut over and over on the way there.
+    if (impulseTimeoutRef.current !== null) {
+      window.clearTimeout(impulseTimeoutRef.current);
+    }
+    impulseTimeoutRef.current = window.setTimeout(() => {
+      impulseTimeoutRef.current = null;
+
+      // Re-read rather than closing over `reverb`: by the time this runs the
+      // knob may have moved again, and the latest value is the one that counts.
+      const settledContext = contextRef.current;
+      const settledChain = masterRef.current;
+      if (!settledContext || !settledChain) return;
+
+      applyReverbImpulse(settledContext, settledChain, reverbRef.current);
+    }, REVERB_IMPULSE_SETTLE_MS);
   }, []);
 
   /** Points the phaser bus at `phaser`, creating no context of its own. */
@@ -1678,6 +1728,29 @@ export function useSampleBank() {
 
   const removeSample = useCallback((channelId: string) => {
     buffersRef.current.delete(channelId);
+  }, []);
+
+  /**
+   * Builds the back-to-front copy of a channel's sample ahead of time.
+   *
+   * `trigger` falls back to doing this on the first reversed hit, but that hit
+   * is scheduled from inside the lookahead pump with about a tenth of a second
+   * to spare, and a pass over every frame of a long sample will not fit — the
+   * step lands late, or not at all. Called when a channel is *put* into reverse
+   * instead, which is off the audio path entirely.
+   *
+   * A no-op once the copy exists, so it is safe to call as often as it is
+   * convenient to.
+   */
+  const prewarmReversed = useCallback((channelId: string) => {
+    const context = contextRef.current;
+    const forward = buffersRef.current.get(channelId);
+    if (!context || !forward) return;
+
+    const cache = reversedBuffersRef.current;
+    if (cache.has(forward)) return;
+
+    cache.set(forward, reverseBuffer(context, forward));
   }, []);
 
   /** The decoded buffer behind a channel's sample, e.g. to hand off to a copy. */
@@ -2189,6 +2262,7 @@ export function useSampleBank() {
     setSampleBuffer,
     trigger,
     getSamplePosition,
+    prewarmReversed,
     choke,
   };
 }
