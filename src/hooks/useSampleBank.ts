@@ -160,6 +160,13 @@ export function useSampleBank() {
       applyVolume(context, chain, volumeRef.current);
     }
 
+    // Autoplay policy parks a context created outside a gesture, and a tab left
+    // in the background can be parked later. Every caller wanted this and each
+    // wrote it out again; it belongs with the context rather than beside it.
+    if (context.state === "suspended") {
+      void context.resume();
+    }
+
     return context;
   }, []);
 

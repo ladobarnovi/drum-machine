@@ -1218,9 +1218,6 @@ export default function DrumMachine() {
   const handlePreviewChannel = useCallback(
     (channelId: string, velocityGain = 1) => {
       const context = ensureContext();
-      if (context.state === "suspended") {
-        void context.resume();
-      }
 
       const channel = channelsRef.current.find((item) => item.id === channelId);
       if (!channel) return;
@@ -1326,10 +1323,10 @@ export default function DrumMachine() {
    */
   const handleSelectMidiInput = useCallback(
     (id: string | null) => {
-      const context = ensureContext();
-      if (context.state === "suspended") {
-        void context.resume();
-      }
+      // Called for the context it builds and resumes, not for the context
+      // itself: picking a device is a gesture, and it is as good a moment as any
+      // to have the audio ready.
+      ensureContext();
       selectMidiInput(id);
     },
     [ensureContext, selectMidiInput],
@@ -1352,10 +1349,7 @@ export default function DrumMachine() {
    */
   const handleSelectAudioOutput = useCallback(
     (id: string) => {
-      const context = ensureContext();
-      if (context.state === "suspended") {
-        void context.resume();
-      }
+      ensureContext();
       selectAudioOutput(id);
     },
     [ensureContext, selectAudioOutput],

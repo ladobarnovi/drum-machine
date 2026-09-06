@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useLatest } from "@/hooks/useLatest";
 import { secondsToNextStep } from "@/lib/sequencer";
 
 /** How often the scheduler wakes up to look for notes to queue. */
@@ -46,9 +47,11 @@ export function useSequencer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTick, setCurrentTick] = useState<number | null>(null);
 
-  const bpmRef = useRef(bpm);
-  const swingRef = useRef(swing);
-  const onStepRef = useRef(onStep);
+  // Read through refs so an edit mid-playback applies to the next step queued
+  // rather than waiting for the transport to be restarted.
+  const bpmRef = useLatest(bpm);
+  const swingRef = useLatest(swing);
+  const onStepRef = useLatest(onStep);
   const nextTickRef = useRef(0);
   const nextNoteTimeRef = useRef(0);
   const schedulerTimeoutRef = useRef<number | null>(null);
@@ -63,18 +66,6 @@ export function useSequencer({
    */
   const playingRef = useRef(false);
   const visualTimeoutsRef = useRef(new Set<number>());
-
-  useEffect(() => {
-    bpmRef.current = bpm;
-  }, [bpm]);
-
-  useEffect(() => {
-    swingRef.current = swing;
-  }, [swing]);
-
-  useEffect(() => {
-    onStepRef.current = onStep;
-  }, [onStep]);
 
   const clearTimers = useCallback(() => {
     if (schedulerTimeoutRef.current !== null) {
@@ -101,9 +92,6 @@ export function useSequencer({
     playingRef.current = true;
 
     const context = ensureContext();
-    if (context.state === "suspended") {
-      void context.resume();
-    }
 
     nextTickRef.current = 0;
     nextNoteTimeRef.current = context.currentTime + START_DELAY_S;
@@ -142,7 +130,7 @@ export function useSequencer({
     };
 
     pump();
-  }, [ensureContext]);
+  }, [bpmRef, ensureContext, onStepRef, swingRef]);
 
   return { isPlaying, currentTick, play, stop };
 }
