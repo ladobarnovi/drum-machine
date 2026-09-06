@@ -325,7 +325,6 @@ export default function DrumMachine() {
     DEFAULT_PRESET.id,
   );
 
-
   /** The last saved parameter snapshot, or null until one has been taken. */
   const [snapshot, setSnapshot] = useState<ParameterSnapshot | null>(null);
 
@@ -971,9 +970,6 @@ export default function DrumMachine() {
     [updateSelectedSteps],
   );
 
-
-
-
   const handleNameChange = useCallback(
     (channelId: string, name: string) => {
       updateChannel(channelId, { name: clampChannelName(name) });
@@ -1331,11 +1327,14 @@ export default function DrumMachine() {
    * step that was being edited on the kick — so carrying it over would leave the
    * panel scoped to a step nobody opened, showing locks nobody set.
    */
-  const handleSelectChannel = useCallback((channelId: string) => {
-    setSelectedChannelId(channelId);
-    setRawEditingStepIndex(null);
-    closeStepMenu();
-  }, [closeStepMenu]);
+  const handleSelectChannel = useCallback(
+    (channelId: string) => {
+      setSelectedChannelId(channelId);
+      setRawEditingStepIndex(null);
+      closeStepMenu();
+    },
+    [closeStepMenu],
+  );
 
   const handleSelectChannelIndex = useCallback(
     (index: number) => handleSelectChannel(channelIdForIndex(index)),
@@ -1352,8 +1351,6 @@ export default function DrumMachine() {
   }, [setMasterFilter]);
 
   useMasterFilterShortcuts({ onToggle: handleToggleMasterFilter });
-
-
 
   // The resonances go through `setParameter` like the cutoffs beside them, so
   // the knobs in the filter card follow whatever the panel is scoped to: the
@@ -1373,13 +1370,6 @@ export default function DrumMachine() {
     },
     [selectedChannel.id, updateChannel],
   );
-
-
-
-
-
-
-
 
   /** Puts one parameter of the open step back on the channel's own setting. */
   const handleClearStepLock = useCallback(

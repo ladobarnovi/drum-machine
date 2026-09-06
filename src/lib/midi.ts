@@ -1,4 +1,4 @@
-import { CHANNEL_COUNT, clampBpm } from "@/lib/sequencer";
+import { CHANNEL_COUNT, clamp, clampBpm } from "@/lib/sequencer";
 
 /**
  * Where the mapped channels start on an incoming keyboard or pad controller,
@@ -8,6 +8,12 @@ import { CHANNEL_COUNT, clampBpm } from "@/lib/sequencer";
  * chromatically above it, so a 16-pad controller lines up one pad per channel
  * with nothing to configure.
  */
+/**
+ * The top of a MIDI data byte, which velocities and CC values both run to.
+ * Named because it was written out as a bare 127 in three places.
+ */
+export const MIDI_MAX_DATA_VALUE = 127;
+
 export const MIDI_BASE_NOTE = 36;
 
 /** One past the last note this mapping reaches, exclusive. */
@@ -75,7 +81,7 @@ export function channelIndexForMidiNote(note: number): number | null {
  * step would.
  */
 export function midiVelocityToGain(velocity: number): number {
-  return Math.min(Math.max(velocity, 0), 127) / 127;
+  return clamp(velocity, 0, MIDI_MAX_DATA_VALUE) / MIDI_MAX_DATA_VALUE;
 }
 
 /** A MIDI CC value (0..127), scaled linearly onto whatever range a mapped control's own slider covers. */
@@ -84,8 +90,8 @@ export function ccValueToRange(
   min: number,
   max: number,
 ): number {
-  const clamped = Math.min(Math.max(value, 0), 127);
-  return min + (clamped / 127) * (max - min);
+  const clamped = clamp(value, 0, MIDI_MAX_DATA_VALUE);
+  return min + (clamped / MIDI_MAX_DATA_VALUE) * (max - min);
 }
 
 /**

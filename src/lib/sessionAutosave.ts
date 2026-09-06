@@ -145,7 +145,9 @@ function decodeChannelSnapshot(value: unknown): ChannelSnapshot {
     attackSeconds: clampAttack(
       readNumber(raw.attackSeconds, DEFAULT_ATTACK_SECONDS),
     ),
-    decaySeconds: clampDecay(readNumber(raw.decaySeconds, DEFAULT_DECAY_SECONDS)),
+    decaySeconds: clampDecay(
+      readNumber(raw.decaySeconds, DEFAULT_DECAY_SECONDS),
+    ),
     sustainLevel: clampSustain(
       readNumber(raw.sustainLevel, DEFAULT_SUSTAIN_LEVEL),
     ),

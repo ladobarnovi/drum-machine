@@ -5,6 +5,7 @@ import { useRef, type KeyboardEvent, type PointerEvent } from "react";
 import MidiBadge from "@/components/ui/MidiBadge";
 import MidiLearnMenu from "@/components/ui/MidiLearnMenu";
 import { useMidiLearnMenu } from "@/hooks/useMidiLearnMenu";
+import { clamp } from "@/lib/sequencer";
 
 type RotaryKnobProps = {
   label: string;
@@ -152,7 +153,7 @@ export default function RotaryKnob({
   const range = max - min;
 
   const snap = (raw: number) => {
-    const clamped = Math.min(Math.max(raw, min), max);
+    const clamped = clamp(raw, min, max);
     if (step <= 0) return clamped;
     return Math.min(
       Math.max(Math.round((clamped - min) / step) * step + min, min),
@@ -160,8 +161,7 @@ export default function RotaryKnob({
     );
   };
 
-  const fraction =
-    range > 0 ? (Math.min(Math.max(value, min), max) - min) / range : 0;
+  const fraction = range > 0 ? (clamp(value, min, max) - min) / range : 0;
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (disabled) return;

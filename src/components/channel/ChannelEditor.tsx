@@ -114,7 +114,10 @@ type SampleSectionProps = {
   onPanChange: (pan: number) => void;
   onPitchChange: (pitch: number) => void;
   /** Rerolls one of Gain, Pan or Pitch across every active step. */
-  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  onRandomizeParameter: (
+    key: LockableParameter,
+    randomize: () => number,
+  ) => void;
   /** Drops every override of one of Gain, Pan or Pitch, pattern-wide. */
   onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited, so these three knobs mark their locks
@@ -348,10 +351,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   // while the target the machine holds is deliberately not a channel's to
   // own: it says what you are doing, not what this channel is.
   const swipeTargets = swipeTargetsFor(channel.sampleMode);
-  const swipeTarget = resolveSwipeTarget(
-    props.swipeTarget,
-    channel.sampleMode,
-  );
+  const swipeTarget = resolveSwipeTarget(props.swipeTarget, channel.sampleMode);
 
   // Null on a one shot, which is the whole of what takes the position off
   // the step buttons — there are no parts for a hit to be at.
@@ -428,10 +428,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
               }
               locked={openStep.repeatCount > MIN_STEP_REPEAT}
               onClearLock={() =>
-                props.onStepRepeatChange(
-                  editingStepIndex,
-                  DEFAULT_STEP_REPEAT,
-                )
+                props.onStepRepeatChange(editingStepIndex, DEFAULT_STEP_REPEAT)
               }
             />
 
@@ -467,10 +464,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
               }
               locked={openStep.timingOffset !== DEFAULT_STEP_TIMING}
               onClearLock={() =>
-                props.onStepTimingChange(
-                  editingStepIndex,
-                  DEFAULT_STEP_TIMING,
-                )
+                props.onStepTimingChange(editingStepIndex, DEFAULT_STEP_TIMING)
               }
             />
 

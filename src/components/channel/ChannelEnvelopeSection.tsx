@@ -65,7 +65,10 @@ type ChannelEnvelopeSectionProps = {
   onSustainChange: (level: number) => void;
   onReleaseChange: (seconds: number) => void;
   /** Rerolls one of the four knobs above across every active step. */
-  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  onRandomizeParameter: (
+    key: LockableParameter,
+    randomize: () => number,
+  ) => void;
   /** Drops every override of one of the four knobs above, pattern-wide. */
   onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited; absent while the channel is. */

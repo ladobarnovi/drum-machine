@@ -98,7 +98,10 @@ type SampleEditorTabsSectionProps = {
    * and FX — since Randomize always means the same thing wherever it's asked
    * for: scatter this one parameter across the hits that are already playing.
    */
-  onRandomizeParameter: (key: LockableParameter, randomize: () => number) => void;
+  onRandomizeParameter: (
+    key: LockableParameter,
+    randomize: () => number,
+  ) => void;
   /** Drops one lockable parameter's overrides everywhere in the pattern — the
    *  undo for Randomize, offered in the same menu. */
   onClearLockedParameter: (key: LockableParameter) => void;

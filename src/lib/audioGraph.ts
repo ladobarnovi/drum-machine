@@ -9,6 +9,7 @@
  */
 
 import {
+  clamp,
   COMPRESSOR_KNEE_DB,
   DEFAULT_DELAY_TONE_HZ,
   DEFAULT_HIGH_CUT_HZ,
@@ -223,7 +224,7 @@ const SHAPERS: Record<DriveType, Shaper> = {
   /** Gain into a flat ceiling. No knee at all, so it buzzes where soft rounds. */
   hard: (x, amount) => {
     const driven = thresholdGain(amount, MAX_DRIVE_GAIN) * x;
-    return Math.min(Math.max(driven, -1), 1);
+    return clamp(driven, -1, 1);
   },
 
   /**

@@ -1,4 +1,5 @@
 import {
+  clamp01,
   MAX_FILTER_HZ,
   MIN_FILTER_HZ,
   MIN_RESONANCE,
@@ -206,5 +207,5 @@ export function filterResponseCurve(
  */
 export function responseDepth(db: number): number {
   const span = MAX_RESPONSE_DB - MIN_RESPONSE_DB;
-  return Math.min(Math.max((MAX_RESPONSE_DB - db) / span, 0), 1);
+  return clamp01((MAX_RESPONSE_DB - db) / span);
 }

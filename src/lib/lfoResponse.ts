@@ -1,4 +1,9 @@
-import { clampLfoAmount, clampLfoRate, lfoRateToSlider } from "./sequencer";
+import {
+  clamp,
+  clampLfoAmount,
+  clampLfoRate,
+  lfoRateToSlider,
+} from "./sequencer";
 import type { LfoShape } from "./sequencer";
 
 /**
@@ -80,7 +85,7 @@ export function lfoCyclesShown(rateHz: number): number {
  */
 export function lfoScrollSeconds(rateHz: number): number {
   const seconds = lfoCyclesShown(rateHz) / clampLfoRate(rateHz);
-  return Math.min(Math.max(seconds, MIN_SCROLL_SECONDS), MAX_SCROLL_SECONDS);
+  return clamp(seconds, MIN_SCROLL_SECONDS, MAX_SCROLL_SECONDS);
 }
 
 /**
