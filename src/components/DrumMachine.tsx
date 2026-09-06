@@ -51,6 +51,7 @@ import { useMidiParameterRegistry } from "@/hooks/useMidiParameterRegistry";
 import { useSampleBank } from "@/hooks/useSampleBank";
 import { useSceneShortcuts } from "@/hooks/useSceneShortcuts";
 import { useScenes } from "@/hooks/useScenes";
+import { useContextMenuAnchor } from "@/hooks/useContextMenuAnchor";
 import { useSequencer } from "@/hooks/useSequencer";
 import { useTransportShortcuts } from "@/hooks/useTransportShortcuts";
 import {
@@ -266,21 +267,21 @@ export default function DrumMachine() {
   );
 
   /** Which step's right-click menu is open, and where it was raised. */
-  const [contextMenuStep, setContextMenuStep] = useState<{
-    index: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const {
+    anchor: contextMenuStep,
+    open: openStepMenu,
+    close: closeStepMenu,
+  } = useContextMenuAnchor<{ index: number }>();
 
   /** The last step copied from the grid's context menu, or null until one is. */
   const [clipboardStep, setClipboardStep] = useState<Step | null>(null);
 
   /** Which channel's right-click menu is open, and where it was raised. */
-  const [contextMenuChannel, setContextMenuChannel] = useState<{
-    channelId: string;
-    x: number;
-    y: number;
-  } | null>(null);
+  const {
+    anchor: contextMenuChannel,
+    open: openChannelMenu,
+    close: closeChannelMenu,
+  } = useContextMenuAnchor<{ channelId: string }>();
 
   /** The last steps copied from a channel's context menu. */
   const [clipboardSteps, setClipboardSteps] = useState<{
@@ -289,18 +290,18 @@ export default function DrumMachine() {
   } | null>(null);
 
   /** Which pattern slot's right-click menu is open, and where it was raised. */
-  const [contextMenuPattern, setContextMenuPattern] = useState<{
-    index: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const {
+    anchor: contextMenuPattern,
+    open: openPatternMenu,
+    close: closePatternMenu,
+  } = useContextMenuAnchor<{ index: number }>();
 
   /** Which scene slot's right-click menu is open, and where it was raised. */
-  const [contextMenuScene, setContextMenuScene] = useState<{
-    index: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const {
+    anchor: contextMenuScene,
+    open: openSceneMenu,
+    close: closeSceneMenu,
+  } = useContextMenuAnchor<{ index: number }>();
 
   /** The scene slot whose rename dialog is open, or null while none is. */
   const [renamingSceneIndex, setRenamingSceneIndex] = useState<number | null>(
@@ -655,12 +656,10 @@ export default function DrumMachine() {
   /** A right click on a step: raises its action menu at the pointer. */
   const handleStepContextMenu = useCallback(
     (stepIndex: number, x: number, y: number) => {
-      setContextMenuStep({ index: stepIndex, x, y });
+      openStepMenu({ index: stepIndex }, x, y);
     },
-    [],
+    [openStepMenu],
   );
-
-  const closeStepContextMenu = useCallback(() => setContextMenuStep(null), []);
 
   /** "Clear Step" from the context menu: back to off with nothing set. */
   const handleClearStepFromMenu = useCallback(() => {
@@ -1040,14 +1039,9 @@ export default function DrumMachine() {
   /** A right click on a channel pad: raises its action menu at the pointer. */
   const handleChannelContextMenu = useCallback(
     (channelId: string, x: number, y: number) => {
-      setContextMenuChannel({ channelId, x, y });
+      openChannelMenu({ channelId }, x, y);
     },
-    [],
-  );
-
-  const closeChannelContextMenu = useCallback(
-    () => setContextMenuChannel(null),
-    [],
+    [openChannelMenu],
   );
 
   /**
@@ -1069,14 +1063,9 @@ export default function DrumMachine() {
   /** A right click on a pattern slot: raises its action menu at the pointer. */
   const handlePatternContextMenu = useCallback(
     (index: number, x: number, y: number) => {
-      setContextMenuPattern({ index, x, y });
+      openPatternMenu({ index }, x, y);
     },
-    [],
-  );
-
-  const closePatternContextMenu = useCallback(
-    () => setContextMenuPattern(null),
-    [],
+    [openPatternMenu],
   );
 
   /**
@@ -1106,14 +1095,9 @@ export default function DrumMachine() {
   /** A right click on a scene slot: raises its action menu at the pointer. */
   const handleSceneContextMenu = useCallback(
     (index: number, x: number, y: number) => {
-      setContextMenuScene({ index, x, y });
+      openSceneMenu({ index }, x, y);
     },
-    [],
-  );
-
-  const closeSceneContextMenu = useCallback(
-    () => setContextMenuScene(null),
-    [],
+    [openSceneMenu],
   );
 
   /** "Save mutes here": reads the live mutes into the right-clicked slot. */
@@ -1379,8 +1363,8 @@ export default function DrumMachine() {
   const handleSelectChannel = useCallback((channelId: string) => {
     setSelectedChannelId(channelId);
     setRawEditingStepIndex(null);
-    setContextMenuStep(null);
-  }, []);
+    closeStepMenu();
+  }, [closeStepMenu]);
 
   const handleSelectChannelIndex = useCallback(
     (index: number) => handleSelectChannel(channelIdForIndex(index)),
@@ -2549,7 +2533,7 @@ export default function DrumMachine() {
         <StepContextMenu
           x={contextMenuStep.x}
           y={contextMenuStep.y}
-          onClose={closeStepContextMenu}
+          onClose={closeStepMenu}
           clearDisabled={isStepCleared(
             selectedChannel.steps[contextMenuStep.index],
           )}
@@ -2565,7 +2549,7 @@ export default function DrumMachine() {
         <ChannelContextMenu
           x={contextMenuChannel.x}
           y={contextMenuChannel.y}
-          onClose={closeChannelContextMenu}
+          onClose={closeChannelMenu}
           onClearSteps={() =>
             handleClearStepsFromMenu(contextMenuChannelTarget.id)
           }
@@ -2597,7 +2581,7 @@ export default function DrumMachine() {
         <PatternContextMenu
           x={contextMenuPattern.x}
           y={contextMenuPattern.y}
-          onClose={closePatternContextMenu}
+          onClose={closePatternMenu}
           onSavePattern={() =>
             handleSavePatternFromMenu(contextMenuPattern.index)
           }
@@ -2612,7 +2596,7 @@ export default function DrumMachine() {
         <SceneContextMenu
           x={contextMenuScene.x}
           y={contextMenuScene.y}
-          onClose={closeSceneContextMenu}
+          onClose={closeSceneMenu}
           onSaveScene={() => handleSaveSceneFromMenu(contextMenuScene.index)}
           renameDisabled={scenes[contextMenuScene.index] === null}
           onRenameScene={() => setRenamingSceneIndex(contextMenuScene.index)}
