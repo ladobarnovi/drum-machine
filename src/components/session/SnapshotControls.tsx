@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useTransientFlag } from "@/hooks/useTransientFlag";
 
 type SnapshotControlsProps = {
   /** False until something has been saved, which is all Recall has to go on. */
@@ -29,25 +29,11 @@ export default function SnapshotControls({
   onSave,
   onRecall,
 }: SnapshotControlsProps) {
-  const [justSaved, setJustSaved] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Dropped on unmount, so a pending confirmation can't set state on a button
-  // that has gone.
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+  const [justSaved, confirmSaved] = useTransientFlag(SAVED_LABEL_MS);
 
   const handleSave = () => {
     onSave();
-    setJustSaved(true);
-
-    // Restarted rather than left to run, so saving twice in quick succession
-    // confirms twice instead of the second press going unacknowledged.
-    if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setJustSaved(false), SAVED_LABEL_MS);
+    confirmSaved();
   };
 
   // Both buttons are sized to their widest label, so the header doesn't shift

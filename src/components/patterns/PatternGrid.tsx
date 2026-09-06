@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useTransientFlag } from "@/hooks/useTransientFlag";
 
 import SlotButton from "./SlotButton";
 import { patternLabel, type Bank } from "@/lib/patterns";
@@ -34,22 +34,12 @@ export default function PatternGrid({
     (pattern) => pattern === null,
   );
 
-  const [justSaved, setJustSaved] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+  const [justSaved, confirmSaved] = useTransientFlag(SAVED_LABEL_MS);
 
   const handleSaveClick = () => {
     if (firstEmptyIndex === -1) return;
     onSave(firstEmptyIndex);
-    setJustSaved(true);
-
-    if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setJustSaved(false), SAVED_LABEL_MS);
+    confirmSaved();
   };
 
   return (

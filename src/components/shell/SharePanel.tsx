@@ -1,5 +1,7 @@
 "use client";
 
+import { useTransientFlag } from "@/hooks/useTransientFlag";
+
 import { useEffect, useRef, useState } from "react";
 
 import RailGroup from "@/components/ui/RailGroup";
@@ -34,21 +36,12 @@ type SharePanelProps = {
  * that reaches this page intact.
  */
 export default function SharePanel({ onBuildLink, canShare }: SharePanelProps) {
-  const [copied, setCopied] = useState(false);
+  const [copied, confirmCopied] = useTransientFlag(COPIED_LABEL_MS);
   const [building, setBuilding] = useState(false);
   /** The link itself, shown only when the clipboard refused it. */
   const [fallbackLink, setFallbackLink] = useState<string | null>(null);
 
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackRef = useRef<HTMLInputElement>(null);
-
-  // Dropped on unmount, so a pending confirmation can't set state on a button
-  // that has gone — the same guard `SnapshotControls` keeps over its own.
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-    };
-  }, []);
 
   // Selected as it appears, so a reader who has just been told to copy it by
   // hand only has to press one chord rather than drag across a long string.
@@ -76,9 +69,7 @@ export default function SharePanel({ onBuildLink, canShare }: SharePanelProps) {
         return;
       }
 
-      setCopied(true);
-      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => setCopied(false), COPIED_LABEL_MS);
+      confirmCopied();
     } finally {
       setBuilding(false);
     }
