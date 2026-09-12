@@ -58,7 +58,7 @@ export default function RailSlider({
               <MidiBadge label={ariaLabel} menu={midiMenu} />
             )}
           </span>
-          <span className="text-muted tabular-nums">{readout}</span>
+          <span className="text-muted font-mono tabular-nums">{readout}</span>
         </span>
         <input
           type="range"

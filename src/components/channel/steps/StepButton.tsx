@@ -387,7 +387,7 @@ function StepButton({
         // and this is the one way the number is legible over all of them.
         <span
           aria-hidden
-          className="bg-surface text-fg absolute inset-x-0 bottom-1 mx-auto w-fit rounded px-1 text-[10px] leading-tight font-semibold tabular-nums"
+          className="bg-surface text-fg absolute inset-x-0 bottom-1 mx-auto w-fit rounded px-1 font-mono text-[10px] leading-tight font-semibold tabular-nums"
         >
           {pitch > 0 ? `+${pitch}` : pitch}
         </span>
@@ -405,7 +405,7 @@ function StepButton({
         // a grid saying 0 where the panel says "1 / 16" would be two answers.
         <span
           aria-hidden
-          className="bg-surface text-fg absolute inset-0 m-auto h-fit w-fit rounded px-1 text-[10px] leading-tight font-semibold tabular-nums"
+          className="bg-surface text-fg absolute inset-0 m-auto h-fit w-fit rounded px-1 font-mono text-[10px] leading-tight font-semibold tabular-nums"
         >
           {slice + 1}
         </span>

@@ -70,7 +70,7 @@ export default function GainReductionMeter({
     <div aria-hidden className="flex flex-col gap-1 text-xs">
       <span className="flex items-baseline justify-between">
         <span>Reduction</span>
-        <span ref={readoutRef} className="text-muted tabular-nums">
+        <span ref={readoutRef} className="text-muted font-mono tabular-nums">
           0 dB
         </span>
       </span>
@@ -78,7 +78,7 @@ export default function GainReductionMeter({
       <span className="bg-field border-edge relative block h-2 overflow-hidden rounded-full border">
         <span
           ref={barRef}
-          className="bg-accent absolute inset-y-0 right-0 w-0"
+          className="bg-audio absolute inset-y-0 right-0 w-0"
         />
       </span>
     </div>

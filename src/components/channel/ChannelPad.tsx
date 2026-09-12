@@ -138,7 +138,7 @@ function ChannelPad({
           // Owned by the meter loop from here on, and set once here so a pad
           // that has never been heard starts empty rather than full.
           style={{ transform: "scaleX(0)" }}
-          className="bg-accent data-[over=true]:bg-danger absolute inset-0 origin-left"
+          className="bg-audio data-[over=true]:bg-danger absolute inset-0 origin-left"
         />
       </span>
 

@@ -2002,7 +2002,7 @@ export default function DrumMachine() {
               that does nothing, and the play button says what the page is
               better than the words do.
             */}
-            <h1 className="sr-only text-lg font-semibold xl:not-sr-only">
+            <h1 className="sr-only font-serif text-2xl leading-none xl:not-sr-only">
               Drum Machine
             </h1>
 

@@ -1,4 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import {
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  Instrument_Serif,
+} from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegistrar from "@/components/shell/ServiceWorkerRegistrar";
 import {
@@ -8,6 +13,31 @@ import {
   SITE_URL,
 } from "@/lib/site";
 import { DEFAULT_THEME_ID, THEME_INIT_SCRIPT } from "@/lib/themes";
+
+/*
+ * Self-hosted at build time rather than fetched from Google, which is what
+ * keeps the machine working offline and stops a font request leaving the page.
+ * Each one only declares the weights it is actually set in — Instrument Serif
+ * has one — and hands its family to a CSS variable that `globals.css` picks up
+ * as `--font-sans`, `--font-mono` and `--font-serif`.
+ */
+const plexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans-face",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono-face",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-serif-face",
+});
 
 export const metadata: Metadata = {
   // What every relative URL below is resolved against. It carries the base
@@ -73,7 +103,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Matches the manifest's `theme_color`, and is what colours the system bars
   // around an installed copy.
-  themeColor: "#171717",
+  themeColor: "#0d0e12",
 };
 
 export default function RootLayout({
@@ -87,7 +117,12 @@ export default function RootLayout({
     // head is still being parsed — before the browser has painted anything.
     // `suppressHydrationWarning` is what stops React from undoing that when it
     // hydrates and finds an attribute it did not write.
-    <html lang="en" data-theme={DEFAULT_THEME_ID} suppressHydrationWarning>
+    <html
+      lang="en"
+      data-theme={DEFAULT_THEME_ID}
+      className={`${plexSans.variable} ${plexMono.variable} ${instrumentSerif.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

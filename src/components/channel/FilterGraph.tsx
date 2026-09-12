@@ -176,7 +176,7 @@ function FilterGraph({
             <span
               key={hz}
               aria-hidden
-              className="text-muted pointer-events-none absolute bottom-0.5 -translate-x-1/2 text-[9px] tabular-nums"
+              className="text-muted pointer-events-none absolute bottom-0.5 -translate-x-1/2 font-mono text-[9px] tabular-nums"
               style={{ left: `${frequencyToSlider(hz) * 100}%` }}
             >
               {formatFrequency(hz)}

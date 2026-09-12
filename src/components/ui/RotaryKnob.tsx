@@ -330,7 +330,7 @@ export default function RotaryKnob({
 
       <div className="flex items-center gap-0.5">
         <span
-          className={`text-muted text-[10px] tabular-nums ${disabled ? "opacity-40" : ""}`}
+          className={`text-muted font-mono text-[10px] tabular-nums ${disabled ? "opacity-40" : ""}`}
         >
           {readout}
         </span>

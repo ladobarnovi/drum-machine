@@ -9,7 +9,8 @@
  * force: the tokens only ever hold the active palette. Keep the two in step.
  */
 
-export type ThemeId = "classic" | "neon" | "tiki" | "carnival" | "glitch";
+export type ThemeId =
+  "editorial" | "classic" | "neon" | "tiki" | "carnival" | "glitch";
 
 export type Theme = {
   id: ThemeId;
@@ -34,6 +35,16 @@ export type Theme = {
 };
 
 export const THEMES: Theme[] = [
+  {
+    id: "editorial",
+    name: "Editorial",
+    description: "Near-black and hairlines, amber for on and cyan for sound.",
+    swatch: {
+      surface: "#0d0e12",
+      accent: "#f4993c",
+      edge: "#606369",
+    },
+  },
   {
     id: "classic",
     name: "Classic",
@@ -88,7 +99,7 @@ export const THEMES: Theme[] = [
 ];
 
 /** The palette used until something else is chosen, and the one `<html>` ships with. */
-export const DEFAULT_THEME_ID: ThemeId = "classic";
+export const DEFAULT_THEME_ID: ThemeId = "editorial";
 
 export const THEME_STORAGE_KEY = "drum-machine-theme";
 

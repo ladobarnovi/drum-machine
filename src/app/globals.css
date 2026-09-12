@@ -56,6 +56,12 @@
   --select: #38bdf8;
   --select-soft: #f0f9ff; /* the selected pad's tint */
 
+  /* What the audio is doing, as opposed to what is switched on: the waveform,
+     the response curves, the meters. The five palettes below draw those in
+     their accent, as they always have; Editorial is the one that splits the
+     two, and the token is what lets it. */
+  --audio: var(--accent);
+
   --mute: #f59e0b;
   --solo: #10b981;
   --danger: #ef4444;
@@ -112,6 +118,7 @@
 
     --select: #38bdf8;
     --select-soft: rgb(8 47 73 / 0.4);
+    --audio: var(--accent);
 
     --mute: #f59e0b;
     --solo: #10b981;
@@ -158,6 +165,7 @@
 
   --select: #f45cd0;
   --select-soft: rgb(244 92 208 / 0.15);
+  --audio: var(--accent);
 
   --mute: #ffb020;
   --solo: #3ee97f;
@@ -202,6 +210,7 @@
 
   --select: #ff5da2;
   --select-soft: rgb(255 93 162 / 0.16);
+  --audio: var(--accent);
 
   --mute: #ffcf5c;
   --solo: #4be08a;
@@ -249,6 +258,7 @@
 
   --select: #3d7dff;
   --select-soft: #e2ebff;
+  --audio: var(--accent);
 
   --mute: #e0940a;
   --solo: #1fa35c;
@@ -297,6 +307,7 @@
 
   --select: #ff2ee0;
   --select-soft: rgb(255 46 224 / 0.16);
+  --audio: var(--accent);
 
   --mute: #ffea00;
   --solo: #00ff66;
@@ -318,12 +329,82 @@
 }
 
 /*
+  Editorial dark. A near-black cool neutral, hairline rules and no shadow
+  anywhere on the machine. One warm accent — amber — carries everything that is
+  on, playing or selected, and nothing else uses it; the cool one is `--audio`,
+  reserved for what the audio is actually doing. The flag tokens all fold into
+  the amber here rather than each taking a hue of its own: a scene slot, a
+  pattern slot and a bank are never on screen together, so their colours were
+  distinguishing things that never needed telling apart.
+
+  `--edge` is the one value lifted off the drawing: the design's control border
+  sits at 1.9:1 against the page, and an unlit mute button, an empty slot and a
+  slider track are each drawn as a border and nothing else. This is the same
+  grey taken up to 3.2:1, which is what the rest of the file holds itself to.
+*/
+:root[data-theme="editorial"] {
+  color-scheme: dark;
+
+  --surface: #0d0e12;
+  --panel: #111316;
+  --field: #1e2025;
+  --raised: #1e2025;
+
+  --fg: #ebedf0;
+  --muted: #9c9ea4;
+
+  --line: #2b2e33;
+  --edge: #606369;
+
+  --accent: #f4993c;
+  --accent-soft: #feba7e;
+  --on-accent: #181008;
+
+  --invert: #ebedf0;
+  --on-invert: #0d0e12;
+
+  /* Selected is amber too — what separates the pad you are looking at from the
+     pad that just fired is where the amber sits, not what colour it is. */
+  --select: #f4993c;
+  --select-soft: rgb(244 153 60 / 0.12);
+
+  --audio: #30c8cf;
+
+  --mute: #f4993c;
+  --solo: #30c8cf;
+  --danger: #e8605b;
+
+  --pattern: #f4993c;
+  --bank: #f4993c;
+  --scene: #f4993c;
+
+  --backdrop: rgb(4 5 7 / 0.65);
+  --pad-hover: rgb(255 255 255 / 0.06);
+
+  --step: #1e2025;
+  --step-hover: #292b30;
+  --step-edge: #2b2e33;
+  --step-beat: #292b30;
+  --step-beat-hover: #33353b;
+  --step-beat-edge: #3f4249;
+}
+
+/*
   `inline` matters here: without it Tailwind would freeze these into
   `--color-*` on `:root` and the utilities would read that copy, which cannot
   follow a `data-theme` swap. Inlined, `bg-surface` compiles straight to
   `var(--surface)` and resolves against whichever block is in force.
 */
 @theme inline {
+  /* Three families, one job each: Plex Sans labels the machine, Plex Mono
+     carries every number so a readout never reflows as it counts, and
+     Instrument Serif names things — the title, and each stage of the rail.
+     Loaded and self-hosted by `next/font` in the layout, which is where the
+     `--font-*-face` vars they read come from. */
+  --font-sans: var(--font-sans-face), system-ui, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, monospace;
+  --font-serif: var(--font-serif-face), Georgia, serif;
+
   --color-surface: var(--surface);
   --color-panel: var(--panel);
   --color-field: var(--field);
@@ -344,6 +425,8 @@
 
   --color-select: var(--select);
   --color-select-soft: var(--select-soft);
+
+  --color-audio: var(--audio);
 
   --color-mute: var(--mute);
   --color-solo: var(--solo);

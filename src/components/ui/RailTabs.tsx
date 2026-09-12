@@ -26,30 +26,33 @@ type RailTabsProps = {
    */
   initialTabId?: string;
   /**
-   * "rail" (the default) is sized for the narrow FX sidebar this component
-   * started in. "panel" is sized for a full page column — larger, sentence
-   * case rather than small caps — for the Sequencer/Patterns/Banks switcher,
-   * which has no rail to fit inside.
+   * Where the strip is standing. "rail" (the default) sits loose in a sidebar
+   * or a dialog; "panel" is the header of a bordered card. The tabs themselves
+   * are drawn the same either way — only what surrounds them differs.
    */
   variant?: "rail" | "panel";
 };
 
-const TAB_BUTTON_CLASS: Record<"rail" | "panel", string> = {
-  rail: "px-2 py-1 text-[10px] font-semibold tracking-wide uppercase",
-  panel: "px-3 py-1.5 text-xs font-semibold sm:text-sm",
-};
+/*
+ * A tab is its label and a rule under the one you are on — no pill, no fill.
+ * The strip's own hairline runs the width of the card, and the selected tab's
+ * border is pulled down onto it by `-mb-px` so the amber replaces that stretch
+ * of the rule rather than sitting a pixel above it.
+ */
+const TAB_BUTTON_CLASS =
+  "-mb-px shrink-0 border-b border-transparent pb-2.5 text-[11px] font-medium tracking-[0.09em] uppercase transition-colors";
 
-// "rail" sits loose in the sidebar column, so its strip is a pill of its own.
-// "panel" sits inside a bordered card, so its strip fuses into that card as a
-// header instead of nesting a second bordered box inside the first.
+// "rail" sits loose in a sidebar or a dialog, where the strip only has to
+// separate itself from the panel below it. "panel" is the header of a bordered
+// card, so its strip carries that card's own padding.
 const CONTAINER_CLASS: Record<"rail" | "panel", string> = {
-  rail: "flex flex-col gap-3",
+  rail: "flex flex-col gap-4",
   panel: "border-line flex flex-col rounded-md border",
 };
 
 const TABLIST_CLASS: Record<"rail" | "panel", string> = {
-  rail: "border-line rounded-md border p-1",
-  panel: "border-line border-b p-2",
+  rail: "border-line border-b",
+  panel: "border-line border-b px-4 pt-3.5",
 };
 
 const TABPANEL_CLASS: Record<"rail" | "panel", string> = {
@@ -126,7 +129,7 @@ export default function RailTabs({
         role="tablist"
         aria-label={label}
         onKeyDown={handleKeyDown}
-        className={`flex gap-1 ${TABLIST_CLASS[variant]}`}
+        className={`flex gap-4 sm:gap-5 ${TABLIST_CLASS[variant]}`}
       >
         {tabs.map((tab, index) => {
           const isActive = tab.id === active.id;
@@ -146,10 +149,8 @@ export default function RailTabs({
               // walking through every tab on the way into the panel.
               tabIndex={isActive ? 0 : -1}
               onClick={() => setActiveId(tab.id)}
-              className={`flex-1 rounded transition-colors ${TAB_BUTTON_CLASS[variant]} ${
-                isActive
-                  ? "bg-accent text-on-accent"
-                  : "text-muted hover:bg-raised"
+              className={`${TAB_BUTTON_CLASS} ${
+                isActive ? "border-accent text-fg" : "text-muted hover:text-fg"
               }`}
             >
               {tab.label}

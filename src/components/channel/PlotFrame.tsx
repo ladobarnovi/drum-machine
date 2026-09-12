@@ -50,7 +50,7 @@ export default function PlotFrame({
         {...(label
           ? { role: "img", "aria-label": label }
           : { "aria-hidden": true })}
-        className="text-accent size-full"
+        className="text-audio size-full"
       >
         {children}
       </svg>

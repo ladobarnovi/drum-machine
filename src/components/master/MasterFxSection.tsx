@@ -63,7 +63,7 @@ export default function MasterFxSection({
           the boxes now sit directly in a tab panel, which is named by its tab
           rather than by a heading of its own.
         */}
-        <h2 className="text-xs font-semibold">{title}</h2>
+        <h2 className="font-serif text-lg leading-none">{title}</h2>
 
         {onToggle && (
           <button

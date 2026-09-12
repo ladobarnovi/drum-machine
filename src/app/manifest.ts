@@ -32,11 +32,12 @@ export default function manifest(): MetadataRoute.Manifest {
     // own, so pinning installed copies to landscape would override it on a
     // phone held upright rather than help anyone.
     // The theme follows the system or the user's pick, so neither of these can
-    // track it. Both are the Classic dark surface, which is what the icon is
-    // drawn on — the splash then reads as an extension of the icon rather than
-    // as a white flash before a dark app.
-    background_color: "#171717",
-    theme_color: "#171717",
+    // track it. Both are the Editorial surface, the default palette — the
+    // splash then reads as an extension of the app rather than as a flash of
+    // some other colour before it. The icons are still drawn on the Classic
+    // dark ground a shade above this; `npm run icons` is where that moves.
+    background_color: "#0d0e12",
+    theme_color: "#0d0e12",
     categories: ["music", "entertainment"],
     icons: [
       {

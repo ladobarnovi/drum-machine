@@ -108,7 +108,7 @@ export default function MidiMappingsPanel({
                 key={mapId}
                 className="border-line flex items-center gap-2 rounded border px-2 py-1.5 text-xs"
               >
-                <span className="text-muted w-12 shrink-0 tabular-nums">
+                <span className="text-muted w-12 shrink-0 font-mono tabular-nums">
                   CC {cc}
                 </span>
                 <span className="min-w-0 flex-1 truncate" title={label}>

@@ -72,7 +72,7 @@ export default function Oscilloscope({
 
     const readColours = () => {
       const styles = getComputedStyle(canvas);
-      trace = styles.getPropertyValue("--accent").trim();
+      trace = styles.getPropertyValue("--audio").trim();
       centre = styles.getPropertyValue("--edge").trim();
     };
 

@@ -88,7 +88,7 @@ export default function MasterDelayControls({
         <span className="flex items-baseline justify-between">
           <span>Sync</span>
           {delay.synced && (
-            <span className="text-muted tabular-nums">
+            <span className="text-muted font-mono tabular-nums">
               {formatSeconds(delayTimeSeconds(delay, bpm))}
             </span>
           )}

@@ -215,7 +215,7 @@ export default function Waveform({
             // sample is reversed to anyone who cannot see the shape turn round.
             aria-label={`Waveform for ${sample.name}${reversed ? ", reversed" : ""}`}
             role="img"
-            className="text-accent h-full w-full"
+            className="text-audio h-full w-full"
           >
             <line
               x1={0}
@@ -291,7 +291,7 @@ export default function Waveform({
               nothing here takes the pointer. Read in the same unit as the
               envelope times, so a hit cut to a few milliseconds says so rather
               than rounding away to nothing. */}
-          <span className="bg-surface/70 text-muted pointer-events-none absolute right-1.5 bottom-1 rounded px-1 text-[10px] tabular-nums">
+          <span className="bg-surface/70 text-muted pointer-events-none absolute right-1.5 bottom-1 rounded px-1 font-mono text-[10px] tabular-nums">
             {slicing
               ? `${formatSeconds(spanSeconds / sliceCount)} × ${sliceCount}`
               : formatSeconds(spanSeconds)}
