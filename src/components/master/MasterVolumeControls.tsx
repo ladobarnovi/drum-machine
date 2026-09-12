@@ -1,7 +1,7 @@
 "use client";
 
 import MasterFxSection from "./MasterFxSection";
-import RailSlider from "@/components/ui/RailSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import { MAX_VOLUME, MIN_VOLUME, clampVolume } from "@/lib/sequencer";
 
 type MasterVolumeControlsProps = {
@@ -28,7 +28,7 @@ export default function MasterVolumeControls({
 }: MasterVolumeControlsProps) {
   return (
     <MasterFxSection title="Output">
-      <RailSlider
+      <ControlSlider
         label="Volume"
         ariaLabel="Master volume"
         min={MIN_VOLUME}

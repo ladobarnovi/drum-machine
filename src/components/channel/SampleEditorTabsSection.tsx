@@ -11,6 +11,7 @@ import ChannelLfoSection from "./ChannelLfoSection";
 import RailTabs from "@/components/ui/RailTabs";
 import type { LibraryEntry } from "@/lib/sampleLibrary";
 import {
+  channelDisplayName,
   type Channel,
   type ChannelLfo,
   type FilterSlope,
@@ -94,7 +95,7 @@ type SampleEditorTabsSectionProps = {
 
   /**
    * Rerolls one lockable parameter across every active step of the pattern.
-   * Shared by all four tabs that carry a lockable knob — Sample, Filter, Env
+   * Shared by all four tabs that carry a lockable slider — Sample, Filter, Env
    * and FX — since Randomize always means the same thing wherever it's asked
    * for: scatter this one parameter across the hits that are already playing.
    */
@@ -119,7 +120,7 @@ export const SAMPLE_EDITOR_SECTION_ID = "sample-editor";
 
 /**
  * What used to be two separate cards — the sample's waveform, and the filter
- * pictured beside its knobs — are now five tabs sharing one. Env came third:
+ * pictured beside its sliders — are now five tabs sharing one. Env came third:
  * the same envelope `ChannelControls`' Shaping group already has sliders for,
  * extended into a full attack/decay/sustain/release and paired with a picture
  * of its own. FX came last, and unlike the first three it took its controls
@@ -184,6 +185,16 @@ export default function SampleEditorTabsSection({
       id={SAMPLE_EDITOR_SECTION_ID}
       label="Sample editor view"
       variant="panel"
+      aside={
+        <span className="flex items-baseline gap-2">
+          <span className="text-muted text-[10px] tracking-[0.11em] uppercase">
+            Channel
+          </span>
+          <span className="text-accent font-mono text-xs">
+            {channelDisplayName(channel)}
+          </span>
+        </span>
+      }
       tabs={[
         {
           id: "sample",

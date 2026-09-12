@@ -3,7 +3,7 @@
 import { SAMPLE_EDITOR_SECTION_ID } from "@/components/channel/SampleEditorTabsSection";
 
 type StepEditBannerProps = {
-  /** Zero-based, shown one-based to match the grid and the knobs below it. */
+  /** Zero-based, shown one-based to match the grid and the sliders below it. */
   stepIndex: number;
   /** Whose step it is, since the grid only ever shows one channel at a time. */
   channelName: string;
@@ -16,7 +16,7 @@ type StepEditBannerProps = {
  * Holding a step does something larger than the outline on the button admits:
  * it re-points the whole sample editor above — the gain, the two cutoffs, the
  * four envelope stages, the three sends — from the channel onto that one hit,
- * so a knob moved afterwards writes a lock rather than changing the drum. Which
+ * so a slider moved afterwards writes a lock rather than changing the drum. Which
  * of those two a turn of the filter means is the difference between shaping a
  * kit and shaping one beat of it, and until this bar there was nothing on
  * screen that said which mode you were in. The lock only announced itself
@@ -42,9 +42,9 @@ export default function StepEditBanner({
    * Scrolls the editor this bar is talking about back into view.
    *
    * Offered rather than done automatically on the hold itself: the step's own
-   * knobs — velocity, probability, repeat, timing, position — sit directly
+   * sliders — velocity, probability, repeat, timing, position — sit directly
    * under the grid and are the ones reached for most, so jumping the page to
-   * the tabs would carry both the grid and those knobs off screen to reach the
+   * the tabs would carry both the grid and those sliders off screen to reach the
    * controls that are wanted less often.
    */
   const handleShowControls = () => {

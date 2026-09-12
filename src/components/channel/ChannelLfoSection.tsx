@@ -2,7 +2,7 @@
 
 import ChoiceSelect from "./ChoiceSelect";
 import LfoGraph from "./LfoGraph";
-import RotaryKnob from "@/components/ui/RotaryKnob";
+import ControlSlider from "@/components/ui/ControlSlider";
 import { channelMidiMapId } from "@/lib/midiParameters";
 import {
   LFO_DESTINATIONS,
@@ -22,7 +22,7 @@ import {
 } from "@/lib/sequencer";
 
 type ChannelLfoSectionProps = {
-  /** Whose LFO this is, so a MIDI mapping binds to that channel's knobs
+  /** Whose LFO this is, so a MIDI mapping binds to that channel's sliders
    *  rather than to whichever channel happens to be selected. */
   channelId: string;
   /** The selected channel's modulation source. */
@@ -51,16 +51,20 @@ export default function ChannelLfoSection({
   onChange,
 }: ChannelLfoSectionProps) {
   return (
-    <div className="flex flex-col gap-4">
+    // The picture on the left and what sets it on the right, the arrangement
+    // every one of these tabs takes: the plot is the wide thing and the
+    // parameters are a column of rows, so stacking them would leave the rows
+    // as wide as the plot and half of each one empty.
+    <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_17rem]">
       <LfoGraph lfo={lfo} />
 
-      {/* Rate and amount are the two continuous values, so they get the knobs
-          the neighbouring tabs give theirs; everything else the LFO has is a
-          choice from a short list and sits in the band below. */}
-      <div className="grid grid-cols-2 justify-items-center gap-x-2 gap-y-4 sm:gap-x-8">
-        {/* Rate rides the same 0..1 log scale its slider always has, so the
-            knob's travel matches and the readout shows the real rate. */}
-        <RotaryKnob
+      <div className="flex flex-col gap-4">
+        {/* Rate and amount are the two continuous values, so they get the
+            sliders the neighbouring tabs give theirs; everything else the LFO
+            has is a choice from a short list and sits under them. */}
+        {/* Rate rides a 0..1 log scale rather than hertz, so the travel is
+            even across the range and the readout shows the real rate. */}
+        <ControlSlider
           label="Rate"
           ariaLabel="LFO rate"
           min={0}
@@ -74,9 +78,9 @@ export default function ChannelLfoSection({
           midiMapId={channelMidiMapId(channelId, "lfo:rate")}
         />
 
-        {/* The readout is in the destination's own unit, so the same knob reads
+        {/* The readout is in the destination's own unit, so the same row reads
             as semitones, octaves or a depth depending on where it is pointed. */}
-        <RotaryKnob
+        <ControlSlider
           label="Amount"
           ariaLabel="LFO amount"
           min={MIN_LFO_AMOUNT}
@@ -89,42 +93,41 @@ export default function ChannelLfoSection({
           }
           midiMapId={channelMidiMapId(channelId, "lfo:amount")}
         />
-      </div>
-
-      {/*
-        The three choices, as the lists they were before this tab existed: none
-        of them is a thing that can be turned, and between them they decide what
-        the two knobs above are dialling in — which is why they read as one band
-        across the foot of the card rather than as three separate rows.
-      */}
-      <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-3">
-        <ChoiceSelect
-          label="Shape"
-          ariaLabel="LFO shape"
-          value={lfo.shape}
-          options={LFO_SHAPES.map((shape) => ({
-            value: shape,
-            label: LFO_SHAPE_LABELS[shape],
-          }))}
-          onSelect={(value) =>
-            onChange({ ...lfo, shape: clampLfoShape(value) })
-          }
-        />
-
-        <ChoiceSelect
-          label="Target"
-          ariaLabel="LFO destination"
-          value={lfo.destination}
-          options={LFO_DESTINATIONS.map((destination) => ({
-            value: destination,
-            label: LFO_DESTINATION_LABELS[destination],
-          }))}
-          onSelect={(value) =>
-            onChange({ ...lfo, destination: clampLfoDestination(value) })
-          }
-        />
 
         {/*
+          The three choices, as the lists they were before this tab existed:
+          none of them is a thing that can be set continuously, and between them
+          they decide what the two sliders above are setting — which is why
+          they read as one band under them rather than as three separate rows.
+        */}
+        <div className="flex flex-col gap-3">
+          <ChoiceSelect
+            label="Shape"
+            ariaLabel="LFO shape"
+            value={lfo.shape}
+            options={LFO_SHAPES.map((shape) => ({
+              value: shape,
+              label: LFO_SHAPE_LABELS[shape],
+            }))}
+            onSelect={(value) =>
+              onChange({ ...lfo, shape: clampLfoShape(value) })
+            }
+          />
+
+          <ChoiceSelect
+            label="Target"
+            ariaLabel="LFO destination"
+            value={lfo.destination}
+            options={LFO_DESTINATIONS.map((destination) => ({
+              value: destination,
+              label: LFO_DESTINATION_LABELS[destination],
+            }))}
+            onSelect={(value) =>
+              onChange({ ...lfo, destination: clampLfoDestination(value) })
+            }
+          />
+
+          {/*
           Off, and the two modes, as one three-way list: whether the LFO runs at
           all and whether its shape belongs to the hit or to the channel are one
           decision in practice — you come to this list to answer "what is this
@@ -133,24 +136,25 @@ export default function ChannelLfoSection({
           Switching off leaves the mode where it was rather than resetting it,
           so a channel switched off and back on comes back the way it went.
         */}
-        <ChoiceSelect
-          label="Mode"
-          ariaLabel="LFO mode"
-          value={!lfo.enabled ? "off" : lfo.retrigger ? "retrigger" : "free"}
-          options={[
-            { value: "off", label: "Off" },
-            { value: "retrigger", label: "Retrigger" },
-            { value: "free", label: "Free running" },
-          ]}
-          onSelect={(value) =>
-            onChange({
-              ...lfo,
-              enabled: value !== "off",
-              retrigger:
-                value === "off" ? lfo.retrigger : value === "retrigger",
-            })
-          }
-        />
+          <ChoiceSelect
+            label="Mode"
+            ariaLabel="LFO mode"
+            value={!lfo.enabled ? "off" : lfo.retrigger ? "retrigger" : "free"}
+            options={[
+              { value: "off", label: "Off" },
+              { value: "retrigger", label: "Retrigger" },
+              { value: "free", label: "Free running" },
+            ]}
+            onSelect={(value) =>
+              onChange({
+                ...lfo,
+                enabled: value !== "off",
+                retrigger:
+                  value === "off" ? lfo.retrigger : value === "retrigger",
+              })
+            }
+          />
+        </div>
       </div>
     </div>
   );

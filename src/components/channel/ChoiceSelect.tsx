@@ -41,7 +41,7 @@ export default function ChoiceSelect({
           aria-label={ariaLabel}
           // Stripped of the platform's own arrow so the control is the same
           // shape on every system, and given one of its own below — the border
-          // picking up the accent on hover and on focus the way the knobs above
+          // picking up the accent on hover and on focus the way the sliders above
           // light their arcs.
           className="border-edge bg-field hover:border-accent w-full cursor-pointer appearance-none rounded border py-1.5 pr-7 pl-2.5 text-xs font-medium transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         >

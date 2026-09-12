@@ -9,7 +9,7 @@ import SampleSourceMenu, { type SampleSourceAnchor } from "./SampleSourceMenu";
 import Waveform from "./Waveform";
 import StepGrid from "./steps/StepGrid";
 import StepPatternControls from "./steps/StepPatternControls";
-import RotaryKnob from "@/components/ui/RotaryKnob";
+import ControlSlider from "@/components/ui/ControlSlider";
 import { channelMidiMapId } from "@/lib/midiParameters";
 import type { LibraryEntry } from "@/lib/sampleLibrary";
 import {
@@ -104,7 +104,7 @@ type SampleSectionProps = {
    * Gain, pan and pitch, resolved the same way `settings` is for the Channel
    * Params accordion — the channel's own values, or an open step's. Repeated
    * here rather than left to that accordion alone, since reaching for the
-   * sample and its level in the same glance is the point of a knob row sitting
+   * sample and its level in the same glance is the point of a slider row sitting
    * right under the waveform.
    */
   volume: number;
@@ -120,7 +120,7 @@ type SampleSectionProps = {
   ) => void;
   /** Drops every override of one of Gain, Pan or Pitch, pattern-wide. */
   onClearLockedParameter: (key: LockableParameter) => void;
-  /** Set while one step is being edited, so these three knobs mark their locks
+  /** Set while one step is being edited, so these three sliders mark their locks
    * the same way the accordion's sliders do. */
   locks?: StepLocks;
   onClearLock?: (key: LockableParameter) => void;
@@ -172,12 +172,12 @@ export default function ChannelEditor(props: ChannelEditorProps) {
 
   if (props.showSampleOnly) {
     // Only a loaded file has a length to place Start and End against — on any
-    // other status the two knobs still turn, but read out against nothing.
+    // other status the two sliders still move, but read out against nothing.
     const durationSeconds =
       channel.sample.status === "loaded" ? channel.sample.durationSeconds : 0;
 
     // Same shape as `ChannelFilterSection`'s: absent locks means an unlocked
-    // row, present locks means every knob gets its mark and its clear button.
+    // row, present locks means every slider gets its mark and its clear button.
     const lockProps = (key: LockableParameter) =>
       props.locks
         ? {
@@ -192,124 +192,130 @@ export default function ChannelEditor(props: ChannelEditorProps) {
     // and Banks.
     return (
       <>
-        <Waveform
-          sample={channel.sample}
-          channelLabel={displayName}
-          onLoadRequest={setSourceMenu}
-          menuOpen={sourceMenu?.from === "waveform"}
-          start={channel.sampleStart}
-          end={channel.sampleEnd}
-          onStartChange={props.onSampleStartChange}
-          onEndChange={props.onSampleEndChange}
-          reversed={channel.sampleReversed}
-          mode={channel.sampleMode}
-          sliceCount={channel.sliceCount}
-          highlightSlice={props.highlightSlice}
-          getPlayhead={props.getPlayhead}
-        />
-
-        {/*
-          Start and End ride the same 0..1 file fraction the waveform's own
-          trim handles do, so dragging a handle and turning its knob move the
-          same number — a knob is just a second grip on it, for placing a cut
-          finer than a drag across the strip allows. Gain, Pan and Pitch sit
-          beside them because the sample and its level are one decision in
-          practice, not two panels apart.
-        */}
-        <div className="grid grid-cols-5 justify-items-center gap-x-2 gap-y-4 sm:gap-x-6">
-          <RotaryKnob
-            label="Start"
-            ariaLabel="Sample start"
-            min={0}
-            max={1}
-            step={0.001}
-            value={channel.sampleStart}
-            readout={formatSeconds(channel.sampleStart * durationSeconds)}
-            onChange={props.onSampleStartChange}
+        {/* The strip on the left and what sets it on the right, as on the four
+            tabs beside this one. */}
+        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_17rem]">
+          <Waveform
+            sample={channel.sample}
+            channelLabel={displayName}
+            onLoadRequest={setSourceMenu}
+            menuOpen={sourceMenu?.from === "waveform"}
+            start={channel.sampleStart}
+            end={channel.sampleEnd}
+            onStartChange={props.onSampleStartChange}
+            onEndChange={props.onSampleEndChange}
+            reversed={channel.sampleReversed}
+            mode={channel.sampleMode}
+            sliceCount={channel.sliceCount}
+            highlightSlice={props.highlightSlice}
+            getPlayhead={props.getPlayhead}
           />
 
-          <RotaryKnob
-            label="End"
-            ariaLabel="Sample end"
-            min={0}
-            max={1}
-            step={0.001}
-            value={channel.sampleEnd}
-            readout={formatSeconds(channel.sampleEnd * durationSeconds)}
-            onChange={props.onSampleEndChange}
-          />
+          <div className="flex flex-col gap-4">
+            {/*
+              What a hit is, how many parts it's cut into, and which way it's
+              read — at the head of the column, above the numbers they decide
+              the meaning of.
+            */}
+            <SampleModeControls
+              mode={channel.sampleMode}
+              onModeChange={props.onSampleModeChange}
+              sliceCount={channel.sliceCount}
+              onSliceCountChange={props.onSliceCountChange}
+              reversed={channel.sampleReversed}
+              onReversedChange={props.onSampleReversedChange}
+            />
 
-          <RotaryKnob
-            label="Gain"
-            ariaLabel="Volume"
-            min={MIN_VOLUME}
-            max={MAX_VOLUME}
-            step={0.01}
-            value={props.volume}
-            readout={`${Math.round(props.volume * 100)}%`}
-            onChange={(value) => props.onVolumeChange(clampVolume(value))}
-            {...lockProps("volume")}
-            midiMapId={channelMidiMapId(channel.id, "volume")}
-            onRandomize={() =>
-              props.onRandomizeParameter("volume", () =>
-                clampVolume(randomInRange(MIN_VOLUME, MAX_VOLUME)),
-              )
-            }
-            onClearLocks={() => props.onClearLockedParameter("volume")}
-          />
+            {/*
+              Start and End ride the same 0..1 file fraction the waveform's own
+              trim handles do, so dragging a handle and dragging its slider move
+              the same number — the slider is just a second grip on it, for
+              placing a cut finer than a drag across the strip allows. Gain, Pan
+              and Pitch sit under them because the sample and its level are one
+              decision in practice, not two panels apart.
+            */}
+            <div className="flex flex-col gap-4">
+              <ControlSlider
+                label="Start"
+                ariaLabel="Sample start"
+                min={0}
+                max={1}
+                step={0.001}
+                value={channel.sampleStart}
+                readout={formatSeconds(channel.sampleStart * durationSeconds)}
+                onChange={props.onSampleStartChange}
+              />
 
-          <RotaryKnob
-            label="Pan"
-            ariaLabel="Pan"
-            min={MIN_PAN}
-            max={MAX_PAN}
-            step={0.01}
-            value={props.pan}
-            readout={formatPan(props.pan)}
-            onChange={(value) => props.onPanChange(clampPan(value))}
-            {...lockProps("pan")}
-            midiMapId={channelMidiMapId(channel.id, "pan")}
-            onRandomize={() =>
-              props.onRandomizeParameter("pan", () =>
-                clampPan(randomInRange(MIN_PAN, MAX_PAN)),
-              )
-            }
-            onClearLocks={() => props.onClearLockedParameter("pan")}
-          />
+              <ControlSlider
+                label="End"
+                ariaLabel="Sample end"
+                min={0}
+                max={1}
+                step={0.001}
+                value={channel.sampleEnd}
+                readout={formatSeconds(channel.sampleEnd * durationSeconds)}
+                onChange={props.onSampleEndChange}
+              />
 
-          <RotaryKnob
-            label="Pitch"
-            ariaLabel="Pitch"
-            min={MIN_PITCH}
-            max={MAX_PITCH}
-            step={1}
-            value={props.pitch}
-            readout={formatPitch(props.pitch)}
-            onChange={(value) => props.onPitchChange(clampPitch(value))}
-            {...lockProps("pitch")}
-            midiMapId={channelMidiMapId(channel.id, "pitch")}
-            onRandomize={() =>
-              props.onRandomizeParameter("pitch", () =>
-                clampPitch(randomInRange(MIN_PITCH, MAX_PITCH)),
-              )
-            }
-            onClearLocks={() => props.onClearLockedParameter("pitch")}
-          />
+              <ControlSlider
+                label="Gain"
+                ariaLabel="Volume"
+                min={MIN_VOLUME}
+                max={MAX_VOLUME}
+                step={0.01}
+                value={props.volume}
+                readout={`${Math.round(props.volume * 100)}%`}
+                onChange={(value) => props.onVolumeChange(clampVolume(value))}
+                {...lockProps("volume")}
+                midiMapId={channelMidiMapId(channel.id, "volume")}
+                onRandomize={() =>
+                  props.onRandomizeParameter("volume", () =>
+                    clampVolume(randomInRange(MIN_VOLUME, MAX_VOLUME)),
+                  )
+                }
+                onClearLocks={() => props.onClearLockedParameter("volume")}
+              />
+
+              <ControlSlider
+                label="Pan"
+                ariaLabel="Pan"
+                min={MIN_PAN}
+                max={MAX_PAN}
+                step={0.01}
+                value={props.pan}
+                readout={formatPan(props.pan)}
+                onChange={(value) => props.onPanChange(clampPan(value))}
+                {...lockProps("pan")}
+                midiMapId={channelMidiMapId(channel.id, "pan")}
+                onRandomize={() =>
+                  props.onRandomizeParameter("pan", () =>
+                    clampPan(randomInRange(MIN_PAN, MAX_PAN)),
+                  )
+                }
+                onClearLocks={() => props.onClearLockedParameter("pan")}
+              />
+
+              <ControlSlider
+                label="Pitch"
+                ariaLabel="Pitch"
+                min={MIN_PITCH}
+                max={MAX_PITCH}
+                step={1}
+                value={props.pitch}
+                readout={formatPitch(props.pitch)}
+                onChange={(value) => props.onPitchChange(clampPitch(value))}
+                {...lockProps("pitch")}
+                midiMapId={channelMidiMapId(channel.id, "pitch")}
+                onRandomize={() =>
+                  props.onRandomizeParameter("pitch", () =>
+                    clampPitch(randomInRange(MIN_PITCH, MAX_PITCH)),
+                  )
+                }
+                onClearLocks={() => props.onClearLockedParameter("pitch")}
+              />
+            </div>
+          </div>
         </div>
-
-        {/*
-          What a hit is, how many parts it's cut into, and which way it's
-          read — under the knobs rather than under the strip, now that the
-          strip has knobs of its own sitting between the two.
-        */}
-        <SampleModeControls
-          mode={channel.sampleMode}
-          onModeChange={props.onSampleModeChange}
-          sliceCount={channel.sliceCount}
-          onSliceCountChange={props.onSliceCountChange}
-          reversed={channel.sampleReversed}
-          onReversedChange={props.onSampleReversedChange}
-        />
 
         <div className="flex flex-wrap items-center gap-3">
           <ChannelNameInput
@@ -357,7 +363,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
   // the step buttons — there are no parts for a hit to be at.
   const sliceCount = isSliced(channel.sampleMode) ? channel.sliceCount : null;
 
-  // The step the grid below has open, if any — held by index so the knobs
+  // The step the grid below has open, if any — held by index so the sliders
   // below can write back to it the same way the grid's own gestures do.
   const editingStepIndex = props.editingStep;
   const openStep =
@@ -396,8 +402,8 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             {`Step ${editingStepIndex + 1}`}
           </h3>
 
-          <div className="grid grid-cols-5 justify-items-center gap-x-2 gap-y-4 sm:gap-x-6">
-            <RotaryKnob
+          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ControlSlider
               label="Velocity"
               min={MIN_STEP_VELOCITY}
               max={MAX_STEP_VELOCITY}
@@ -416,7 +422,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
               }
             />
 
-            <RotaryKnob
+            <ControlSlider
               label="Repeat"
               min={MIN_STEP_REPEAT}
               max={MAX_STEP_REPEAT}
@@ -432,7 +438,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
               }
             />
 
-            <RotaryKnob
+            <ControlSlider
               label="Probability"
               min={MIN_STEP_PROBABILITY}
               max={MAX_STEP_PROBABILITY}
@@ -451,7 +457,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
               }
             />
 
-            <RotaryKnob
+            <ControlSlider
               label="Timing"
               ariaLabel="Step timing offset"
               min={MIN_STEP_TIMING}
@@ -470,7 +476,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
 
             {/*
               Kept in the row rather than pulled from it on a one shot, so
-              the knob count doesn't jump as a channel is sliced and
+              the slider count doesn't jump as a channel is sliced and
               unsliced — only greyed out, the same as a bypassed filter
               cutoff, since there is no part of an unsliced sample for it
               to point at.
@@ -478,7 +484,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
             {(() => {
               if (sliceCount === null) {
                 return (
-                  <RotaryKnob
+                  <ControlSlider
                     label="Position"
                     min={0}
                     max={1}
@@ -493,7 +499,7 @@ export default function ChannelEditor(props: ChannelEditorProps) {
 
               const slice = clampStepSlice(openStep.slice, sliceCount);
               return (
-                <RotaryKnob
+                <ControlSlider
                   label="Position"
                   min={1}
                   max={sliceCount}

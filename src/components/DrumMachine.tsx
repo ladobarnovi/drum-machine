@@ -509,7 +509,7 @@ export default function DrumMachine() {
    * that channel as it stands at the moment the update runs.
    *
    * The form `updateChannel` can't offer: a caller that has to read the
-   * channel before it can say what to write — an LFO, where one knob's value
+   * channel before it can say what to write — an LFO, where one slider's value
    * has to be folded into the object the others live in — would otherwise read
    * it from a render that may already be stale, and hand back a patch that
    * undoes whatever landed in between. See `useMidiParameterRegistry`, whose
@@ -1230,7 +1230,7 @@ export default function DrumMachine() {
 
   /*
    * Every mappable parameter, wired to the CC map for as long as the machine
-   * is up — not merely while the knob that shows it is on screen. Kept here
+   * is up — not merely while the slider that shows it is on screen. Kept here
    * rather than in the controls because a mapping is a wire to a parameter,
    * and a tab being closed is not a reason for that wire to come loose.
    */
@@ -1255,7 +1255,7 @@ export default function DrumMachine() {
     onNoteOn: handleMidiNoteOn,
     // A CC message is never this machine's to interpret directly — it's
     // routed straight to the shared MIDI-learn runtime, which knows whether
-    // it's binding a knob or driving one that's already mapped (see
+    // it's binding a slider or driving one that's already mapped (see
     // `lib/midiCcMap`).
     onControlChange: handleIncomingCc,
     // Always fed to the estimator regardless of which source is chosen, so a
@@ -1353,14 +1353,14 @@ export default function DrumMachine() {
   useMasterFilterShortcuts({ onToggle: handleToggleMasterFilter });
 
   // The resonances go through `setParameter` like the cutoffs beside them, so
-  // the knobs in the filter card follow whatever the panel is scoped to: the
+  // the sliders in the filter card follow whatever the panel is scoped to: the
   // channel, or the one step open for editing.
 
   /**
    * How steep the selected channel's cuts are.
    *
    * Straight onto the channel rather than through `setParameter`, unlike the
-   * four knobs beside it: this is what kind of filter the channel has — the
+   * four sliders beside it: this is what kind of filter the channel has — the
    * same sort of decision as the choke source or the sample's direction —
    * rather than something one step of the pattern gets to override.
    */
@@ -1980,7 +1980,7 @@ export default function DrumMachine() {
       {/* Padding clears the fixed rails so the content centres between them,
           from `xl` up where both are on screen at once. Below that this is
           the only page showing, so it's a plain full-width column instead. */}
-      <div className="flex min-h-0 flex-1 flex-col xl:px-64">
+      <div className="flex min-h-0 flex-1 flex-col xl:pr-80 xl:pl-64">
         {/*
           Outside the scrolling pane rather than sticky within it, so the
           snapshot buttons stay on screen and a mix can be saved however far
@@ -2096,12 +2096,20 @@ export default function DrumMachine() {
             leaving it tight under the Settings band — on a tall viewport, and
             on the phone, where this rail is the whole Settings page.
           */}
-          <Link
-            href={PRIVACY_PATH}
-            className="text-muted hover:text-fg mt-auto w-fit pt-2 text-[10px] transition-colors"
-          >
-            Privacy
-          </Link>
+          <div className="mt-auto flex items-baseline justify-between gap-2 pt-2">
+            <Link
+              href={PRIVACY_PATH}
+              className="text-muted hover:text-fg text-[10px] transition-colors"
+            >
+              Privacy
+            </Link>
+
+            {/* The one shortcut worth saying out loud, because it is the one
+                that lists the rest. */}
+            <span className="text-muted font-mono text-[10px]">
+              press ? for keys
+            </span>
+          </div>
         </Sidebar>
 
         {shareStatus !== null && (
@@ -2211,7 +2219,7 @@ export default function DrumMachine() {
               }}
               filterSlope={selectedChannel.filterSlope}
               // What the Filter, Env and FX tabs follow while the transport
-              // runs, so the knobs and the pictures read out the locks of the
+              // runs, so the sliders and the pictures read out the locks of the
               // hit being heard rather than the channel underneath them.
               playingFilter={
                 playingStepIndex === null ||

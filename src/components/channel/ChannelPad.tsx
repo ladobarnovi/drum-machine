@@ -35,7 +35,7 @@ type ChannelPadProps = {
 };
 
 const TOGGLE_BASE =
-  "flex-1 rounded border py-0.5 text-[10px] leading-4 font-semibold transition-colors cursor-pointer";
+  "size-[17px] rounded-sm border font-mono text-[9px] leading-none transition-colors cursor-pointer";
 const TOGGLE_OFF = "border-edge text-muted hover:bg-raised";
 
 function ChannelPad({
@@ -82,7 +82,12 @@ function ChannelPad({
     onContextMenu(channel.id, x, y);
   };
 
-  const selection = isSelected ? "border-select bg-select-soft" : "border-edge";
+  // The selected pad is marked on its left edge rather than all the way round,
+  // so it stays distinct from a pad lit by a hit — which takes the same colour,
+  // there being only one accent, and says so with the ring instead.
+  const selection = isSelected
+    ? "border-select bg-select-soft border-l-[3px]"
+    : "border-edge";
 
   // An unfilled slot reads as a dashed outline rather than a solid one, so a
   // glance at the strip tells loaded channels from placeholders without
@@ -97,41 +102,92 @@ function ChannelPad({
     : "ring-accent-soft/0 duration-300";
 
   return (
-    // aspect-square keeps a pad at least as tall as it is wide; the grid row can
-    // still stretch it further if the contents ever need more room.
+    // A strip rather than a square: the pad carries what a mixer channel does —
+    // which slot it is, what is loaded, whether it is muted or soloed, and how
+    // hard it is going — and four of those a row is what leaves room to read
+    // any of it.
     <div
       onContextMenu={handleContextMenu}
-      className={`flex aspect-square flex-col rounded-md border ring-2 transition ${
-        isCompact ? "gap-0.5 p-1" : "gap-1 p-1.5 sm:p-2"
+      className={`flex flex-col justify-between rounded border ring-2 transition ${
+        isCompact ? "aspect-square gap-1 p-1" : "h-[4.625rem] gap-2 p-2"
       } ${selection} ${emptyOutline} ${trigger}`}
     >
-      <button
-        type="button"
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
-        aria-pressed={isSelected}
-        aria-label={`Select channel ${displayName}`}
-        title={`${shortcut ? `${displayName} (${shortcut})` : displayName}\n${
-          hasSample ? "Alt+click to preview" : "No sample loaded"
-        }`}
-        // A neutral overlay so the hover reads the same on the selected pad's tint.
-        className={`hover:bg-pad-hover flex flex-1 cursor-pointer items-center justify-center rounded px-1 font-semibold transition-colors ${
-          isCompact ? "text-[9px]" : "text-xs sm:text-sm"
-        } ${isSilenced ? "opacity-40" : ""} ${hasSample ? "text-fg" : "text-muted"}`}
-      >
-        <span className="min-w-0 truncate">{displayName}</span>
-      </button>
+      <div className="flex min-h-0 flex-1 items-start justify-between gap-2">
+        <button
+          type="button"
+          onClick={handleClick}
+          onKeyDown={handleKeyDown}
+          aria-pressed={isSelected}
+          aria-label={`Select channel ${displayName}`}
+          title={`${shortcut ? `${displayName} (${shortcut})` : displayName}
+${hasSample ? "Alt+click to preview" : "No sample loaded"}`}
+          // A neutral overlay so the hover reads the same on the selected pad's tint.
+          className={`hover:bg-pad-hover flex min-w-0 flex-1 cursor-pointer flex-col rounded px-1 py-0.5 font-medium transition-colors ${
+            isCompact
+              ? "h-full items-center justify-center text-[9px]"
+              : "items-start gap-0.5 text-left text-xs sm:text-sm"
+          } ${isSilenced ? "opacity-40" : ""} ${hasSample ? "text-fg" : "text-muted"}`}
+        >
+          {/* Which slot this is, in the numbering the shortcuts and the MIDI
+              map use. Off the compact pads, where there is no room for a second
+              line and the position in the grid says it anyway. */}
+          {!isCompact && (
+            <span className="text-muted font-mono text-[9px] tracking-[0.06em]">
+              {`CH ${String(index + 1).padStart(2, "0")}`}
+            </span>
+          )}
 
-      {/* Between the name and the toggles, which is the order a mixer strip
-          reads in: what the channel is, how hard it is going, what it is doing.
+          <span className="max-w-full min-w-0 truncate">{displayName}</span>
+        </button>
+
+        {/* Beside the name rather than under it, so the meter can have the
+            pad's full width at the foot. */}
+        {!isCompact && (
+          <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              onClick={() => onToggleMute(channel.id)}
+              aria-pressed={channel.muted}
+              aria-label={`Mute channel ${displayName}`}
+              title={`Mute ${displayName}`}
+              className={`${TOGGLE_BASE} ${
+                channel.muted
+                  ? "border-mute bg-mute text-on-accent"
+                  : TOGGLE_OFF
+              }`}
+            >
+              M
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onToggleSolo(channel.id)}
+              aria-pressed={channel.soloed}
+              aria-label={`Solo channel ${displayName}`}
+              title={`Solo ${displayName}`}
+              className={`${TOGGLE_BASE} ${
+                channel.soloed
+                  ? "border-solo bg-solo text-on-accent"
+                  : TOGGLE_OFF
+              }`}
+            >
+              S
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* At the foot, under everything it is the level of — the order a mixer
+          strip reads in: what the channel is, what it is doing, how hard it is
+          going.
 
           Hidden from assistive technology outright, like the master meters: a
           bar that moves sixty times a second cannot be read out usefully, and a
           channel that is or isn't sounding is already said by its mute and solo
-          buttons below. */}
+          buttons beside it. */}
       <span
         aria-hidden
-        className="bg-field border-edge relative block h-1.5 overflow-hidden rounded-full border"
+        className="bg-field border-edge relative block h-1.5 shrink-0 overflow-hidden rounded-full border"
       >
         <span
           ref={meterRef}
@@ -141,36 +197,6 @@ function ChannelPad({
           className="bg-audio data-[over=true]:bg-danger absolute inset-0 origin-left"
         />
       </span>
-
-      {!isCompact && (
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={() => onToggleMute(channel.id)}
-            aria-pressed={channel.muted}
-            aria-label={`Mute channel ${displayName}`}
-            title={`Mute ${displayName}`}
-            className={`${TOGGLE_BASE} ${
-              channel.muted ? "border-mute bg-mute text-on-accent" : TOGGLE_OFF
-            }`}
-          >
-            M
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onToggleSolo(channel.id)}
-            aria-pressed={channel.soloed}
-            aria-label={`Solo channel ${displayName}`}
-            title={`Solo ${displayName}`}
-            className={`${TOGGLE_BASE} ${
-              channel.soloed ? "border-solo bg-solo text-on-accent" : TOGGLE_OFF
-            }`}
-          >
-            S
-          </button>
-        </div>
-      )}
     </div>
   );
 }

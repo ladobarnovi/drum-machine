@@ -1,7 +1,7 @@
 "use client";
 
 import MasterFxSection from "./MasterFxSection";
-import RailSlider from "@/components/ui/RailSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import {
   MAX_PHASER_DEPTH,
   MAX_PHASER_FEEDBACK,
@@ -79,7 +79,7 @@ export default function MasterPhaserControls({
 
       {/* Log scale, like the channel LFO's rate: the slow end is where a phaser
           spends most of its life, and reads as a period rather than a rate. */}
-      <RailSlider
+      <ControlSlider
         label="Rate"
         ariaLabel="Master phaser rate"
         min={0}
@@ -93,7 +93,7 @@ export default function MasterPhaserControls({
         midiMapId="master:phaser:rate"
       />
 
-      <RailSlider
+      <ControlSlider
         label="Depth"
         ariaLabel="Master phaser depth"
         min={MIN_PHASER_DEPTH}
@@ -109,7 +109,7 @@ export default function MasterPhaserControls({
 
       {/* Resonance, in the sense the delay's feedback is: it wraps the allpass
           chain, so it sharpens the notches rather than repeating anything. */}
-      <RailSlider
+      <ControlSlider
         label="Feedback"
         ariaLabel="Master phaser feedback"
         min={MIN_PHASER_FEEDBACK}
@@ -123,7 +123,7 @@ export default function MasterPhaserControls({
         midiMapId="master:phaser:feedback"
       />
 
-      <RailSlider
+      <ControlSlider
         label="Level"
         ariaLabel="Master phaser level"
         min={MIN_VOLUME}

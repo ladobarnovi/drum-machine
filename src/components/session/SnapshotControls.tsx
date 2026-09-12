@@ -38,11 +38,17 @@ export default function SnapshotControls({
 
   // Both buttons are sized to their widest label, so the header doesn't shift
   // when Save confirms or when Recall comes out of its disabled state.
-  const buttonClass =
-    "border-edge hover:bg-raised min-w-16 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+  const buttonClass = "btn min-w-20";
 
   return (
     <div className="flex items-center gap-2">
+      {/* What the pair is for, since neither verb says on its own what is being
+          saved or recalled. Off the phone, where the header has no room for a
+          word that only labels two buttons already sitting together. */}
+      <span className="text-muted hidden text-[10px] tracking-[0.11em] uppercase sm:inline">
+        Snapshot
+      </span>
+
       <button
         type="button"
         onClick={handleSave}

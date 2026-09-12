@@ -1,7 +1,7 @@
 "use client";
 
 import MasterFxSection from "./MasterFxSection";
-import RailSlider from "@/components/ui/RailSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import {
   formatFrequency,
   frequencyToSlider,
@@ -36,7 +36,7 @@ export default function MasterFilterControls({
       onToggle={() => onChange({ ...filter, enabled: !filter.enabled })}
     >
       {/* Cutoffs ride a 0..1 log scale, so the readout shows the real frequency. */}
-      <RailSlider
+      <ControlSlider
         label="Low cut"
         ariaLabel="Master filter low cut"
         min={0}
@@ -54,7 +54,7 @@ export default function MasterFilterControls({
         midiMapId="master:filter:lowCut"
       />
 
-      <RailSlider
+      <ControlSlider
         label="High cut"
         ariaLabel="Master filter high cut"
         min={0}

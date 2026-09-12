@@ -1,7 +1,7 @@
 "use client";
 
 import MasterFxSection from "./MasterFxSection";
-import RailSlider from "@/components/ui/RailSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import {
   MAX_REVERB_DECAY_SECONDS,
   MAX_SEND,
@@ -47,7 +47,7 @@ export default function MasterReverbControls({
       enabled={reverb.enabled}
       onToggle={() => onChange({ ...reverb, enabled: !reverb.enabled })}
     >
-      <RailSlider
+      <ControlSlider
         label="Decay"
         ariaLabel="Master reverb decay"
         min={MIN_REVERB_DECAY_SECONDS}
@@ -62,7 +62,7 @@ export default function MasterReverbControls({
       />
 
       {/* Shares the cutoff scale the filters use, so the readout is a real Hz. */}
-      <RailSlider
+      <ControlSlider
         label="Tone"
         ariaLabel="Master reverb tone"
         min={0}
@@ -80,7 +80,7 @@ export default function MasterReverbControls({
         midiMapId="master:reverb:tone"
       />
 
-      <RailSlider
+      <ControlSlider
         label="Level"
         ariaLabel="Master reverb level"
         min={MIN_VOLUME}
@@ -97,7 +97,7 @@ export default function MasterReverbControls({
         delay's send into this bus is taken from, and for the same reason:
         pulling the tail down takes its share of the sweep with it.
       */}
-      <RailSlider
+      <ControlSlider
         label="To phaser"
         ariaLabel="Master reverb phaser send"
         min={MIN_SEND}

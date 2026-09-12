@@ -23,7 +23,7 @@ export type PlayingStepRef<T> = {
   locks: StepLocks;
 };
 
-/** What a knob needs to show a lock, and to offer clearing it. */
+/** What a slider needs to show a lock, and to offer clearing it. */
 type LockProps = {
   locked?: boolean;
   onClearLock?: () => void;
@@ -39,7 +39,7 @@ type UsePlayheadFollowOptions<T> = {
 };
 
 /**
- * Whether a card of knobs shows the channel's values or the hit being heard.
+ * Whether a card of sliders shows the channel's values or the hit being heard.
  *
  * The Filter, Env and FX cards each had this written out, identically: the
  * `adjusting` flag, the blur handler that ignores focus moving within the card,
@@ -47,9 +47,9 @@ type UsePlayheadFollowOptions<T> = {
  *
  * Two rules decide it. A step open for editing wins outright — the panel is
  * scoped to that step, and following the playhead would drag it somewhere
- * nobody asked for. And following pauses while a knob is being worked, so a
+ * nobody asked for. And following pauses while a slider is being worked, so a
  * value being set does not jump out from under the hand setting it; focus
- * moving between knobs inside the same card does not count as letting go, which
+ * moving between sliders inside the same card does not count as letting go, which
  * is what the blur check is for.
  */
 export function usePlayheadFollow<T>({
@@ -80,10 +80,10 @@ export function usePlayheadFollow<T>({
   return {
     /** The hit being followed, or null when the card shows its own values. */
     following,
-    /** What the knobs read out: the followed hit's values, or the channel's. */
+    /** What the sliders read out: the followed hit's values, or the channel's. */
     shown: following ? following.settings : settings,
     lockProps,
-    /** Spread onto the wrapper around the knobs. */
+    /** Spread onto the wrapper around the sliders. */
     groupProps: {
       onFocus: () => setAdjusting(true),
       onBlur: handleBlur,

@@ -6,7 +6,12 @@ import PatternOverviewGrid from "./PatternOverviewGrid";
 import ChannelEditor from "@/components/channel/ChannelEditor";
 import RailTabs from "@/components/ui/RailTabs";
 import type { Bank } from "@/lib/patterns";
-import type { Channel, StepFill, SwipeTarget } from "@/lib/sequencer";
+import {
+  clampLength,
+  type Channel,
+  type StepFill,
+  type SwipeTarget,
+} from "@/lib/sequencer";
 
 type SequencerTabsSectionProps = {
   channel: Channel;
@@ -92,10 +97,20 @@ export default function SequencerTabsSection({
   onSavePattern,
   onPatternContextMenu,
 }: SequencerTabsSectionProps) {
+  const length = clampLength(channel.length);
+  const onCount = channel.steps
+    .slice(0, length)
+    .filter((step) => step.on).length;
+
   return (
     <RailTabs
       label="Sequencer view"
       variant="panel"
+      aside={
+        <span className="text-muted font-mono text-[11px] tabular-nums">
+          {`${onCount} of ${length} steps on`}
+        </span>
+      }
       tabs={[
         {
           id: "sequencer",

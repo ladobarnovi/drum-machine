@@ -29,6 +29,13 @@ type SlotButtonProps = {
   onContextMenu?: (x: number, y: number) => void;
   /** What the slot is called, for its title and its accessible name. */
   label: string;
+  /**
+   * Shown beside `displayText`, which turns the slot from a square into a row.
+   * For a grid whose slots are worth naming on the face of it — the scenes,
+   * where "Drop hats" is the whole point of the slot and a numbered square
+   * says nothing about which one to reach for.
+   */
+  caption?: string;
 };
 
 const FILL_CLASS: Record<SlotButtonProps["variant"], string> = {
@@ -53,6 +60,7 @@ export default function SlotButton({
   onClick,
   onContextMenu,
   label,
+  caption,
 }: SlotButtonProps) {
   /** The press being held, from `pointerdown` until it is let go or gives up. */
   const holdRef = useRef<{
@@ -176,7 +184,9 @@ export default function SlotButton({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
-      className={`aspect-square rounded-md border transition-colors ${fill} ${activeRing}`}
+      className={`rounded-md border transition-colors ${
+        caption === undefined ? "aspect-square" : "h-8"
+      } ${fill} ${activeRing}`}
     >
       <button
         type="button"
@@ -187,9 +197,22 @@ export default function SlotButton({
         title={label}
         // A held press is the slot's menu, so the browser must not also read it
         // as the start of a text selection or a callout on the digit inside.
-        className="hover:bg-pad-hover flex h-full w-full cursor-pointer touch-manipulation items-center justify-center rounded text-xs font-semibold transition-colors select-none"
+        className={`hover:bg-pad-hover flex h-full w-full cursor-pointer touch-manipulation items-center rounded transition-colors select-none ${
+          caption === undefined
+            ? "justify-center text-xs font-semibold"
+            : "gap-2 px-2 text-left text-[11px]"
+        }`}
       >
-        {displayText}
+        {caption === undefined ? (
+          displayText
+        ) : (
+          <>
+            <span className="font-mono text-[10px] opacity-60">
+              {displayText}
+            </span>
+            <span className="min-w-0 truncate">{caption}</span>
+          </>
+        )}
       </button>
     </div>
   );

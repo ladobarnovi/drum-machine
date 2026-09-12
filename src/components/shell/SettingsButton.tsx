@@ -140,7 +140,7 @@ export default function SettingsButton({
           setInitialTabId(undefined);
           setIsOpen(true);
         }}
-        className="border-edge hover:bg-raised flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
+        className="btn h-9 w-full justify-between"
       >
         Settings
         <kbd

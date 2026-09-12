@@ -1,7 +1,7 @@
 "use client";
 
 import MasterFxSection from "./MasterFxSection";
-import RailSlider from "@/components/ui/RailSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import {
   DELAY_DIVISIONS,
   DELAY_DIVISION_LABELS,
@@ -122,7 +122,7 @@ export default function MasterDelayControls({
       </label>
 
       {!delay.synced && (
-        <RailSlider
+        <ControlSlider
           label="Time"
           ariaLabel="Master delay time"
           min={MIN_DELAY_SECONDS}
@@ -163,7 +163,7 @@ export default function MasterDelayControls({
         </select>
       </label>
 
-      <RailSlider
+      <ControlSlider
         label="Feedback"
         ariaLabel="Master delay feedback"
         min={MIN_FEEDBACK}
@@ -183,7 +183,7 @@ export default function MasterDelayControls({
         than of the return, and each one comes back darker than the last. Shares
         the cutoff scale the filters use, so the readout is a real Hz.
       */}
-      <RailSlider
+      <ControlSlider
         label="Tone"
         ariaLabel="Master delay tone"
         min={0}
@@ -201,7 +201,7 @@ export default function MasterDelayControls({
         midiMapId="master:delay:tone"
       />
 
-      <RailSlider
+      <ControlSlider
         label="Level"
         ariaLabel="Master delay level"
         min={MIN_VOLUME}
@@ -218,7 +218,7 @@ export default function MasterDelayControls({
         whatever the return is putting out, so it reads as the end of this
         stage rather than as a second output alongside it.
       */}
-      <RailSlider
+      <ControlSlider
         label="To reverb"
         ariaLabel="Master delay reverb send"
         min={MIN_SEND}

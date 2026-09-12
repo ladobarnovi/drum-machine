@@ -81,7 +81,7 @@ export default function SharePanel({ onBuildLink, canShare }: SharePanelProps) {
         type="button"
         onClick={handleCopy}
         disabled={!canShare || building}
-        className="border-edge hover:bg-raised w-full cursor-pointer rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        className="btn h-9 w-full"
       >
         {building ? "Building…" : copied ? "Copied" : "Copy link"}
       </button>

@@ -26,6 +26,13 @@ type RailTabsProps = {
    */
   initialTabId?: string;
   /**
+   * Shown at the right-hand end of the strip, opposite the tabs: what the card
+   * is currently pointed at, where that is not something the tabs themselves
+   * say — which channel is being edited, how much of a pattern is on. Outside
+   * the tablist, since it is neither a tab nor selectable.
+   */
+  aside?: React.ReactNode;
+  /**
    * Where the strip is standing. "rail" (the default) sits loose in a sidebar
    * or a dialog; "panel" is the header of a bordered card. The tabs themselves
    * are drawn the same either way — only what surrounds them differs.
@@ -79,6 +86,7 @@ export default function RailTabs({
   label,
   tabs,
   initialTabId,
+  aside,
   variant = "rail",
 }: RailTabsProps) {
   const [activeId, setActiveId] = useState(
@@ -126,37 +134,45 @@ export default function RailTabs({
   return (
     <section id={id} className={CONTAINER_CLASS[variant]}>
       <div
-        role="tablist"
-        aria-label={label}
-        onKeyDown={handleKeyDown}
-        className={`flex gap-4 sm:gap-5 ${TABLIST_CLASS[variant]}`}
+        className={`flex items-end justify-between gap-4 ${TABLIST_CLASS[variant]}`}
       >
-        {tabs.map((tab, index) => {
-          const isActive = tab.id === active.id;
+        <div
+          role="tablist"
+          aria-label={label}
+          onKeyDown={handleKeyDown}
+          className="flex gap-4 sm:gap-5"
+        >
+          {tabs.map((tab, index) => {
+            const isActive = tab.id === active.id;
 
-          return (
-            <button
-              key={tab.id}
-              ref={(button) => {
-                buttonsRef.current[index] = button;
-              }}
-              type="button"
-              role="tab"
-              id={`${tab.id}-tab`}
-              aria-selected={isActive}
-              aria-controls={`${tab.id}-panel`}
-              // Roving, so Tab lands on the strip once and moves on rather than
-              // walking through every tab on the way into the panel.
-              tabIndex={isActive ? 0 : -1}
-              onClick={() => setActiveId(tab.id)}
-              className={`${TAB_BUTTON_CLASS} ${
-                isActive ? "border-accent text-fg" : "text-muted hover:text-fg"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={tab.id}
+                ref={(button) => {
+                  buttonsRef.current[index] = button;
+                }}
+                type="button"
+                role="tab"
+                id={`${tab.id}-tab`}
+                aria-selected={isActive}
+                aria-controls={`${tab.id}-panel`}
+                // Roving, so Tab lands on the strip once and moves on rather than
+                // walking through every tab on the way into the panel.
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => setActiveId(tab.id)}
+                className={`${TAB_BUTTON_CLASS} ${
+                  isActive
+                    ? "border-accent text-fg"
+                    : "text-muted hover:text-fg"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {aside && <div className="shrink-0 pb-2.5">{aside}</div>}
       </div>
 
       <div

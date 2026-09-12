@@ -37,7 +37,7 @@ type Stage = {
 
 /**
  * The selected channel's amplitude envelope, as a picture with its four
- * controls under it — the same pairing `FilterGraph` makes with its knobs.
+ * controls under it — the same pairing `FilterGraph` makes with its sliders.
  *
  * Attack and decay ride the exact ramps the voice is scheduled with, so the
  * bend in the curve is the bend the ear hears rather than a stand-in shape.

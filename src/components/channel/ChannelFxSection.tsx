@@ -7,7 +7,7 @@ import {
 } from "@/hooks/usePlayheadFollow";
 
 import FxGraph from "./FxGraph";
-import RotaryKnob from "@/components/ui/RotaryKnob";
+import ControlSlider from "@/components/ui/ControlSlider";
 import { channelMidiMapId } from "@/lib/midiParameters";
 import {
   MAX_SEND,
@@ -38,10 +38,10 @@ export type FxSettings = {
  * step the card follows rather than one it edits.
  */
 type ChannelFxSectionProps = {
-  /** Whose sends these are, so a MIDI mapping binds to that channel's knobs
+  /** Whose sends these are, so a MIDI mapping binds to that channel's sliders
    *  rather than to whichever channel happens to be selected. */
   channelId: string;
-  /** What the knobs edit: the channel's own, or an open step's. */
+  /** What the sliders edit: the channel's own, or an open step's. */
   settings: FxSettings;
   /**
    * What is currently being heard, or null while the transport is stopped —
@@ -108,13 +108,15 @@ export default function ChannelFxSection({
         phaserSend={shown.phaserSend}
       />
 
-      {/* One knob under each tile, in the same three columns, so which
-          picture belongs to which control needs no saying. */}
+      {/* One slider under each tile, in the same three columns, so which
+          picture belongs to which control needs no saying. The other tabs put
+          their parameters in a column beside the plot; this one cannot, since
+          there are three plots and each belongs to one row. */}
       <div
         {...groupProps}
-        className="grid grid-cols-3 justify-items-center gap-x-2 gap-y-4 sm:gap-x-8"
+        className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3"
       >
-        <RotaryKnob
+        <ControlSlider
           label="Delay"
           ariaLabel="Delay send"
           min={MIN_SEND}
@@ -133,7 +135,7 @@ export default function ChannelFxSection({
           onClearLocks={() => onClearLockedParameter("delaySend")}
         />
 
-        <RotaryKnob
+        <ControlSlider
           label="Reverb"
           ariaLabel="Reverb send"
           min={MIN_SEND}
@@ -152,7 +154,7 @@ export default function ChannelFxSection({
           onClearLocks={() => onClearLockedParameter("reverbSend")}
         />
 
-        <RotaryKnob
+        <ControlSlider
           label="Phaser"
           ariaLabel="Phaser send"
           min={MIN_SEND}

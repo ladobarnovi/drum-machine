@@ -51,7 +51,7 @@ type Marker = {
 /**
  * The shape of the selected channel's two cuts, with the corners marked.
  *
- * A picture rather than a second set of numbers: the knobs beside it already
+ * A picture rather than a second set of numbers: the sliders beside it already
  * say what the cutoffs and the resonances are, and what they cannot say is what
  * the four of them come to together — where the band actually sits, how steeply
  * it falls away either side, and how far the corners are peaking.

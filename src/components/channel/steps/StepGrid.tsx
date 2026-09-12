@@ -57,7 +57,7 @@ export default function StepGrid({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
         {Array.from({ length: beatCount }, (_, beat) => {
           const offset = beat * STEPS_PER_BEAT;
           // Narrowed to this beat before it goes down, so a playhead moving

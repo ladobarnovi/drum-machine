@@ -8,7 +8,15 @@ import { subscribeToTheme } from "@/lib/themes";
 const SCOPE_HEIGHT_PX = 64;
 
 /** Compact size for header display (square). */
-const SCOPE_COMPACT_SIZE_PX = 48;
+const SCOPE_COMPACT_WIDTH_PX = 88;
+const SCOPE_COMPACT_HEIGHT_PX = 20;
+
+/**
+ * The transport's own glyph, beside the trace rather than drawn into it: a
+ * triangle to start, two bars to stop. Ten by twelve, in the viewBox below.
+ */
+const PLAY_GLYPH = "M0 0 L10 6 L0 12 Z";
+const PAUSE_GLYPH = "M0 0 H3.5 V12 H0 Z M6.5 0 H10 V12 H6.5 Z";
 
 /** Thickness of the trace, in CSS pixels. */
 const TRACE_WIDTH_PX = 1.5;
@@ -106,113 +114,18 @@ export default function Oscilloscope({
 
     let frame = 0;
 
-    const drawPlayIcon = (
-      ctx: CanvasRenderingContext2D,
-      centerX: number,
-      centerY: number,
-      size: number,
-    ) => {
-      ctx.fillStyle = trace;
-      ctx.beginPath();
-      // Triangle pointing right
-      ctx.moveTo(centerX - size / 3, centerY - size / 2);
-      ctx.lineTo(centerX - size / 3, centerY + size / 2);
-      ctx.lineTo(centerX + size / 2, centerY);
-      ctx.closePath();
-      ctx.fill();
-    };
-
-    const drawPauseIcon = (
-      ctx: CanvasRenderingContext2D,
-      centerX: number,
-      centerY: number,
-      size: number,
-    ) => {
-      ctx.fillStyle = trace;
-      const barWidth = size / 4;
-      const barHeight = size;
-      // Left bar
-      ctx.fillRect(
-        centerX - size / 3 - barWidth / 2,
-        centerY - barHeight / 2,
-        barWidth,
-        barHeight,
-      );
-      // Right bar
-      ctx.fillRect(
-        centerX + size / 3 - barWidth / 2,
-        centerY - barHeight / 2,
-        barWidth,
-        barHeight,
-      );
-    };
-
     const draw = () => {
       frame = requestAnimationFrame(draw);
       if (width === 0 || height === 0) return;
 
       context.clearRect(0, 0, width, height);
 
-      if (compact) {
-        // Circular display for header
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const radius = Math.min(centerX, centerY) * 0.85;
-
-        // Draw center circle outline
-        context.strokeStyle = centre;
-        context.lineWidth = 1;
-        context.beginPath();
-        context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        context.stroke();
-
-        const samples = getWaveform();
-        if (samples && samples.length > 0) {
-          context.strokeStyle = trace;
-          context.lineWidth = TRACE_WIDTH_PX;
-          context.lineJoin = "round";
-          context.beginPath();
-
-          // Plot samples radially around the circle
-          for (let i = 0; i < samples.length; i++) {
-            const angle = (i / samples.length) * Math.PI * 2;
-            const sample = samples[i];
-            const offset = (sample - SILENCE_BYTE) / SILENCE_BYTE;
-            const distance = radius * (1 + offset * TRACE_HEADROOM * 0.3);
-
-            const x = centerX + Math.cos(angle) * distance;
-            const y = centerY + Math.sin(angle) * distance;
-
-            if (i === 0) context.moveTo(x, y);
-            else context.lineTo(x, y);
-          }
-
-          context.closePath();
-          context.stroke();
-        }
-
-        // Draw play/pause icon in the center
-        if (isPlaying) {
-          drawPauseIcon(
-            context,
-            centerX,
-            centerY,
-            Math.min(centerX, centerY) * 0.4,
-          );
-        } else {
-          drawPlayIcon(
-            context,
-            centerX,
-            centerY,
-            Math.min(centerX, centerY) * 0.4,
-          );
-        }
-      } else {
-        // Linear waveform display for sidebar
+      // A line through the middle, drawn first and always, so a machine that
+      // has never made a sound still shows a screen with a line on it rather
+      // than an empty box.
+      {
         const middle = height / 2;
 
-        // Drawn first and always, so a machine that has never made a sound still
-        // shows a screen with a line on it rather than an empty box.
         context.strokeStyle = centre;
         context.lineWidth = 1;
         context.beginPath();
@@ -267,17 +180,27 @@ export default function Oscilloscope({
         aria-label={isPlaying ? "Pause" : "Play"}
         aria-pressed={isPlaying}
         title={isPlaying ? "Pause" : "Play"}
-        className="block cursor-pointer rounded-full p-0"
+        className="border-line bg-panel hover:border-edge flex h-[2.125rem] cursor-pointer items-center gap-2.5 rounded border px-3 transition-colors"
       >
         <canvas
           ref={canvasRef}
           aria-hidden
           className="block"
           style={{
-            width: `${SCOPE_COMPACT_SIZE_PX}px`,
-            height: `${SCOPE_COMPACT_SIZE_PX}px`,
+            width: `${SCOPE_COMPACT_WIDTH_PX}px`,
+            height: `${SCOPE_COMPACT_HEIGHT_PX}px`,
           }}
         />
+
+        <span aria-hidden className="bg-line h-4 w-px" />
+
+        <svg
+          viewBox="0 0 10 12"
+          aria-hidden
+          className="text-audio h-3 w-2.5 shrink-0"
+        >
+          <path d={isPlaying ? PAUSE_GLYPH : PLAY_GLYPH} fill="currentColor" />
+        </svg>
       </button>
     );
   }

@@ -112,9 +112,7 @@ export default function ChannelGrid({
         role="group"
         aria-label="Channels"
         className={
-          isCompact
-            ? "grid grid-cols-8 gap-1"
-            : "grid grid-cols-4 gap-2 sm:grid-cols-8"
+          isCompact ? "grid grid-cols-8 gap-1" : "grid grid-cols-4 gap-2"
         }
       >
         {channels.map((channel, index) => (

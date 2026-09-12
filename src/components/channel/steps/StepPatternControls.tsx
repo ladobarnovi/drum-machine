@@ -84,23 +84,13 @@ export default function StepPatternControls({
   // drift if the scatter is ever widened or narrowed.
   const humanizePercent = Math.round(HUMANIZE_VELOCITY_AMOUNT * 100);
 
-  const actionClass =
-    "border-edge hover:bg-raised rounded border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
-
-  // Shared by the lengths and the fills: both are buttons that stay lit while
-  // the pattern is still what they set, so they read as one kind of control.
-  const toggleClass = (isActive: boolean) =>
-    `rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
-      isActive
-        ? "border-accent bg-accent text-on-accent"
-        : "border-edge hover:bg-raised"
-    }`;
+  const actionClass = "btn";
 
   // Each group is a heading over its row, so the gap inside a group has to stay
   // tighter than the gap between them — otherwise a heading floats midway and
   // stops reading as the label for the row beneath it.
   const groupClass = "flex flex-col gap-2";
-  const headingClass = "text-xs font-semibold";
+  const headingClass = "text-muted text-[10px] tracking-[0.11em] uppercase";
 
   return (
     <div className="flex flex-col gap-4">
@@ -125,7 +115,8 @@ export default function StepPatternControls({
                 onClick={() => onLengthChange(preset)}
                 aria-pressed={length === preset}
                 aria-label={`${preset} steps`}
-                className={`w-10 ${toggleClass(length === preset)}`}
+                data-on={length === preset}
+                className="btn w-11"
               >
                 {preset}
               </button>
@@ -147,7 +138,8 @@ export default function StepPatternControls({
                 type="button"
                 onClick={() => onApplyFill(fill)}
                 aria-pressed={isActive}
-                className={toggleClass(isActive)}
+                data-on={isActive}
+                className="btn"
               >
                 {fill.label}
               </button>
@@ -227,7 +219,8 @@ export default function StepPatternControls({
               type="button"
               onClick={() => onSwipeTargetChange(target)}
               aria-pressed={swipeTarget === target}
-              className={toggleClass(swipeTarget === target)}
+              data-on={swipeTarget === target}
+              className="btn"
             >
               {SWIPE_TARGET_LABELS[target]}
             </button>

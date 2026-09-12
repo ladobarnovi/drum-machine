@@ -1,7 +1,7 @@
 "use client";
 
 import MasterFxSection from "./MasterFxSection";
-import RailSlider from "@/components/ui/RailSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import {
   DRIVE_TYPES,
   DRIVE_TYPE_LABELS,
@@ -55,7 +55,7 @@ export default function MasterDriveControls({
         </select>
       </label>
 
-      <RailSlider
+      <ControlSlider
         label="Amount"
         ariaLabel="Master drive amount"
         min={MIN_DRIVE}
@@ -67,7 +67,7 @@ export default function MasterDriveControls({
         midiMapId="master:drive:amount"
       />
 
-      <RailSlider
+      <ControlSlider
         label="Volume"
         ariaLabel="Master drive volume"
         min={MIN_VOLUME}

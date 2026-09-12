@@ -7,7 +7,7 @@ import {
 } from "@/hooks/usePlayheadFollow";
 
 import EnvelopeGraph from "./EnvelopeGraph";
-import RotaryKnob from "@/components/ui/RotaryKnob";
+import ControlSlider from "@/components/ui/ControlSlider";
 import { channelMidiMapId } from "@/lib/midiParameters";
 import {
   MAX_SUSTAIN_LEVEL,
@@ -50,10 +50,10 @@ export type EnvelopeSettings = {
  * step the card follows rather than one it edits.
  */
 type ChannelEnvelopeSectionProps = {
-  /** Whose envelope this is, so a MIDI mapping binds to that channel's knobs
+  /** Whose envelope this is, so a MIDI mapping binds to that channel's sliders
    *  rather than to whichever channel happens to be selected. */
   channelId: string;
-  /** What the knobs edit: the channel's own, or an open step's. */
+  /** What the sliders edit: the channel's own, or an open step's. */
   settings: EnvelopeSettings;
   /**
    * What is currently being heard, or null while the transport is stopped —
@@ -64,12 +64,12 @@ type ChannelEnvelopeSectionProps = {
   onDecayChange: (seconds: number) => void;
   onSustainChange: (level: number) => void;
   onReleaseChange: (seconds: number) => void;
-  /** Rerolls one of the four knobs above across every active step. */
+  /** Rerolls one of the four sliders above across every active step. */
   onRandomizeParameter: (
     key: LockableParameter,
     randomize: () => number,
   ) => void;
-  /** Drops every override of one of the four knobs above, pattern-wide. */
+  /** Drops every override of one of the four sliders above, pattern-wide. */
   onClearLockedParameter: (key: LockableParameter) => void;
   /** Set while one step is being edited; absent while the channel is. */
   stepEdit?: StepEditRef;
@@ -107,7 +107,11 @@ export default function ChannelEnvelopeSection({
   });
 
   return (
-    <div className="flex flex-col gap-4">
+    // The picture on the left and what sets it on the right, the arrangement
+    // every one of these tabs takes: the plot is the wide thing and the
+    // parameters are a column of rows, so stacking them would leave the rows
+    // as wide as the plot and half of each one empty.
+    <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_17rem]">
       <EnvelopeGraph
         attackSeconds={shown.attackSeconds}
         decaySeconds={shown.decaySeconds}
@@ -115,13 +119,10 @@ export default function ChannelEnvelopeSection({
         releaseSeconds={shown.releaseSeconds}
       />
 
-      <div
-        {...groupProps}
-        className="grid grid-cols-4 justify-items-center gap-x-2 gap-y-4 sm:gap-x-8"
-      >
-        {/* Envelope times ride a 0..1 curve, so the readout shows the real
-            time — exactly the mapping the Shaping group's own sliders use. */}
-        <RotaryKnob
+      <div {...groupProps} className="flex flex-col gap-4">
+        {/* Envelope times ride a 0..1 curve rather than seconds, so the travel
+            is even across the range and the readout shows the real time. */}
+        <ControlSlider
           label="Attack"
           ariaLabel="Attack time"
           min={0}
@@ -144,7 +145,7 @@ export default function ChannelEnvelopeSection({
           onClearLocks={() => onClearLockedParameter("attackSeconds")}
         />
 
-        <RotaryKnob
+        <ControlSlider
           label="Decay"
           ariaLabel="Decay time"
           min={0}
@@ -167,7 +168,7 @@ export default function ChannelEnvelopeSection({
           onClearLocks={() => onClearLockedParameter("decaySeconds")}
         />
 
-        <RotaryKnob
+        <ControlSlider
           label="Sustain"
           ariaLabel="Sustain level"
           min={MIN_SUSTAIN_LEVEL}
@@ -190,7 +191,7 @@ export default function ChannelEnvelopeSection({
           onClearLocks={() => onClearLockedParameter("sustainLevel")}
         />
 
-        <RotaryKnob
+        <ControlSlider
           label="Release"
           ariaLabel="Release time"
           min={0}

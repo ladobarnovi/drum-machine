@@ -19,7 +19,7 @@ type FxGraphProps = {
  * three separate master buses rather than three parts of one shape: there is
  * no single curve they add up to, and drawing them into one frame would invent
  * a relationship between them that the signal path does not have. Each tile
- * instead sits directly above the knob that drives it, and shows the character
+ * instead sits directly above the slider that drives it, and shows the character
  * of its own effect — repeats off a hit, a tail behind one, notches across a
  * response — with the send amount deciding how much of it there is to see.
  *
@@ -48,7 +48,7 @@ export default function FxGraph({
   );
 }
 
-/** How a send reads in the row's label, matching the knobs' own readouts. */
+/** How a send reads in the row's label, matching the sliders' own readouts. */
 function describe(send: number): string {
   return isSendClosed(send) ? "off" : `${Math.round(send * 100)}%`;
 }

@@ -96,9 +96,8 @@ export default function MidiMappingsPanel({
 
       {rows.length === 0 ? (
         <p className="text-muted text-xs">
-          Nothing mapped yet. Right-click any slider or knob and choose
-          &ldquo;Learn MIDI CC&rdquo;, then move the control you want it to
-          follow.
+          Nothing mapped yet. Right-click any slider and choose &ldquo;Learn
+          MIDI CC&rdquo;, then move the control you want it to follow.
         </p>
       ) : (
         <>

@@ -2,7 +2,7 @@
 
 import GainReductionMeter from "./GainReductionMeter";
 import MasterFxSection from "./MasterFxSection";
-import RailSlider from "@/components/ui/RailSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import {
   MAX_COMPRESSOR_ATTACK_SECONDS,
   MAX_COMPRESSOR_RELEASE_SECONDS,
@@ -57,7 +57,7 @@ export default function MasterCompressorControls({
 
       {/* Threshold first: it decides how much of the mix the rest of these are
           acting on at all. */}
-      <RailSlider
+      <ControlSlider
         label="Threshold"
         ariaLabel="Master compressor threshold"
         min={MIN_THRESHOLD_DB}
@@ -71,7 +71,7 @@ export default function MasterCompressorControls({
         midiMapId="master:compressor:threshold"
       />
 
-      <RailSlider
+      <ControlSlider
         label="Ratio"
         ariaLabel="Master compressor ratio"
         min={MIN_RATIO}
@@ -85,7 +85,7 @@ export default function MasterCompressorControls({
         midiMapId="master:compressor:ratio"
       />
 
-      <RailSlider
+      <ControlSlider
         label="Attack"
         ariaLabel="Master compressor attack"
         min={MIN_COMPRESSOR_ATTACK_SECONDS}
@@ -102,7 +102,7 @@ export default function MasterCompressorControls({
         midiMapId="master:compressor:attack"
       />
 
-      <RailSlider
+      <ControlSlider
         label="Release"
         ariaLabel="Master compressor release"
         min={MIN_COMPRESSOR_RELEASE_SECONDS}
@@ -121,7 +121,7 @@ export default function MasterCompressorControls({
 
       {/* Last, because it is last in this stage's signal too: what the
           compressor puts out after it has taken something off. */}
-      <RailSlider
+      <ControlSlider
         label="Makeup"
         ariaLabel="Master compressor makeup gain"
         min={MIN_VOLUME}

@@ -35,24 +35,31 @@ export default function PresetPicker({
 
   return (
     <RailGroup title="Kit">
-      <select
-        value={selected.id}
-        onChange={(event) => setSelectedId(event.target.value)}
-        aria-label="Kit"
-        className="border-edge bg-field w-full rounded border px-2 py-1 text-xs"
-      >
+      {/* All four on the face of the rail rather than folded into a list:
+          there are only four, and which kit is loaded is worth being able to
+          see without opening anything. Picking one still only points the button
+          below at it — loading is what replaces the samples, so it stays a
+          second, deliberate press. */}
+      <div role="group" aria-label="Kit" className="grid grid-cols-2 gap-1.5">
         {presets.map((preset) => (
-          <option key={preset.id} value={preset.id}>
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => setSelectedId(preset.id)}
+            aria-pressed={preset.id === selected.id}
+            data-on={preset.id === selected.id}
+            className="btn"
+          >
             {preset.name}
-          </option>
+          </button>
         ))}
-      </select>
+      </div>
 
       <button
         type="button"
         onClick={() => onLoadPreset(selected)}
         disabled={isLoading}
-        className="border-edge hover:bg-raised w-full rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        className="btn h-9 w-full"
       >
         {isLoading ? "Loading…" : isEmptyKit ? "Clear kit" : "Load kit"}
       </button>

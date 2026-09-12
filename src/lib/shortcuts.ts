@@ -146,10 +146,13 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
-    title: "Knobs, sliders and trim handles",
+    title: "Sliders and trim handles",
     shortcuts: [
       { keys: ["↑", "↓"], description: "Move by one step — or ← and →" },
-      { keys: ["Page ↑", "Page ↓"], description: "Move by ten" },
+      {
+        keys: ["Page ↑", "Page ↓"],
+        description: "Move by a tenth of the travel",
+      },
       {
         keys: ["Home", "End"],
         description: "Jump to either end of the travel",
@@ -163,7 +166,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       {
         keys: ["Right-click"],
         description:
-          "Open a menu — on pads, steps, pattern and scene slots, knobs and sliders",
+          "Open a menu — on pads, steps, pattern and scene slots and sliders",
       },
       { keys: ["Shift", "F10"], description: "The same, from the keyboard" },
       { keys: ["↑", "↓"], description: "Move between menu items" },

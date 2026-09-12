@@ -34,7 +34,11 @@ export default function SceneGrid({
 }: SceneGridProps) {
   return (
     <RailGroup title="Scenes">
-      <div role="group" aria-label="Scenes" className="grid grid-cols-4 gap-2">
+      <div
+        role="group"
+        aria-label="Scenes"
+        className="grid grid-cols-2 gap-1.5"
+      >
         {scenes.map((scene, index) => (
           <SlotButton
             key={index}
@@ -43,6 +47,9 @@ export default function SceneGrid({
             filled={scene !== null}
             active={activeIndex === index}
             label={sceneDisplayName(scene, index)}
+            // The name if it has one, and otherwise what the slot is: the
+            // fallback "Scene 4" would only repeat the number beside it.
+            caption={scene?.name.trim() ? scene.name : "Empty"}
             // Nothing to recall from an empty slot; the right click that saves
             // one there still works, exactly as it does on a pattern slot.
             onClick={() => {

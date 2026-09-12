@@ -8,8 +8,8 @@ export const CONTROLS_SIDEBAR_ID = "controls-sidebar";
  * this renders in normal document flow, not against either edge.
  */
 const SIDE_CLASSES = {
-  left: "xl:left-0 xl:border-r",
-  right: "xl:right-0 xl:border-l",
+  left: "xl:left-0 xl:w-64 xl:border-r",
+  right: "xl:right-0 xl:w-80 xl:border-l",
 } as const;
 
 type SidebarProps = {
@@ -45,9 +45,13 @@ export default function Sidebar({
     <aside
       id={id}
       aria-label={label}
-      className={`quiet-scrollbar border-line bg-surface min-h-0 w-full flex-col gap-6 overflow-y-auto p-4 md:p-6 xl:fixed xl:inset-y-0 xl:z-40 xl:flex xl:w-64 ${SIDE_CLASSES[side]} ${
-        mobileActive ? "flex flex-1" : "hidden"
-      }`}
+      // The controls rail's groups are separated by a rule, the way the tab
+      // strips and the cards are: it carries five unrelated things — the
+      // transport, the scenes, the kit, the link, the settings — where the
+      // effects rail carries one tabbed stack that would only be cut up by it.
+      className={`quiet-scrollbar border-line bg-surface min-h-0 w-full flex-col gap-6 overflow-y-auto p-4 md:p-6 xl:fixed xl:inset-y-0 xl:z-40 xl:flex ${
+        side === "left" ? "divide-line divide-y" : ""
+      } ${SIDE_CLASSES[side]} ${mobileActive ? "flex flex-1" : "hidden"}`}
     >
       {children}
     </aside>

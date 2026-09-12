@@ -1,16 +1,18 @@
 "use client";
 
+import Switch from "@/components/ui/Switch";
+
 /**
- * The bypass button is all-or-nothing: a stage that can be switched out needs
+ * The bypass switch is all-or-nothing: a stage that can be switched out needs
  * every one of these, and one that can't — the output fader — takes none of
  * them. Spelt as a union rather than four loose optionals so a stage can't be
  * written with an `enabled` that nothing can toggle.
  */
 type MasterFxSectionToggle =
   | {
-      /** Names the bypass button on its own, e.g. "Master drive". */
+      /** Names the bypass switch on its own, e.g. "Master drive". */
       toggleLabel: string;
-      /** Keyboard shortcut for the bypass button, e.g. "Ctrl+F", shown as a tooltip. */
+      /** Keyboard shortcut for the bypass switch, e.g. "Ctrl+F", shown beside it. */
       shortcut?: string;
       enabled: boolean;
       onToggle: () => void;
@@ -53,11 +55,10 @@ export default function MasterFxSection({
         its title on the same line at the same weight — a heading that shifted
         up by the height of a button on the one section without one would read
         as a different kind of thing rather than as the last stage. `min-h`
-        holds the row open to the bypass button's own height — a 16px line,
-        2px of padding and a 1px border, top and bottom — so the title keeps
-        the boxes' rhythm whether or not there is a button beside it.
+        holds the row open to the bypass switch's own height, so the title keeps
+        the boxes' rhythm whether or not there is a switch beside it.
       */}
-      <div className="flex min-h-[1.375rem] items-center justify-between">
+      <div className="flex min-h-5 items-center justify-between">
         {/*
           Top level within its rail, like the group headings on the other one:
           the boxes now sit directly in a tab panel, which is named by its tab
@@ -66,20 +67,27 @@ export default function MasterFxSection({
         <h2 className="font-serif text-lg leading-none">{title}</h2>
 
         {onToggle && (
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-pressed={enabled}
-            aria-label={toggleLabel}
-            title={shortcut ? `${toggleLabel} (${shortcut})` : toggleLabel}
-            className={`rounded border px-2 py-0.5 text-[10px] leading-4 font-semibold transition-colors ${
-              enabled
-                ? "border-accent bg-accent text-on-accent"
-                : "border-edge text-muted hover:bg-raised"
-            }`}
-          >
-            {enabled ? "On" : "Off"}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* The key, beside the switch it works rather than only in the
+                shortcut list, since this is the one control on the rail worth
+                reaching for without the mouse mid-take. */}
+            {shortcut && (
+              <span className="text-muted font-mono text-[10px]">
+                {shortcut}
+              </span>
+            )}
+
+            {/* A switch rather than a button reading "On": whether a stage is
+                in the signal is a flag, and the track-and-thumb shape says
+                which way it is set without the word having to be read. */}
+            <Switch
+              checked={enabled ?? false}
+              label={toggleLabel ?? ""}
+              title={shortcut ? `${toggleLabel} (${shortcut})` : toggleLabel}
+              size="md"
+              onChange={onToggle}
+            />
+          </div>
         )}
       </div>
 

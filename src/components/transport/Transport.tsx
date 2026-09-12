@@ -1,7 +1,7 @@
 "use client";
 
 import RailGroup from "@/components/ui/RailGroup";
-import RailSlider from "@/components/ui/RailSlider";
+import ControlSlider from "@/components/ui/ControlSlider";
 import {
   MAX_BPM,
   MAX_SWING,
@@ -44,7 +44,8 @@ export default function Transport({
         onClick={onTogglePlay}
         // Stay enabled while playing so the transport can always be stopped.
         disabled={!isPlaying && !canPlay}
-        className="bg-invert text-on-invert w-full rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
+        data-on={isPlaying}
+        className="btn h-11 w-full"
       >
         {isPlaying ? "Stop" : "Play"}
       </button>
@@ -56,7 +57,7 @@ export default function Transport({
         </p>
       )}
 
-      <RailSlider
+      <ControlSlider
         label="BPM"
         ariaLabel="BPM"
         min={MIN_BPM}
@@ -67,7 +68,7 @@ export default function Transport({
         onChange={(value) => onBpmChange(clampBpm(value))}
       />
 
-      <RailSlider
+      <ControlSlider
         label="Swing"
         ariaLabel="Swing"
         min={MIN_SWING}
